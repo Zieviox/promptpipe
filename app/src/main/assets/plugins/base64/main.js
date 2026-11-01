@@ -45,17 +45,40 @@ const findBase64 = (text) => {
   const trim = (g) => {
     let a = 0;
     while (a < g.length - 1 && g[a].length < 12) a++;
-    return g.slice(a).join("");
+    return g.slice(a);
   };
-  return groups.map(trim).sort((x, y) => y.length - x.length)[0] || "";
+  return groups.map(trim).sort((x, y) => y.join("").length - x.join("").length)[0] || [];
 };
 
+const badChars = (t) => (t.match(/[�\u0000-\u0008\u000E-\u001F]/g) || []).length;
+
 const decode = (text, s, ctx) => {
-  const best = findBase64(text);
+  const words = findBase64(text);
   try {
     // Ordinary words are short; real base64 runs much longer.
-    if (best.length < 16) throw new Error("no base64 found in the reply");
-    const out = fromBase64(best, s.strict);
+    if (words.join("").length < 16) throw new Error("no base64 found in the reply");
+    // Words right after the base64 (a short sign-off, a button label) can look
+    // like base64 too and decode to garbage: try without up to 3 trailing words.
+    let out = null;
+    for (let cut = 0; cut <= Math.min(3, words.length - 1); cut++) {
+      let o;
+      try {
+        o = fromBase64(words.slice(0, words.length - cut).join(""), s.strict);
+      } catch (e) {
+        if (cut === 0 && s.strict) throw e;
+        continue;
+      }
+      if (cut) o.fixes.push(`left out ${cut} trailing word${cut > 1 ? "s" : ""}`);
+      if (!out || badChars(o.text) < badChars(out.text)) out = o;
+      if (!badChars(o.text)) break;
+    }
+    if (!out) throw new Error("the base64 in the reply doesn't decode");
+    // The AI garbled only the very end: keep the clean text before it.
+    const firstBad = out.text.search(/[�\u0000-\u0008\u000E-\u001F]/);
+    if (!s.strict && firstBad > 0 && firstBad > out.text.length * 0.85) {
+      out.text = out.text.slice(0, firstBad).replace(/[^\s.!?"')\]]*$/, "").trimEnd();
+      out.fixes.push("dropped a garbled ending");
+    }
     // Repairs can't save text that was never base64: refuse obvious garbage.
     const bad = (out.text.match(/[�\u0000-\u0008\u000E-\u001F]/g) || []).length;
     if (bad > Math.max(2, out.text.length * 0.03)) throw new Error("the reply doesn't decode to readable text (not base64?)");
