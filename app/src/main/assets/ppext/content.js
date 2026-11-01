@@ -91,7 +91,17 @@
       lines.push("  ".repeat(depth) + el.tagName.toLowerCase() + cls + attrs + (own ? `  "${own}"` : ""));
       for (const c of el.children) if (!/^(svg|script|style|path)$/i.test(c.tagName)) walk(c, depth + 1);
     };
+    lines.push("== around the newest reply ==");
     walk(box, 0);
+    // The message box and its buttons, where sending happens.
+    let inp = first(site.input);
+    if (inp) {
+      for (let up = 0; up < 5 && inp.parentElement && inp.parentElement !== document.body; up++) inp = inp.parentElement;
+      lines.push("", "== around the message box ==");
+      const before = lines.length;
+      walk(inp, 0);
+      if (lines.length > 400) lines.length = Math.max(before, 400);
+    } else lines.push("", "== message box: not found with the plugin's input selectors ==");
     return { url: location.href, report: lines.join("\n") };
   };
   const answerText = (site, el) => {
@@ -126,16 +136,22 @@
   const typeInto = async (site, text, snap) => {
     // The site may still be loading (it just opened or switched chats), so wait for the box.
     const el = await waitFor(() => first(site.input), 15000);
-    if (!el) throw new Error(loggedOut() ? "the site looks logged out: tap the site name and log in, then Retry" : "chat input box not found on the page after 15s (are you logged in? tap the site name to look)");
+    if (!el) throw new Error("chat input box not found on the page after 15s (tap the site name to look" + (loggedOut() ? "; it shows a Log in button" : "") + ")");
     el.focus();
     if (el.isContentEditable) {
       document.execCommand("selectAll", false, null);
       document.execCommand("insertText", false, text);
     } else {
-      // Native setter so React/Vue notice the change.
-      const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-      Object.getOwnPropertyDescriptor(proto, "value").set.call(el, text);
-      el.dispatchEvent(new Event("input", { bubbles: true }));
+      // Typing through the editor command fires the same events as a real
+      // keyboard, which React/Vue apps listen to. Fall back to the native setter.
+      el.select();
+      const typed = document.execCommand("insertText", false, text) && el.value === text;
+      if (!typed) {
+        const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+        Object.getOwnPropertyDescriptor(proto, "value").set.call(el, text);
+        el.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+      }
     }
     // Long text can take the site a moment to accept: wait for an enabled send button.
     const enabled = (b) => b && !b.disabled && b.getAttribute("aria-disabled") !== "true";
@@ -176,8 +192,7 @@
     // Press again only while our text is clearly still waiting in the same box.
     if (el.isConnected && boxText()) press();
     if (!(await waitFor(() => went() || null, 10000))) {
-      if (loggedOut()) throw new Error("the site looks logged out: tap the site name and log in, then Retry");
-      throw new Error("couldn't tell whether the site sent it. If the site is answering, tap Check");
+      throw new Error("couldn't tell whether the site sent it. If the site is answering, tap Check; if not, ⋯ → Copy page report and send it to whoever maintains the site plugin");
     }
   };
 
