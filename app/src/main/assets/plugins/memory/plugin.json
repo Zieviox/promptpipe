@@ -1,0 +1,76 @@
+{
+  "id": "memory",
+  "name": "Memory",
+  "version": "2.1.0",
+  "description": "Puts your pinned facts and the earlier chat in front of every message, so a fresh AI chat has the context. Everything goes in full until the max is reached. After that, the older turns are summarised in a separate chat on the site (with its own system prompt stack) and the summary goes in instead; the recent turns stay in full.",
+  "main": "main.js",
+  "block": {
+    "place": "toggles",
+    "label": "Memory"
+  },
+  "settings": {
+    "pinned": {
+      "type": "textarea",
+      "label": "Pinned facts (always sent)",
+      "default": "",
+      "help": "One fact per line. Sent first, never cut or summarised."
+    },
+    "every": {
+      "type": "number",
+      "label": "Send memory every N messages",
+      "default": 1,
+      "help": "1 = every message. Use a higher number if the AI site keeps the chat itself."
+    },
+    "recent": {
+      "type": "number",
+      "label": "Recent turns sent in full",
+      "default": 6,
+      "help": "Only used once the memory goes over the max: these stay word for word, older ones get summarised."
+    },
+    "budget": {
+      "type": "number",
+      "label": "Max characters of memory",
+      "default": 50000,
+      "help": "Nothing is summarised below this. Pinned facts count too."
+    },
+    "ahead": {
+      "type": "number",
+      "label": "Start summarising this many messages before the max",
+      "default": 6,
+      "help": "Uses the chat's average message size. The summary is made in the background after a reply, so it's ready when the max is reached and sends don't wait for it. 0 = only at the max."
+    },
+    "overflow": {
+      "type": "select",
+      "label": "Over the max",
+      "options": {
+        "summary": "Summarise older turns in another chat",
+        "clip": "Clip older turns, drop the oldest (no extra chat)"
+      },
+      "default": "summary"
+    },
+    "summaryPrompt": {
+      "type": "textarea",
+      "label": "Summary request (sent with the older turns)",
+      "default": "Summarise the conversation below so it can continue in a new chat that only sees your summary. Keep every name, fact, decision and promise, what each character wants and knows, open threads, the current situation and the user's preferences. Leave out small talk. Write plain text, as short as possible without losing any of that. Reply with the summary only.",
+      "help": "Goes after the summary's system prompts, before the turns."
+    },
+    "summaryHooks": {
+      "type": "bool",
+      "label": "Run the profile's plugins on the summary request (e.g. Base64)",
+      "default": false
+    },
+    "clip": {
+      "type": "number",
+      "label": "Characters kept of each older turn (Clip mode, or if a summary fails)",
+      "default": 200
+    },
+    "stackMode": {
+      "type": "hidden",
+      "default": "same"
+    },
+    "stack": {
+      "type": "hidden",
+      "default": []
+    }
+  }
+}

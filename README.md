@@ -13,6 +13,11 @@ Markdown file on your phone.
 - **Model thinking kept**, folded under each reply.
 - **Local API**: other apps on the same phone can use it like an OpenAI API at
   `http://127.0.0.1:7790/v1`. Only reachable from the phone itself.
+- **Chats in parallel**: up to 4 site pages at once, for you, your plugins and
+  other apps; more messages wait in a queue.
+- **Memory**: long chats keep their context; older turns get summarised in a
+  side chat before the limit is reached.
+- **System prompt library**: save, pin and stack prompts.
 - Touch first, with keyboard shortcuts for a hardware keyboard.
 
 promptpipe ships **without AI site plugins**. Install the one for the site you
@@ -60,7 +65,7 @@ over each other); without it Gradle's usual debug key is used.
 - `app/src/main/assets/ppext/`: the built-in extension whose content script
   drives the AI page.
 - `app/src/main/assets/plugins/`: built-in plugins (Base64, System prompt,
-  themes).
+  Memory, Page report, themes).
 
 Built on GeckoView (Firefox's engine), NanoHTTPD and JGit.
 

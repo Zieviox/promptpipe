@@ -19,6 +19,10 @@ button.primary:hover { background: #a6b0ff; }
 button.danger { color: var(--err); }
 button.small { min-height: 32px; padding: 4px 10px; font-size: 13px; background: var(--raise); }
 button.small.primary { background: var(--accent); color: #0b0c0f; }
+/* Buttons in rows look like buttons (filled + outline), never like plain text. */
+.row > button:not(.icon):not(.primary) { background: var(--raise); border: 1px solid var(--hair); }
+.row > button:not(.icon):not(.primary):hover { background: var(--raise2); }
+button.small { border: 1px solid var(--hair); }
 button.icon { min-width: 40px; min-height: 40px; padding: 0; display: inline-grid; place-items: center; color: var(--muted); }
 button.icon:hover { color: var(--text); }
 button.ghost { min-height: 30px; padding: 2px 8px; font-size: 13px; color: var(--faint); }
@@ -64,7 +68,7 @@ pre { white-space: pre-wrap; word-break: break-word; background: var(--raise); b
 .tag-input::placeholder { color: var(--faint); }
 
 /* messages */
-.messages { flex: 1; overflow-y: auto; padding: 8px 14px 24px; scroll-behavior: smooth; border-top: 1px solid var(--hair); }
+.messages { flex: 1; overflow-y: auto; padding: 8px 14px 24px; overflow-anchor: none; border-top: 1px solid var(--hair); }
 .empty { text-align: center; padding: 18vh 10px 0; color: var(--muted); }
 .empty p { margin: 6px 0; }
 .turn { margin: 18px 0 26px; }
@@ -108,7 +112,11 @@ pre { white-space: pre-wrap; word-break: break-word; background: var(--raise); b
 .send:hover { background: #a6b0ff; }
 .progress { font-size: 12px; color: var(--muted); min-height: 0; padding: 0 12px; }
 .progress:empty { display: none; }
-.msg .progress { padding: 0; animation: pulse 1.4s ease-in-out infinite; }
+.progress:has(.progress-text:empty) { display: none; }
+.msg .progress-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.msg .progress-line { animation: pulse 1.4s ease-in-out infinite; }
+.stepper { align-items: center; gap: 12px; }
+.stepper button { min-width: 44px; font-size: 18px; }
 @keyframes pulse { 50% { opacity: .4; } }
 
 /* plugin blocks */
@@ -240,3 +248,25 @@ mark { background: #e7c46a33; color: var(--text); border-radius: 3px; padding: 0
 .site-link { margin-top: 8px; flex-wrap: nowrap; }
 .no-site { max-width: 420px; margin: 0 auto 18px; padding: 14px; border: 1px solid var(--hair); border-radius: var(--r); background: var(--raise); }
 .no-site .row { justify-content: center; }
+
+/* Text selection: visible on every theme, never blocked. */
+::selection { background: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--text); }
+.msg .text, .msg .md, .thinking { -webkit-user-select: text; user-select: text; }
+.select-box { width: 100%; min-height: 30vh; margin: 6px 0 14px; padding: 10px; background: var(--raise); border: 1px solid var(--hair); border-radius: var(--r, 10px); line-height: 1.5; resize: vertical; }
+
+/* Queued messages: dimmed until it's their turn. */
+.turn.queued .msg.you { opacity: .6; border-style: dashed; }
+.queued-actions { justify-content: flex-end; align-items: center; flex-wrap: wrap; }
+/* System prompt library */
+.sp-row, .sp-head { display: flex; align-items: center; gap: 8px; }
+.sp-row { padding: 6px 0; border-bottom: 1px solid var(--hair); }
+.sp-num { color: var(--faint); min-width: 1.5em; }
+.sp-item { padding: 10px 0; border-bottom: 1px solid var(--hair); }
+.sp-item.pinned strong { color: var(--accent); }
+.sp-text { white-space: pre-wrap; font-size: 13px; margin: 4px 0 6px; }
+.sp-edit { display: grid; gap: 8px; margin: 6px 0 12px; }
+.sp-edit textarea, .sp-edit input { background: var(--raise); border: 1px solid var(--hair); }
+.grow { flex: 1; min-width: 0; }
+
+/* A new reply waits on the jump button instead of moving the chat. */
+.jump.new { width: auto; padding: 0 14px; border-radius: 20px; background: var(--accent); color: #0b0c0f; font-weight: 600; font-size: 13px; border-color: transparent; }

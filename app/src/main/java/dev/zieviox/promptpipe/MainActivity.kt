@@ -28,15 +28,19 @@ class MainActivity : Activity(), Hub.Screen {
     private val app get() = application as App
     private lateinit var uiView: GeckoView
     private lateinit var siteBox: LinearLayout
-    private lateinit var siteView: GeckoView
+    // One view per site page, stacked; the shown one is on top.
+    private lateinit var siteStack: FrameLayout
+    private val siteViews = ArrayList<GeckoView>()
+    private var shown = 0
     private lateinit var siteLabel: TextView
+    private lateinit var pageButton: Button
     private var siteShown = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val root = FrameLayout(this)
         uiView = GeckoView(this)
-        siteView = GeckoView(this)
+        siteStack = FrameLayout(this)
         siteLabel = TextView(this).apply {
             setTextColor(Color.LTGRAY)
             setPadding(16, 0, 16, 0)
@@ -49,19 +53,25 @@ class MainActivity : Activity(), Hub.Screen {
         }
         val reload = Button(this).apply {
             text = "Reload"
-            setOnClickListener { app.hub.reloadAll() }
+            setOnClickListener { app.hub.reloadAll(shown) }
+        }
+        // With several site pages: tap to look at the next one.
+        pageButton = Button(this).apply {
+            setOnClickListener { showPage((shown + 1) % app.hub.pages.size) }
+            visibility = View.GONE
         }
         val bar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setBackgroundColor(Color.rgb(18, 22, 31))
             addView(back)
             addView(siteLabel, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f))
+            addView(pageButton)
             addView(reload)
         }
         siteBox = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(bar)
-            addView(siteView, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+            addView(siteStack, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
             visibility = View.GONE
         }
         root.addView(uiView)
@@ -85,7 +95,7 @@ class MainActivity : Activity(), Hub.Screen {
 
         app.hub.screen = this
         uiView.setSession(app.hub.uiSession)
-        siteView.setSession(app.hub.popup ?: app.hub.siteSession)
+        pagesChanged()
 
         startForegroundService(Intent(this, KeepAlive::class.java))
         if (Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
@@ -122,7 +132,7 @@ class MainActivity : Activity(), Hub.Screen {
     override fun onDestroy() {
         if (app.hub.screen === this) app.hub.screen = null
         uiView.releaseSession()
-        siteView.releaseSession()
+        siteViews.forEach { it.releaseSession() }
         super.onDestroy()
     }
 
@@ -152,29 +162,66 @@ class MainActivity : Activity(), Hub.Screen {
     override fun showSite(show: Boolean) {
         siteShown = show
         siteBox.visibility = if (show) View.VISIBLE else View.GONE
-        siteLabel.text = app.hub.siteInfo.optString("url")
-        // Keep both pages running even when hidden.
-        app.hub.siteSession.setActive(true)
+        updateBar()
+        // Keep every page running even when hidden.
+        app.hub.pages.forEach { it.session.setActive(true) }
         app.hub.uiSession.setActive(true)
-        (if (show) siteView else uiView).requestFocus()
+        (if (show) siteViews.getOrNull(shown) ?: uiView else uiView).requestFocus()
+    }
+
+    private fun updateBar() {
+        val n = app.hub.pages.size
+        siteLabel.text = (app.hub.pages.getOrNull(shown) ?: app.hub.pages[0]).info.optString("url")
+        pageButton.text = "Page ${shown + 1}/$n"
+        pageButton.visibility = if (n > 1) View.VISIBLE else View.GONE
+    }
+
+    // Bring site page i to the front (the others keep running under it).
+    private fun showPage(i: Int) {
+        shown = i.coerceIn(0, siteViews.size - 1)
+        siteViews[shown].bringToFront()
+        updateBar()
+        if (siteShown) siteViews[shown].requestFocus()
+        app.hub.emit(JSONObject().put("type", "shown").put("page", shown))
+    }
+
+    private fun sessionFor(i: Int) = if (i == shown && app.hub.popup != null) app.hub.popup!! else app.hub.pages[i].session
+
+    // One view per page; called at start and when the page count changes.
+    override fun pagesChanged() {
+        val n = app.hub.pages.size
+        while (siteViews.size > n) siteViews.removeAt(siteViews.size - 1).also { it.releaseSession(); siteStack.removeView(it) }
+        while (siteViews.size < n) siteViews.add(GeckoView(this).also { siteStack.addView(it, 0, FrameLayout.LayoutParams(-1, -1)) })
+        if (shown >= n) shown = 0
+        for (i in 0 until n) if (siteViews[i].session !== sessionFor(i)) {
+            siteViews[i].releaseSession()
+            siteViews[i].setSession(sessionFor(i))
+        }
+        showPage(shown)
     }
 
     override fun reattach() {
         uiView.releaseSession()
         uiView.setSession(app.hub.uiSession)
-        siteView.releaseSession()
-        siteView.setSession(app.hub.popup ?: app.hub.siteSession)
+        for (i in siteViews.indices) {
+            siteViews[i].releaseSession()
+            siteViews[i].setSession(sessionFor(i))
+        }
     }
 
     override fun showPopup(session: GeckoSession?) {
-        siteView.releaseSession()
-        siteView.setSession(session ?: app.hub.siteSession)
+        val v = siteViews.getOrNull(shown) ?: return
+        v.releaseSession()
+        v.setSession(session ?: app.hub.pages[shown].session)
         if (session != null) showSite(true)
     }
 
     override fun runAction(action: String, data: JSONObject) {
         when (action) {
-            "site" -> showSite(true)
+            "site" -> {
+                if (data.has("page")) showPage(data.optInt("page"))
+                showSite(true)
+            }
             "chat" -> showSite(false)
             "openUrl" -> try {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(data.getString("url"))))

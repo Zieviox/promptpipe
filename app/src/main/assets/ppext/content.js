@@ -34,6 +34,120 @@
   };
   const textOf = (el) => (el ? (el.innerText || el.textContent || "").trim() : "");
 
+  // A reply's HTML as Markdown, so lists, headings, code and tables survive.
+  const SKIP = /^(button|svg|style|script|noscript|template|textarea|input|select|nav|form)$/i;
+  const BLOCK = /^(P|DIV|UL|OL|PRE|TABLE|BLOCKQUOTE|H[1-6]|HR|SECTION|ARTICLE|FIGURE|DETAILS|MAIN)$/;
+  const toMarkdown = (root) => {
+    if (!root) return "";
+    const hidden = (el) => el.getAttribute("aria-hidden") === "true" || el.hidden || (el.isConnected && getComputedStyle(el).display === "none");
+    const inline = (node) => {
+      let out = "";
+      for (const n of node.childNodes) {
+        if (n.nodeType === 3) out += n.textContent.replace(/\s+/g, " ");
+        else if (n.nodeType === 1) out += el2md(n, true);
+      }
+      return out;
+    };
+    const wrap = (s, m) => (s.trim() ? m + s.trim() + m : "");
+    const codeText = (pre) => {
+      const code = pre.querySelector("code") || pre;
+      // Line-numbered and highlighted blocks: plain text without UI labels.
+      const c = code.cloneNode(true);
+      c.querySelectorAll("button, [class*='copy' i], [class*='line-number' i], [class*='linenumber' i]").forEach((x) => x.remove());
+      return c.textContent.replace(/\n$/, "");
+    };
+    const lang = (pre) => {
+      const code = pre.querySelector("code") || pre;
+      const m = /(?:language|lang)-([\w+#-]+)/.exec((code.className || "") + " " + (pre.className || ""));
+      return m ? m[1] : "";
+    };
+    // Nested content is indented under its item by the marker's width.
+    const list = (el) => {
+      const ordered = el.tagName === "OL";
+      let i = +(el.getAttribute("start") || 1);
+      let out = "";
+      for (const li of el.children) {
+        if (li.tagName !== "LI") continue;
+        const mark = ordered ? `${i++}. ` : "- ";
+        let body = "";
+        for (const n of li.childNodes) {
+          if (n.nodeType === 1 && /^(UL|OL)$/.test(n.tagName)) body = body.replace(/\n+$/, "") + "\n" + list(n);
+          else if (n.nodeType === 1 && BLOCK.test(n.tagName)) body += (body.trim() ? "\n" : "") + el2md(n, false).trim() + "\n";
+          else body += n.nodeType === 3 ? n.textContent.replace(/\s+/g, " ") : el2md(n, true);
+        }
+        const lines = body.trim().split("\n").filter((l, k, a) => l.trim() || (k > 0 && a[k - 1].trim()));
+        out += mark + [lines[0], ...lines.slice(1).map((l) => (l.trim() ? " ".repeat(mark.length) + l : l))].join("\n") + "\n";
+      }
+      return out;
+    };
+    const table = (el) => {
+      const rows = [...el.querySelectorAll("tr")].map((tr) => [...tr.children].map((td) => inline(td).trim().replace(/\|/g, "\\|")));
+      if (!rows.length) return "";
+      const n = Math.max(...rows.map((r) => r.length));
+      const line = (r) => "| " + [...r, ...Array(n - r.length).fill("")].join(" | ") + " |";
+      return [line(rows[0]), "|" + " --- |".repeat(n), ...rows.slice(1).map(line)].join("\n") + "\n\n";
+    };
+    const el2md = (el, isInline) => {
+      if (SKIP.test(el.tagName) || hidden(el)) return "";
+      const t = el.tagName;
+      switch (t) {
+        case "BR": return "\n";
+        case "STRONG": case "B": return wrap(inline(el), "**");
+        case "EM": case "I": return wrap(inline(el), "*");
+        case "DEL": case "S": return wrap(inline(el), "~~");
+        case "CODE": return el.closest("pre") ? el.textContent : "`" + el.textContent + "`";
+        case "A": { const x = inline(el).trim(); const href = el.getAttribute("href"); return href && x && !href.startsWith("javascript:") ? `[${x}](${el.href})` : x; }
+        case "IMG": return el.alt || el.src ? `![${el.alt || ""}](${el.src})` : "";
+      }
+      if (!BLOCK.test(t)) return inline(el);
+      // A code block's wrapper (language label, Copy button): just the code.
+      if (t === "DIV") {
+        const pres = el.querySelectorAll("pre");
+        if (pres.length === 1 && el.textContent.length - pres[0].textContent.length < 40) return el2md(pres[0], false);
+      }
+      switch (t) {
+        case "H1": case "H2": case "H3": case "H4": case "H5": case "H6": return "#".repeat(+t[1]) + " " + inline(el).trim() + "\n\n";
+        case "P": return inline(el).trim() + "\n\n";
+        case "HR": return "---\n\n";
+        case "PRE": return "```" + lang(el) + "\n" + codeText(el) + "\n```\n\n";
+        case "UL": case "OL": return list(el) + "\n";
+        case "TABLE": return table(el);
+        case "BLOCKQUOTE": return blocks(el).trim().split("\n").map((l) => "> " + l).join("\n") + "\n\n";
+      }
+      return blocks(el);
+    };
+    // Block children: runs of inline content become one paragraph.
+    const blocks = (el) => {
+      let out = "", run = "";
+      const flush = () => {
+        if (run.trim()) out += run.trim() + "\n\n";
+        run = "";
+      };
+      for (const n of el.childNodes) {
+        if (n.nodeType === 3) run += n.textContent.replace(/\s+/g, " ");
+        else if (n.nodeType === 1) {
+          const md = el2md(n, false);
+          if (/\n\n$/.test(md) || /^(DIV|SECTION|ARTICLE)$/.test(n.tagName)) {
+            flush();
+            out += md.endsWith("\n\n") || !md.trim() ? md : md.trim() + "\n\n";
+          } else run += md;
+        }
+      }
+      flush();
+      return out;
+    };
+    return blocks(root).replace(/\n{3,}/g, "\n\n").trim();
+  };
+  // Markdown when it says more than plain text, otherwise the plain text.
+  const mdOf = (el) => {
+    if (!el) return "";
+    try {
+      return toMarkdown(el) || textOf(el);
+    } catch (e) {
+      return textOf(el);
+    }
+  };
+
   const snapshot = (site) => {
     const snap = {};
     for (const s of site.reply || []) {
@@ -78,37 +192,22 @@
     return [];
   };
 
-  // Outline of the newest message's HTML, so a site's selectors can be fixed.
-  const probe = (site) => {
-    let box = lastReplyEl(site) || document.body;
-    for (let up = 0; up < 4 && box.parentElement && box.parentElement !== document.body; up++) box = box.parentElement;
-    const lines = [];
-    const walk = (el, depth) => {
-      if (lines.length > 400 || depth > 14) return;
-      const cls = typeof el.className === "string" && el.className.trim() ? "." + el.className.trim().split(/\s+/).join(".") : "";
-      const attrs = ["id", "role", "aria-label", "aria-expanded", "data-testid"].filter((a) => el.getAttribute(a)).map((a) => `[${a}=${el.getAttribute(a)}]`).join("");
-      const own = [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent.trim()).join(" ").slice(0, 50);
-      lines.push("  ".repeat(depth) + el.tagName.toLowerCase() + cls + attrs + (own ? `  "${own}"` : ""));
-      for (const c of el.children) if (!/^(svg|script|style|path)$/i.test(c.tagName)) walk(c, depth + 1);
-    };
-    lines.push("== around the newest reply ==");
-    walk(box, 0);
-    // The message box and its buttons, where sending happens.
-    let inp = first(site.input);
-    if (inp) {
-      for (let up = 0; up < 5 && inp.parentElement && inp.parentElement !== document.body; up++) inp = inp.parentElement;
-      lines.push("", "== around the message box ==");
-      const before = lines.length;
-      walk(inp, 0);
-      if (lines.length > 400) lines.length = Math.max(before, 400);
-    } else lines.push("", "== message box: not found with the plugin's input selectors ==");
-    return { url: location.href, report: lines.join("\n") };
-  };
+  // The reply as Markdown, without any thinking block inside it.
   const answerText = (site, el) => {
-    if (!el || !(site.thinking || []).length) return textOf(el);
+    if (!el) return "";
+    if (!(site.thinking || []).some((s) => { try { return el.querySelector(s); } catch (e) { return false; } })) return mdOf(el);
+    // Hidden parts are judged on the live page; mark them before cloning.
     const clone = el.cloneNode(true);
-    for (const s of site.thinking) clone.querySelectorAll(s).forEach((n) => n.remove());
-    return textOf(clone) || textOf(el);
+    for (const s of site.thinking) try { clone.querySelectorAll(s).forEach((n) => n.remove()); } catch (e) {}
+    const host = document.createElement("div");
+    host.style.cssText = "position:fixed;left:-99999px;top:0;width:800px";
+    host.append(clone);
+    document.body.append(host);
+    try {
+      return mdOf(clone) || mdOf(el);
+    } finally {
+      host.remove();
+    }
   };
   const lastReplyEl = (site) => {
     for (const s of site.reply || []) {
@@ -225,11 +324,13 @@
       const busy = !!first(site.stop);
       const th = textOf(lastThinking(site));
       if (busy || th !== thinkText || now !== text) lastActivity = Date.now();
+      // Show the thinking live in the app while the model is still thinking.
+      if (th && th !== thinkText && !now) status(`thinking… ${th.length} chars`, { thinking: th });
       thinkText = th;
       if (now && now === text && !busy) {
         if (Date.now() - stableSince > 2000) return text;
       } else {
-        if (now !== text) status(`waiting for reply… ${now.length} chars`);
+        if (now !== text) status(`writing… ${now.length} chars`, { thinking: thinkText, reply: now });
         text = now;
         stableSince = Date.now();
       }
@@ -322,9 +423,15 @@
       return { switches: switches(m.site), ...info(m.site) };
     },
     info: (m) => info(m.site),
-    last: (m) => ({ raw: answerText(m.site, lastReplyEl(m.site)), thinking: textOf(lastThinking(m.site)), ...info(m.site) }),
+    last: (m) => ({ raw: answerText(m.site, lastReplyEl(m.site)), thinking: mdOf(lastThinking(m.site)), ...info(m.site) }),
     list: (m) => ({ chats: list(m.site), ...info(m.site) }),
-    probe: (m) => probe(m.site),
+    // Page report: only a site script's own (the Page report plugin does the rest with "run").
+    probe: () => ({}),
+    // Run a plugin's code in the page: new Function("PP", "site", code). Returns its object.
+    run: async (m) => {
+      const r = await new Function("PP", "site", m.code)(helpers, m.site);
+      return r && typeof r === "object" ? r : { value: r };
+    },
     cancel: () => ((cancelled = true), {}),
     // Earlier messages of the open chat, in page order: [{you, reply, thinking}].
     // The reply now on the page (or the one still coming): waits until it is finished.
@@ -333,7 +440,7 @@
       const replyEl = lastReplyEl(m.site);
       const thinkEl = nearThinking(m.site, replyEl);
       const users = pickAll(m.site.user);
-      return { raw: thinkEl ? answerText(m.site, replyEl) || raw : raw, thinking: textOf(thinkEl), you: textOf(users[users.length - 1]), ...info(m.site) };
+      return { raw: answerText(m.site, replyEl) || raw, thinking: mdOf(thinkEl), you: textOf(users[users.length - 1]), ...info(m.site) };
     },
     history: (m) => {
       const pick = pickAll;
@@ -350,7 +457,7 @@
           const t = turns[turns.length - 1];
           const th = nearThinking(m.site, k.el);
           t.reply = answerText(m.site, k.el);
-          t.thinking = textOf(th);
+          t.thinking = mdOf(th);
         }
       }
       return { turns, ...info(m.site) };
@@ -365,8 +472,8 @@
       // Thinking: a new thinking block anywhere, or one sitting next to this reply.
       const thinkEl = thinkCount(m.site) > thinkBefore ? lastThinking(m.site) : nearThinking(m.site, replyEl);
       return {
-        raw: thinkEl ? answerText(m.site, replyEl) || raw : raw,
-        thinking: textOf(thinkEl),
+        raw: answerText(m.site, replyEl) || raw,
+        thinking: mdOf(thinkEl),
         ...info(m.site),
       };
     },
@@ -376,7 +483,7 @@
   // the AI page, gets these helpers, and returns the commands it replaces:
   //   return { async send(text, site) { ...; return { raw } }, last(site), list(site), info(site) }
   // Commands it leaves out use the selector based defaults above.
-  const helpers = { all, first, visible, sleep, textOf, typeInto, waitReply, snapshot, lastReply, lastReplyEl, lastThinking, answerText, list, info, status: (t) => status(t) };
+  const helpers = { all, first, visible, sleep, textOf, typeInto, waitReply, snapshot, lastReply, lastReplyEl, lastThinking, answerText, toMarkdown: mdOf, list, info, status: (t, live) => status(t, live) };
   let compiled = { code: null, mod: {} };
   const scriptFor = (site) => {
     if (!site || !site.script) return {};
@@ -398,7 +505,8 @@
 
   let port = null;
   let tries = 0;
-  const status = (text) => port && port.postMessage({ type: "event", event: "progress", text });
+  // live: { thinking, reply } so far, shown in the waiting message in the app.
+  const status = (text, live) => port && port.postMessage({ type: "event", event: "progress", text, live: live || null });
 
   const connect = () => {
     try {

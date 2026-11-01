@@ -1,18 +1,20 @@
 {
   "id": "system-prompt",
   "name": "System prompt",
-  "version": "1.0.0",
-  "description": "Adds your system prompt to the message. Web chats have no system prompt field, so it is sent as part of the message.",
+  "version": "2.0.0",
+  "description": "Puts your system prompts in front of the message: a stack of pieces from your prompt library, sent in order. Web chats have no system prompt field, so it goes in the message.",
   "main": "main.js",
   "block": { "place": "toggles", "label": "System prompt" },
   "settings": {
-    "prompt": { "type": "textarea", "label": "System prompt", "default": "" },
     "when": {
       "type": "select",
       "label": "Send it",
       "options": { "first": "Only with the first message of a chat", "every": "With every message" },
       "default": "first"
     },
-    "wrap": { "type": "text", "label": "Wrapper ({prompt} and {message})", "default": "[System instructions]\n{prompt}\n[End of system instructions]\n\n{message}" }
+    "wrap": { "type": "text", "label": "Wrapper ({prompt} and {message})", "default": "[System instructions]\n{prompt}\n[End of system instructions]\n\n{message}" },
+    "joiner": { "type": "text", "label": "Between stacked prompts", "default": "\n\n" },
+    "stack": { "type": "hidden", "default": [] },
+    "prompt": { "type": "hidden", "default": "" }
   }
 }

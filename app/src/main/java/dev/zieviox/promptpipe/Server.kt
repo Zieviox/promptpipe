@@ -99,7 +99,8 @@ class Server(private val app: App) : NanoHTTPD("127.0.0.1", App.PORT) {
                     .put("port", App.PORT)
                     .put("gitToken", app.store.secret("gitToken").isNotEmpty())
                     .put("apiToken", app.store.secret("apiToken").isNotEmpty())
-                    .put("site", app.hub.siteInfo),
+                    .put("site", app.hub.siteInfo)
+                    .put("pages", app.hub.pagesInfo()),
             )
             "/api/app/action" -> {
                 val action = b.getString("action")
@@ -125,7 +126,11 @@ class Server(private val app: App) : NanoHTTPD("127.0.0.1", App.PORT) {
             }
             "/api/plugins/fork" -> json(JSONObject().put("path", app.store.fork(b.getString("id"))))
             "/api/site" -> json(app.hub.request(b, b.optLong("timeout", 31 * 60_000L)))
-            "/api/site/open" -> json(app.hub.open(b.getString("url")))
+            "/api/site/open" -> json(app.hub.open(b.getString("url"), b.optInt("page", 0)))
+            "/api/site/pages" -> {
+                if (post) app.hub.setPages(b.optInt("count", 1))
+                json(JSONObject().put("pages", app.hub.pagesInfo()).put("max", Hub.MAX_PAGES))
+            }
             "/api/history/tree" -> json(app.store.history.let { app.store.tree() })
             "/api/history/file" -> {
                 val f = app.store.file(q["path"] ?: "")
@@ -200,7 +205,7 @@ class Server(private val app: App) : NanoHTTPD("127.0.0.1", App.PORT) {
             return json(JSONObject().put("error", "missing or wrong token"), Response.Status.UNAUTHORIZED)
         }
         if (s.uri == "/api/v1/health") {
-            return json(JSONObject().put("ok", true).put("ui", app.hub.uiAlive()).put("site", app.hub.siteInfo))
+            return json(JSONObject().put("ok", true).put("ui", app.hub.uiAlive()).put("site", app.hub.siteInfo).put("pages", app.hub.pagesInfo()))
         }
         if (s.uri != "/api/v1/chat" || s.method != Method.POST) return json(JSONObject().put("error", "use POST /api/v1/chat"), Response.Status.NOT_FOUND)
         if (!app.hub.uiAlive()) return json(JSONObject().put("error", "open the promptpipe app first"), Response.Status.SERVICE_UNAVAILABLE)

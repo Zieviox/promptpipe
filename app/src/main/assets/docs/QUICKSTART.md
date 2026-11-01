@@ -21,12 +21,21 @@ itself receives.
 - Type, tap **↑**. The reply comes back decoded by your plugins.
 - **Thought for Ns** above a reply: tap to see the model's thinking.
 - Swipe a reply **right** to quote it, **left** to copy it.
-- Long-press a code block (or its **Copy**) to copy just the code.
-- Long-press your last message to edit and resend it.
+- Tap a code block's **Copy** to copy just the code.
+- Long-press any text to select it, or open a reply's options › **Select text** for a box where picking a part is easy.
+- Your last message: options › **Edit & resend**.
 - **⤢** makes the message box big for long text.
 - If a send looks failed: **Check** keeps the reply the site is giving anyway,
   **Retry** sends again, **Edit** puts it back in the box.
-- **Stop waiting** under the box gives up on a reply (no time limit otherwise).
+- **Stop waiting** next to a reply that's coming gives up on it (no time limit otherwise).
+- Send more while a reply is coming: they **queue** under the chat and go out
+  in order. Queued messages can be moved up, edited or removed.
+- Replies never scroll the chat for you. A new one shows as **↓ 1 new** above
+  the message box; tap it to jump to the start of that reply.
+- **System prompts**: the ☰ on the System prompt switch opens your library.
+  Save prompts, **Pin** favourites, **Use** them to stack several (sent in
+  order, move with ↑ ↓). The stack is per profile; the library is
+  `system-prompts.json` in your history folder.
 
 ## 3. Chats
 
@@ -84,6 +93,14 @@ Settings → **Look**: UI scale, Enter sends, themes (themes are plugins too).
 
 ### Waiting for replies
 Settings → **Waiting for replies**: optional limits in minutes; 0 = none.
+
+### Chats in parallel
+Settings → **Site pages at once** (1 to 4). Each page is its own copy of the
+site, so that many chats get answered at the same time: yours, plugins'
+(`PP.ask`) and other apps' (local API). Anything more waits its turn. All
+pages share the login. In the site view, **Page 1/2** switches between them;
+Check and "Add the page's newest reply" use the page on screen. More pages use
+more memory, and many messages at once can look like a bot to the site.
 
 ### Writing your own plugins
 ⋯ → **Writing plugins** (the guide), or `docs/PLUGINS.md` in the repo.

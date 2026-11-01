@@ -12,34 +12,32 @@ import org.mozilla.geckoview.WebExtension
 import java.io.IOException
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
-// Owns the two pages and connects them:
+// Owns the pages and connects them:
 // - uiSession shows the app's own chat UI (served by Server on 127.0.0.1).
-// - siteSession shows the AI chat site; the built-in extension's content script
-//   there talks to us over a native messaging port ("pp").
-// The UI reaches the site through Server -> request() -> port -> content script.
+// - pages are the AI site pages (1 by default, more for chats in parallel).
+//   The built-in extension's content script on each talks to us over its own
+//   native messaging port ("pp").
+// The UI reaches a page through Server -> request(cmd with "page") -> port -> content script.
 class Hub(private val app: App) {
     interface Screen {
         fun showSite(show: Boolean)
         fun showPopup(session: GeckoSession?)
         fun runAction(action: String, data: JSONObject)
         fun reattach()
+        fun pagesChanged()
     }
 
     val main = Handler(Looper.getMainLooper())
     val uiSession = GeckoSession()
-    val siteSession = GeckoSession()
     var popup: GeckoSession? = null
     var screen: Screen? = null
     var uiCanGoBack = false
 
-    @Volatile private var port: WebExtension.Port? = null
-    @Volatile var siteInfo: JSONObject = JSONObject()
-    private val pending = ConcurrentHashMap<Int, CompletableFuture<JSONObject>>()
     private val nextId = AtomicInteger(1)
-    private val helloWaiters = mutableListOf<CompletableFuture<JSONObject>>()
 
     // Events for the UI page, fetched by long polling /api/events.
     private val lock = Object()
@@ -77,65 +75,115 @@ class Hub(private val app: App) {
 
     fun uiAlive() = System.currentTimeMillis() - lastPoll < 40_000
 
-    // ---------- site page ----------
-    private val portDelegate = object : WebExtension.PortDelegate {
-        override fun onPortMessage(message: Any, p: WebExtension.Port) {
-            val m = message as? JSONObject ?: return
-            when (m.optString("type")) {
-                "hello" -> {
-                    port = p
-                    siteInfo = m
-                    p.postMessage(JSONObject().put("type", "welcome"))
-                    synchronized(helloWaiters) {
-                        helloWaiters.forEach { it.complete(m) }
-                        helloWaiters.clear()
+    // ---------- site pages ----------
+    inner class SitePage(val index: Int) {
+        val session = GeckoSession()
+        @Volatile var port: WebExtension.Port? = null
+        @Volatile var info: JSONObject = JSONObject()
+        val pending = ConcurrentHashMap<Int, CompletableFuture<JSONObject>>()
+        private val helloWaiters = mutableListOf<CompletableFuture<JSONObject>>()
+
+        private val portDelegate = object : WebExtension.PortDelegate {
+            override fun onPortMessage(message: Any, p: WebExtension.Port) {
+                val m = message as? JSONObject ?: return
+                when (m.optString("type")) {
+                    "hello" -> {
+                        port = p
+                        info = m
+                        p.postMessage(JSONObject().put("type", "welcome"))
+                        synchronized(helloWaiters) {
+                            helloWaiters.forEach { it.complete(m) }
+                            helloWaiters.clear()
+                        }
+                        emit(JSONObject().put("type", "site").put("page", index).put("connected", true).put("url", m.optString("url")).put("title", m.optString("title")))
                     }
-                    emit(JSONObject().put("type", "site").put("connected", true).put("url", m.optString("url")).put("title", m.optString("title")))
+                    "reply" -> pending[m.optInt("id")]?.complete(m)
+                    "event" -> {
+                        if (m.has("url")) info = m
+                        emit(m.put("type", "site").put("page", index).put("connected", true))
+                    }
                 }
-                "reply" -> pending[m.optInt("id")]?.complete(m)
-                "event" -> {
-                    if (m.has("url")) siteInfo = m
-                    emit(m.put("type", "site").put("connected", true))
-                }
+            }
+
+            override fun onDisconnect(p: WebExtension.Port) {
+                if (port !== p) return
+                port = null
+                for (f in pending.values) f.completeExceptionally(IOException("the AI page reloaded"))
+                emit(JSONObject().put("type", "site").put("page", index).put("connected", false))
             }
         }
 
-        override fun onDisconnect(p: WebExtension.Port) {
-            if (port !== p) return
-            port = null
-            for (f in pending.values) f.completeExceptionally(IOException("the AI page reloaded"))
-            emit(JSONObject().put("type", "site").put("connected", false))
+        val messages = object : WebExtension.MessageDelegate {
+            override fun onConnect(p: WebExtension.Port) {
+                p.setDelegate(portDelegate)
+            }
+        }
+
+        fun waitHello(): CompletableFuture<JSONObject> {
+            val f = CompletableFuture<JSONObject>()
+            synchronized(helloWaiters) { helloWaiters.add(f) }
+            return f
+        }
+
+        fun listen() {
+            extension?.let { session.webExtensionController.setMessageDelegate(it, messages, "pp") }
+        }
+
+        fun start() {
+            session.open(app.runtime)
+            session.navigationDelegate = siteNav
+            session.contentDelegate = recovery
+            session.setActive(true)
+            listen()
+            session.loadUri("about:blank")
+        }
+
+        fun stop() {
+            for (f in pending.values) f.completeExceptionally(IOException("that site page was closed (fewer pages in Settings)"))
+            if (session.isOpen) session.close()
         }
     }
 
-    private val messages = object : WebExtension.MessageDelegate {
-        override fun onConnect(p: WebExtension.Port) {
-            p.setDelegate(portDelegate)
+    val pages = CopyOnWriteArrayList<SitePage>()
+    // The first page, which also stands for "the site" in older calls.
+    val siteSession get() = pages[0].session
+    val siteInfo get() = pages[0].info
+
+    fun page(i: Int): SitePage = pages.getOrNull(i) ?: throw IOException("there is no site page ${i + 1} (Settings › Site pages at once)")
+
+    fun pagesInfo(): JSONArray = JSONArray().also { a -> pages.forEach { a.put(JSONObject().put("page", it.index).put("connected", it.port != null).put("url", it.info.optString("url")).put("title", it.info.optString("title"))) } }
+
+    // How many site pages run at once (1-4). Extra pages are closed from the end.
+    fun setPages(n: Int) {
+        val want = n.coerceIn(1, MAX_PAGES)
+        main.post {
+            if (want == pages.size) return@post
+            while (pages.size < want) pages.add(SitePage(pages.size).also { it.start() })
+            val gone = ArrayList<SitePage>()
+            while (pages.size > want) gone.add(pages.removeAt(pages.size - 1))
+            screen?.pagesChanged() // lets go of the views before their pages close
+            gone.forEach { it.stop() }
+            emit(JSONObject().put("type", "pages").put("count", pages.size).put("pages", pagesInfo()))
         }
     }
 
-    private fun waitHello(): CompletableFuture<JSONObject> {
-        val f = CompletableFuture<JSONObject>()
-        synchronized(helloWaiters) { helloWaiters.add(f) }
-        return f
-    }
-
-    // Send a command to the content script and wait for its answer.
+    // Send a command to a page's content script and wait for its answer.
     fun request(cmd: JSONObject, timeoutMs: Long): JSONObject {
-        var p = port
+        val pg = page(cmd.optInt("page", 0))
+        var p = pg.port
         if (p == null) {
-            val hello = waitHello()
-            if (port == null) try {
+            val hello = pg.waitHello()
+            if (pg.port == null) try {
                 hello.get(20, TimeUnit.SECONDS)
             } catch (e: Exception) {
                 throw IOException("the AI page is not connected (still loading? open it with the Site button)")
             }
-            p = port ?: throw IOException("the AI page is not connected")
+            p = pg.port ?: throw IOException("the AI page is not connected")
         }
         val id = nextId.getAndIncrement()
         cmd.put("id", id)
         val f = CompletableFuture<JSONObject>()
-        pending[id] = f
+        pg.pending[id] = f
         main.post {
             try {
                 p.postMessage(cmd)
@@ -146,22 +194,23 @@ class Hub(private val app: App) {
         try {
             val r = f.get(timeoutMs, TimeUnit.MILLISECONDS)
             if (!r.optBoolean("ok")) throw IOException(r.optString("error", "failed"))
-            return r.optJSONObject("result") ?: JSONObject()
+            return (r.optJSONObject("result") ?: JSONObject()).put("page", pg.index)
         } catch (e: java.util.concurrent.TimeoutException) {
             throw IOException("the AI page did not answer in time")
         } catch (e: java.util.concurrent.ExecutionException) {
             throw IOException(e.cause?.message ?: "failed")
         } finally {
-            pending.remove(id)
+            pg.pending.remove(id)
         }
     }
 
-    // Load a URL in the site page and wait until its content script says hello.
-    fun open(url: String): JSONObject {
-        val hello = waitHello()
-        main.post { siteSession.loadUri(url) }
+    // Load a URL in a site page and wait until its content script says hello.
+    fun open(url: String, index: Int = 0): JSONObject {
+        val pg = page(index)
+        val hello = pg.waitHello()
+        main.post { pg.session.loadUri(url) }
         return try {
-            hello.get(45, TimeUnit.SECONDS)
+            hello.get(45, TimeUnit.SECONDS).put("page", pg.index)
         } catch (e: Exception) {
             throw IOException("the page did not finish loading: $url")
         }
@@ -208,18 +257,20 @@ class Hub(private val app: App) {
 
     private fun restore(s: GeckoSession, crashed: Boolean) {
         val isUi = s === uiSession
-        Log.w(App.TAG, "${if (isUi) "chat UI" else "site"} page ${if (crashed) "crashed" else "was stopped"}; reloading")
+        val pg = pages.firstOrNull { it.session === s }
+        if (!isUi && pg == null) return // a page that was closed meanwhile
+        Log.w(App.TAG, "${if (isUi) "chat UI" else "site page ${pg!!.index + 1}"} ${if (crashed) "crashed" else "was stopped"}; reloading")
         if (crashed) {
             if (s.isOpen) s.close()
             s.open(app.runtime)
-            if (!isUi) extension?.let { siteSession.webExtensionController.setMessageDelegate(it, messages, "pp") }
+            pg?.listen()
         }
         s.setActive(true)
         screen?.reattach()
         if (isUi) s.loadUri("${App.base}/")
         else {
-            s.loadUri(siteInfo.optString("url").ifEmpty { "about:blank" })
-            emit(JSONObject().put("type", "error").put("text", "The AI page " + (if (crashed) "crashed" else "was stopped by Android") + " and was reloaded. Resend if a message was waiting."))
+            s.loadUri(pg!!.info.optString("url").ifEmpty { "about:blank" })
+            emit(JSONObject().put("type", "error").put("text", "AI page ${if (pages.size > 1) "${pg.index + 1} " else ""}" + (if (crashed) "crashed" else "was stopped by Android") + " and was reloaded. Resend if a message was waiting."))
         }
     }
 
@@ -232,15 +283,16 @@ class Hub(private val app: App) {
     fun revive() {
         main.post {
             if (!uiSession.isOpen) restore(uiSession, true)
-            if (!siteSession.isOpen) restore(siteSession, true)
+            for (p in pages) if (!p.session.isOpen) restore(p.session, true)
         }
     }
 
-    // Reload both pages (the Reload button over the AI page).
-    fun reloadAll() {
+    // The Reload button over the AI page: the chat UI and the page on screen.
+    fun reloadAll(shown: Int = 0) {
         main.post {
             if (!uiSession.isOpen) restore(uiSession, true) else uiSession.reload()
-            if (!siteSession.isOpen) restore(siteSession, true) else siteSession.reload()
+            val s = (pages.getOrNull(shown) ?: pages[0]).session
+            if (!s.isOpen) restore(s, true) else s.reload()
         }
     }
 
@@ -255,28 +307,35 @@ class Hub(private val app: App) {
 
     // Last in the class: it uses the delegates declared above.
     init {
+        pages.add(SitePage(0))
         uiSession.open(app.runtime)
-        siteSession.open(app.runtime)
         uiSession.navigationDelegate = uiNav
-        siteSession.navigationDelegate = siteNav
         uiSession.contentDelegate = recovery
-        siteSession.contentDelegate = recovery
         uiSession.setActive(true)
-        siteSession.setActive(true)
+        pages[0].let {
+            it.session.open(app.runtime)
+            it.session.navigationDelegate = siteNav
+            it.session.contentDelegate = recovery
+            it.session.setActive(true)
+        }
         app.runtime.webExtensionController
             .ensureBuiltIn("resource://android/assets/ppext/", "promptpipe@zieviox.dev")
             .accept({ ext ->
                 if (ext != null) {
                     extension = ext
-                    siteSession.webExtensionController.setMessageDelegate(ext, messages, "pp")
+                    pages.forEach { it.listen() }
                     Log.i(App.TAG, "extension ready")
                 }
                 // The chat screen opens the profile's site when it needs it.
-                siteSession.loadUri("about:blank")
+                pages.forEach { it.session.loadUri("about:blank") }
             }, { e ->
                 Log.e(App.TAG, "extension failed", e)
                 emit(JSONObject().put("type", "error").put("text", "Built-in extension failed to load: $e"))
             })
         uiSession.loadUri("${App.base}/")
+    }
+
+    companion object {
+        const val MAX_PAGES = 4
     }
 }

@@ -55,7 +55,10 @@ const S = {
   folder: "", // where new chats go
   openFolders: new Set(local("openFolders") || []),
   siteChats: [],
-  site: { connected: false, url: "", title: "" },
+  // Site pages (several = chats in parallel); page = the one the site view shows.
+  pages: [],
+  page: 0,
+  pageTurns: {}, // page -> the message being answered there
   busy: false,
   progress: "",
   drawer: false,
@@ -65,6 +68,13 @@ const S = {
   traces: new WeakMap(), // turn -> full trace (this session only)
   openTurns: new WeakSet(), // turns whose options are unfolded
 };
+
+// S.site = the page the site view shows (most commands act on it).
+const pg = (i) => (S.pages[i] = S.pages[i] || { connected: false, url: "", title: "", busy: false });
+Object.defineProperty(S, "site", {
+  get: () => pg(S.page),
+  set: (v) => Object.assign(pg(S.page), v),
+});
 
 const DEFAULT_CONFIG = () => ({
   profiles: [
@@ -86,6 +96,8 @@ const DEFAULT_CONFIG = () => ({
   ui: { scale: 1, theme: "", enterSends: false },
   // Minutes to wait for a reply; 0 = no limit (Stop waiting is always there).
   wait: { idleMin: 0, maxMin: 0 },
+  // Site pages at once: sends (yours, plugins', other apps') run in parallel up to this many.
+  pages: 1,
 });
 
 let configTimer = 0;
@@ -113,6 +125,17 @@ const PP = (window.PP = {
     return profile();
   },
   site: (cmd, extra) => siteCmd(cmd, extra),
+  // Ask the site something on the side (a fresh chat, not saved): resolves to { reply, thinking, url }.
+  ask: (prompt, opts) => askSite(prompt, opts),
+  // A sheet of the plugin's own: render() returns its elements and runs again on PP.render().
+  sheet: (title, renderFn) => openSheet(title, renderFn),
+  render: () => render(),
+  // Another plugin's settings for the active profile (read only), e.g. PP.settings("system-prompt").stack.
+  settings: (id) => settingsFor(id),
+  // The site plugin of the active profile ({ name, url, ... }).
+  get sitePlugin() {
+    return siteFor();
+  },
 });
 
 const loadPlugins = async () => {
@@ -247,14 +270,47 @@ const setTheme = (id) => {
 };
 
 // ---------- AI page ----------
-const siteCmd = (cmd, extra = {}) => api("/api/site", { cmd, site: siteFor(), ...extra });
-const openSite = async (url) => {
-  S.progress = "Opening " + url;
+const siteCmd = (cmd, extra = {}) => api("/api/site", { cmd, site: siteFor(), page: S.page, ...extra });
+const openSite = async (url, page = S.page, turn = null) => {
+  if (turn) turn.progress = "Opening " + url;
+  else S.progress = "Opening " + url;
   render();
-  const r = await api("/api/site/open", { url });
-  S.site = { connected: true, url: r.url, title: r.title };
+  const r = await api("/api/site/open", { url, page });
+  Object.assign(pg(page), { connected: true, url: r.url, title: r.title });
   return r;
 };
+
+// ---------- page pool ----------
+// Each send takes a free site page and gives it back when done; when all are
+// busy it waits its turn. A chat never has two sends at once.
+const pageCount = () => Math.max(1, Math.min(4, +S.config.pages || 1));
+const setPageCount = (n) => {
+  S.config.pages = Math.max(1, Math.min(4, +n || 1));
+  saveConfig();
+  return api("/api/site/pages", { count: S.config.pages }).then(pump, (e) => toast(e.message, "error"));
+};
+const waiting = [];
+// want: { page } for that exact page, or { url } to prefer a page already there.
+const acquire = (want = {}) => new Promise((res) => (waiting.push({ want, res }), pump()));
+const pump = () => {
+  for (let k = 0; k < waiting.length; k++) {
+    const { want, res } = waiting[k];
+    const free = [...Array(pageCount()).keys()].filter((i) => !pg(i).busy);
+    const ok = want.page != null ? free.filter((i) => i === want.page) : free;
+    if (!ok.length) continue;
+    const at = (f) => ok.find((i) => f(pg(i).url || ""));
+    const i = (want.url && (at((u) => sameUrl(u, want.url)) ?? at((u) => sameHost(u, want.url)))) ?? ok[0];
+    pg(i).busy = true;
+    waiting.splice(k--, 1);
+    res(i);
+  }
+  renderStatus();
+};
+const release = (i) => {
+  pg(i).busy = false;
+  pump();
+};
+const busyPages = () => [...Array(pageCount()).keys()].filter((i) => pg(i).busy).length;
 const sameHost = (a, b) => {
   try {
     return new URL(a).host === new URL(b).host;
@@ -266,19 +322,22 @@ const sameHost = (a, b) => {
 // so it is ready to log in to or send to.
 const warmSite = () => {
   const s = siteFor();
-  if (!s || sameHost(S.site.url || "", s.url)) return Promise.resolve();
+  if (!s || S.site.busy || sameHost(S.site.url || "", s.url)) return Promise.resolve();
   const url = S.chat?.meta.source && sameHost(S.chat.meta.source, s.url) ? S.chat.meta.source : s.url;
-  return api("/api/site/open", { url })
+  const page = S.page;
+  return api("/api/site/open", { url, page })
     .then((r) => {
-      S.site = { connected: true, url: r.url, title: r.title };
+      Object.assign(pg(page), { connected: true, url: r.url, title: r.title });
       render();
     })
     .catch(() => {});
 };
 const showSite = () => {
   if (!siteFor()) return toast("Install an AI site plugin first (⋯ → Plugins)", "error");
-  warmSite();
-  return api("/api/app/action", { action: "site" }).catch((e) => toast(e.message, "error"));
+  // Show the page the open chat is being answered on, if any.
+  const t = Object.values(S.pageTurns).find((x) => S.chat?.turns.includes(x));
+  if (!t) warmSite();
+  return api("/api/app/action", t ? { action: "site", page: t.page } : { action: "site" }).catch((e) => toast(e.message, "error"));
 };
 
 // Model and switches chosen in the app (saved per profile) are set on the page
@@ -290,18 +349,19 @@ const choicesFor = (prof = profile()) => {
   ss.switches = ss.switches || {};
   return ss;
 };
-const applySiteChoices = async (site, prof) => {
+const applySiteChoices = async (site, prof, page = S.page, turn = null) => {
   const want = choicesFor(prof);
   if (!want.model && !Object.keys(want.switches).length) return;
-  const cur = await api("/api/site", { cmd: "info", site });
+  const cur = await api("/api/site", { cmd: "info", site, page });
   if (want.model && !(cur.model || "").toLowerCase().includes(want.model.toLowerCase())) {
-    S.progress = "Choosing " + want.model + "…";
+    if (turn) turn.progress = "Choosing " + want.model + "…";
+    else S.progress = "Choosing " + want.model + "…";
     render();
-    const r = await api("/api/site", { cmd: "setModel", site, model: want.model });
-    S.site.model = r.model;
+    const r = await api("/api/site", { cmd: "setModel", site, page, model: want.model });
+    pg(page).model = r.model;
   }
   for (const [name, on] of Object.entries(want.switches)) {
-    if ((site.switches || []).some((x) => x.name === name)) await api("/api/site", { cmd: "setSwitch", site, name, on });
+    if ((site.switches || []).some((x) => x.name === name)) await api("/api/site", { cmd: "setSwitch", site, page, name, on });
   }
 };
 
@@ -377,48 +437,65 @@ const rememberPrompt = (text) => {
   local("recent", list.slice(0, 5));
 };
 
-// One AI request at a time (chat screen and other apps share the page).
-let queue = Promise.resolve();
-const exclusive = (fn) => {
-  const run = queue.then(fn, fn);
-  queue = run.catch(() => {});
+// A chat's sends go one after another (several chats run side by side).
+const chatQueues = new WeakMap();
+const oneAtATime = (chat, fn) => {
+  const prev = chatQueues.get(chat) || Promise.resolve();
+  const run = prev.then(fn, fn);
+  chatQueues.set(chat, run.catch(() => {}));
   return run;
 };
 
 // Send one message in `chat` through the profile's plugins and save the turn.
-// follow: don't send; take the reply the site is already giving (Check / Add from page).
-const runChat = (chat, prompt, prof = profile(), follow = false) =>
-  exclusive(async () => {
+// follow: don't send; take the reply the site is already giving (Check / Add
+// from page), on `onPage` (the shown page unless given).
+// Messages sent while one is on its way wait in the chat's queue (shown under
+// the chat, where they can be edited or taken out) and go out in order.
+const runChat = (chat, prompt, prof = profile(), follow = false, onPage = null) => {
+  const q = follow ? null : { you: prompt, at: iso() };
+  if (q) (chat.queued = chat.queued || []).push(q);
+  if (q && S.chat === chat) render();
+  return oneAtATime(chat, async () => {
+    if (q) {
+      const k = chat.queued.indexOf(q);
+      if (k < 0) throw Object.assign(new Error("taken out of the queue"), { quiet: true });
+      chat.queued.splice(k, 1);
+    }
     const site = siteFor(prof);
     if (!site) throw new Error("this profile has no AI site plugin (Profiles sheet)");
-    const turn = { at: iso(), you: prompt, sent: "", raw: "", reply: "", profile: prof.name, tags: [], notes: [], pending: true };
+    const turn = { at: iso(), you: prompt, sent: "", raw: "", reply: "", profile: prof.name, tags: [], notes: [], pending: true, progress: "Waiting for a free site page…" };
     chat.turns.push(turn);
     const trace = [{ label: "You", text: prompt, notes: [] }];
     S.traces.set(turn, trace);
-    S.sending = true;
+    render();
+    const page = await acquire(follow ? { page: onPage ?? S.page } : { url: chat.meta.source || site.url });
+    turn.page = page;
+    S.pageTurns[page] = turn;
+    turn.progress = "";
     render();
     try {
       // Be on this chat's page on the site, or on a fresh chat for a new one.
       // (When following, stay on whatever the page shows now.)
+      const here = pg(page).url;
       if (follow) {
       } else if (chat.meta.source) {
-        if (!sameUrl(S.site.url, chat.meta.source)) await openSite(chat.meta.source);
-      } else if (!sameUrl(S.site.url, site.url)) await openSite(site.url);
-      if (!follow) await applySiteChoices(site, prof);
+        if (!sameUrl(here, chat.meta.source)) await openSite(chat.meta.source, page, turn);
+      } else if (!sameUrl(here, site.url)) await openSite(site.url, page, turn);
+      if (!follow) await applySiteChoices(site, prof, page, turn);
       const ctx = { chat, profile: prof, firstMessage: chat.turns.length === 1, notes: turn.notes };
-      turn.sent = prompt ? await runHooks("beforeSend", prompt, ctx, trace, prof) : "";
-      S.progress = (follow ? "Reading the reply on " : "Sending to ") + site.name + "…";
+      turn.sent = prompt ? await inHooks(() => runHooks("beforeSend", prompt, ctx, trace, prof)) : "";
+      turn.progress = (follow ? "Reading the reply on " : "Sending to ") + site.name + (pageCount() > 1 ? ` (page ${page + 1})` : "") + "…";
       render();
       const started = Date.now();
       const w = S.config.wait || {};
       const idleMs = (+w.idleMin || 0) * 60000;
       const maxMs = (+w.maxMin || 0) * 60000;
       // The app itself waits as long as the page may (a week when there is no limit).
-      const r = await api("/api/site", { cmd: follow ? "follow" : "send", site, text: turn.sent, idleMs, maxMs, timeout: maxMs ? maxMs + 60000 : 7 * 86400000 });
+      const r = await api("/api/site", { cmd: follow ? "follow" : "send", site, page, text: turn.sent, idleMs, maxMs, timeout: maxMs ? maxMs + 60000 : 7 * 86400000 });
       if (follow && !prompt) {
         // Added from the page: your side is whatever the page shows, decoded like a reply.
         turn.sent = r.you || "";
-        turn.you = r.you ? await runHooks("afterReply", r.you, { ...ctx, notes: [] }, [], prof).catch(() => r.you) : "(from the page)";
+        turn.you = r.you ? await inHooks(() => runHooks("afterReply", r.you, { ...ctx, notes: [] }, [], prof)).catch(() => r.you) : "(from the page)";
         turn.notes.push("added from the page");
       }
       turn.secs = Math.max(1, Math.round((Date.now() - started) / 1000));
@@ -426,13 +503,13 @@ const runChat = (chat, prompt, prof = profile(), follow = false) =>
       if (r.thinking) turn.thinking = r.thinking;
       trace.push({ label: "Raw reply", text: r.raw, notes: [] });
       try {
-        turn.reply = await runHooks("afterReply", r.raw, ctx, trace, prof);
+        turn.reply = await inHooks(() => runHooks("afterReply", r.raw, ctx, trace, prof));
       } catch (e) {
         turn.reply = r.raw;
         turn.error = e.message;
         trace.push({ label: "Error", text: e.message, error: true, notes: [] });
       }
-      S.site = { connected: true, url: r.url, title: r.title, model: r.model };
+      Object.assign(pg(page), { connected: true, url: r.url, title: r.title, model: r.model });
       if (!sameUrl(r.url, site.url)) chat.meta.source = r.url;
       chat.meta.ai = site.name;
       if (r.model) chat.meta.model = r.model;
@@ -442,19 +519,60 @@ const runChat = (chat, prompt, prof = profile(), follow = false) =>
       turn.tags = tagsForNewMessage(chat);
       await saveChat(chat, `chat: ${chat.meta.title} (#${chat.turns.length})`, [tagsFile()]);
       haptic();
+      markUnseen(chat, turn);
       return turn;
     } catch (e) {
       // Nothing came back: the message moves to the chat's failed list (not
-      // saved to the file), where it can be retried or edited.
+      // saved to the file), where it can be retried, checked or edited.
       chat.turns.splice(chat.turns.indexOf(turn), 1);
-      (chat.failed = chat.failed || []).push({ you: prompt, error: e.message, at: turn.at });
+      (chat.failed = chat.failed || []).push({ you: prompt, error: e.message, at: turn.at, page });
       throw e;
     } finally {
-      S.sending = false;
-      S.progress = "";
+      if (S.pageTurns[page] === turn) delete S.pageTurns[page];
+      delete turn.progress;
+      delete turn.live;
+      release(page);
       render();
     }
   });
+};
+
+// Plugin hooks that run while a page is held. PP.ask from inside them needs a
+// second page, or it would wait for itself forever.
+let hookDepth = 0;
+const inHooks = async (fn) => {
+  hookDepth++;
+  try {
+    return await fn();
+  } finally {
+    hookDepth--;
+  }
+};
+
+// PP.ask: a side request for plugins, in a fresh chat on its own page; not
+// saved as a chat. opts: { profile: name, hooks: true to run the profile's plugins }.
+const askSite = async (prompt, opts = {}) => {
+  const prof = S.config.profiles.find((p) => opts.profile && p.name.toLowerCase() === String(opts.profile).toLowerCase()) || profile();
+  const site = siteFor(prof);
+  if (!site) throw new Error("PP.ask: this profile has no AI site plugin");
+  if (hookDepth > 0 && pageCount() === 1) throw new Error("PP.ask inside a plugin step needs 2 or more site pages (Settings › Site pages at once)");
+  const page = await acquire({ url: site.url });
+  try {
+    const quiet = {}; // progress of side requests isn't shown under the message box
+    await openSite(site.url, page, quiet);
+    await applySiteChoices(site, prof, page, quiet);
+    const ctx = { chat: null, profile: prof, firstMessage: true, notes: [] };
+    const text = opts.hooks ? await inHooks(() => runHooks("beforeSend", prompt, ctx, [], prof)) : prompt;
+    const w = S.config.wait || {};
+    const maxMs = (+w.maxMin || 0) * 60000;
+    const r = await api("/api/site", { cmd: "send", site, page, text, idleMs: (+w.idleMin || 0) * 60000, maxMs, timeout: maxMs ? maxMs + 60000 : 7 * 86400000 });
+    Object.assign(pg(page), { connected: true, url: r.url, title: r.title, model: r.model });
+    const reply = opts.hooks ? await inHooks(() => runHooks("afterReply", r.raw, ctx, [], prof)) : r.raw;
+    return { reply, raw: r.raw, thinking: r.thinking || "", url: r.url, page };
+  } finally {
+    release(page);
+  }
+};
 
 // ---------- history (chat files + git) ----------
 const loadTree = async () => {
@@ -501,6 +619,7 @@ const openChat = async (path) => {
   const r = await api("/api/history/file?path=" + encodeURIComponent(path));
   if (r.text == null) throw new Error("chat file not found: " + path);
   S.chat = ChatFile.fromMd(path, r.text);
+  S.unseen = [];
   S.chat.folder = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
   S.config.lastChat = path;
   saveConfig();
@@ -511,6 +630,7 @@ const openChat = async (path) => {
 
 const startNewChat = (folder) => {
   S.chat = newChat(folder ?? S.folder);
+  S.unseen = [];
   closeDrawer();
   render();
   setTimeout(() => document.querySelector(".composer textarea")?.focus(), 0);
@@ -527,17 +647,6 @@ const siteLinkRow = () => {
     openSiteChat({ url, title: S.siteChats.find((c) => sameUrl(c.url, url))?.title || url.replace(/^https?:\/\/[^/]+/, "") });
   };
   return h("div", { class: "row site-link" }, input, h("button", { class: "small", onclick: go }, "Open"));
-};
-
-// Copies an outline of the AI page's newest message, to send when something isn't detected.
-const copyPageReport = async () => {
-  try {
-    const r = await siteCmd("probe");
-    await navigator.clipboard.writeText(`Page report for ${siteFor()?.name} (${r.url})\n\n${r.report}`);
-    toast("Page report copied. Paste it to whoever fixes the site plugin.");
-  } catch (e) {
-    toast(e.message, "error");
-  }
 };
 
 const openSiteChat = async (c) => {
@@ -691,9 +800,20 @@ const pollEvents = async () => {
       const r = await api("/api/events?after=" + after);
       for (const ev of r.events) {
         if (ev.type === "site") {
-          if (ev.event === "progress") S.progress = S.sending ? ev.text : "";
-          else S.site = { ...S.site, connected: ev.connected !== false, url: ev.url || S.site.url, title: ev.title || S.site.title };
+          const p = pg(ev.page || 0);
+          if (ev.event === "progress") {
+            const t = S.pageTurns[ev.page || 0];
+            if (t) {
+              t.progress = ev.text;
+              // Empty parts don't wipe what a site script already showed.
+              if (ev.live) for (const [k, v] of Object.entries(ev.live)) if (v) t.live = { ...t.live, [k]: v };
+            } else if (S.progress) S.progress = ev.text;
+          } else Object.assign(p, { connected: ev.connected !== false, url: ev.url || p.url, title: ev.title || p.title });
           renderStatus();
+        } else if (ev.type === "shown") {
+          // The site view now shows another page: commands like Check act on that one.
+          S.page = ev.page || 0;
+          render();
         } else if (first) continue; // old events from before this page loaded
         else if (ev.type === "job") runJob(ev);
         else if (ev.type === "share") {
@@ -727,7 +847,7 @@ const render = () => {
   const listScroll = document.querySelector(".messages")?.scrollTop;
   const composer = renderComposer(draft);
   // Floats just above the composer; shows once you scroll up.
-  composer.prepend(h("button", { class: "jump", title: "Jump to the newest message", "aria-label": "Jump to bottom", onclick: scrollDown }, "↓"));
+  composer.prepend(jumpButton());
   app.replaceChildren(renderTop(), renderTagsRow(), renderMessages(), composer);
   if (S.drawer) app.append(h("div", { class: "scrim", onclick: closeDrawer }), renderDrawer());
   if (S.sheet) app.append(h("div", { class: "scrim", onclick: closeSheet }), renderSheet());
@@ -735,16 +855,92 @@ const render = () => {
   if (keepFocus) document.querySelector(`[data-keep="${keepFocus}"]`)?.focus();
 };
 
-const scrollDown = () => {
+const scrollDown = (smooth = false) => {
   const m = document.querySelector(".messages");
-  if (m) m.scrollTop = m.scrollHeight;
+  if (m) m.scrollTo({ top: m.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+};
+const nearBottom = () => {
+  const m = document.querySelector(".messages");
+  return !m || m.scrollHeight - m.scrollTop - m.clientHeight < 80;
+};
+
+// Replies never move the chat: you scroll. A new reply shows on the jump
+// button ("1 new reply"); tapping it goes to the start of that reply.
+S.unseen = [];
+const markUnseen = (chat, turn) => {
+  if (S.chat !== chat) return;
+  const i = chat.turns.indexOf(turn);
+  if (i >= 0 && !S.unseen.includes(i)) S.unseen.push(i);
+};
+const jumpButton = () => {
+  const n = S.unseen.length;
+  return h(
+    "button",
+    {
+      class: "jump" + (n ? " new show" : ""),
+      title: n ? "Go to the new reply" : "Jump to the newest message",
+      "aria-label": n ? `${n} new ${n === 1 ? "reply" : "replies"}` : "Jump to bottom",
+      onclick: () => {
+        if (S.unseen.length) {
+          const i = Math.min(...S.unseen);
+          S.unseen = [];
+          document.getElementById("turn-" + i)?.scrollIntoView({ behavior: "smooth", block: "start" });
+          document.querySelector(".jump")?.replaceWith(jumpButton());
+        } else scrollDown(true);
+      },
+    },
+    n ? `↓ ${n} new` : "↓",
+  );
+};
+// Seen = scrolled into view.
+const checkSeen = (box) => {
+  if (!S.unseen.length) return;
+  const bottom = box.getBoundingClientRect().bottom;
+  const before = S.unseen.length;
+  S.unseen = S.unseen.filter((i) => {
+    const el = document.getElementById("turn-" + i)?.querySelector(".msg.ai");
+    return !el || el.getBoundingClientRect().top > bottom - 60;
+  });
+  if (S.unseen.length !== before) document.querySelector(".jump")?.replaceWith(jumpButton());
 };
 
 const renderStatus = () => {
   const el = document.querySelector(".site-dot");
   if (el) el.replaceWith(siteDot());
-  const pr = document.querySelector(".progress");
-  if (pr) pr.textContent = S.progress;
+  const pr = document.querySelector(".composer .progress-text");
+  if (pr) pr.textContent = composerProgress();
+  renderLive();
+};
+// Under the message box: other work, and replies coming in other chats.
+const composerProgress = () => {
+  const others = Object.values(S.pageTurns).filter((t) => !S.chat?.turns.includes(t)).length;
+  return [S.progress, others ? `${others} ${others === 1 ? "reply" : "replies"} coming in other chats` : ""].filter(Boolean).join(" · ");
+};
+
+// The waiting message: thinking (open) and the reply so far, as the page shows them.
+const liveParts = (t) => {
+  const L = t.live || {};
+  return [
+    L.thinking ? h("details", { class: "thinking live", open: true }, h("summary", {}, L.reply ? "Thought" : "Thinking…"), h("div", { class: "md", html: mdToHtml(L.thinking) })) : null,
+    L.reply ? h("div", { class: "text md" }, h("div", { html: mdToHtml(L.reply) })) : null,
+    h(
+      "div",
+      { class: "text muted progress-line" },
+      t.progress || "…",
+      t.page != null ? h("button", { class: "ghost small", title: "Stop waiting for this reply", onclick: () => api("/api/site", { cmd: "cancel", page: t.page }).catch((e) => toast(e.message, "error")) }, "Stop waiting") : null,
+    ),
+  ];
+};
+const renderLive = () => {
+  if (!S.chat) return;
+  document.querySelectorAll(".live-box").forEach((box) => {
+    const t = S.chat.turns[+box.dataset.turn];
+    if (!t || !t.pending) return;
+    const wasOpen = box.querySelector("details.live")?.open;
+    box.replaceChildren(...liveParts(t).filter(Boolean));
+    const d = box.querySelector("details.live");
+    if (d && wasOpen === false) d.open = false;
+  });
 };
 
 const siteDot = () =>
@@ -865,10 +1061,30 @@ const renderMessages = () => {
       ),
     ),
   );
+  // Queued: waiting for the message before them to be answered.
+  const queued = c.queued || [];
+  queued.forEach((q, i) =>
+    box.append(
+      h(
+        "article",
+        { class: "turn queued" },
+        h("div", { class: "msg you" }, h("div", { class: "text" }, q.you)),
+        h(
+          "div",
+          { class: "msg-actions queued-actions" },
+          h("span", { class: "faint" }, `Queued ${i + 1} of ${queued.length} · goes out after the reply above`),
+          i > 0 ? h("button", { class: "small", "aria-label": "Send earlier", onclick: () => ([queued[i - 1].you, q.you] = [q.you, queued[i - 1].you], render()) }, "↑") : null,
+          h("button", { class: "small", onclick: () => (queued.splice(i, 1), render(), fillComposer(q.you)) }, "Edit"),
+          h("button", { class: "ghost", onclick: () => (queued.splice(i, 1), render()) }, "Remove"),
+        ),
+      ),
+    ),
+  );
   box.addEventListener("scroll", () => {
     const far = box.scrollHeight - box.scrollTop - box.clientHeight > 300;
-    document.querySelector(".jump")?.classList.toggle("show", far);
-  });
+    document.querySelector(".jump")?.classList.toggle("show", far || S.unseen.length > 0);
+    checkSeen(box);
+  }, { passive: true });
   return box;
 };
 
@@ -931,7 +1147,6 @@ const renderTurn = (c, t, i) => {
         h("button", { class: "ghost more" + (open ? " open" : ""), title: open ? "Fold options" : "Copy, trace, tags, plugin actions", "aria-expanded": String(open), "aria-label": "Message options", onclick: toggleOpen }, svgIcon("more")),
       );
   const you = h("div", { class: "msg you", title: ChatFile.stamp(t.at) }, h("div", { class: "text" }, t.you));
-  if (i === c.turns.length - 1) onLongPress(you, editLast);
   const art = h(
     "article",
     { class: "turn" + (S.highlight === i ? " hit" : ""), id: "turn-" + i },
@@ -944,7 +1159,7 @@ const renderTurn = (c, t, i) => {
         ? h("details", { class: "thinking", open: S.thinkingOpen }, h("summary", { title: "Tap to fold or unfold · Ctrl+/ for all" }, t.secs != null ? `Thought for ${t.secs}s` : "Thinking"), h("div", { class: "md", html: mdToHtml(t.thinking) }))
         : null,
       t.pending
-        ? h("div", { class: "text muted progress" }, S.progress || "…")
+        ? h("div", { class: "live-box", "data-turn": i }, ...liveParts(t).filter(Boolean))
         : h("div", { class: "text md", html: mdToHtml(t.reply) }),
       t.error ? h("div", { class: "error" }, "✕ " + t.error) : null,
       foot,
@@ -954,8 +1169,9 @@ const renderTurn = (c, t, i) => {
             "div",
             { class: "msg-actions" },
             h("button", { class: "ghost", onclick: () => navigator.clipboard.writeText(t.reply).then(() => toast("Copied")) }, "Copy"),
+            h("button", { class: "ghost", title: "Open the text in a box where you can pick any part of it", onclick: () => openSelect(t) }, "Select text"),
             h("button", { class: "ghost", title: "Quote this reply in your next message (or swipe it right)", onclick: () => fillComposer(quote(t.reply), "append") }, "Reply"),
-            i === c.turns.length - 1 ? h("button", { class: "ghost", title: "Put your message back in the box (or long-press it)", onclick: editLast }, "Edit & resend") : null,
+            i === c.turns.length - 1 ? h("button", { class: "ghost", title: "Put your message back in the box", onclick: editLast }, "Edit & resend") : null,
             t.thinking ? h("button", { class: "ghost", onclick: () => navigator.clipboard.writeText(t.thinking).then(() => toast("Copied")) }, "Copy thinking") : null,
             ...actions,
             details,
@@ -971,9 +1187,11 @@ const renderTurn = (c, t, i) => {
 // Swipe a reply right to quote it, left to copy it.
 const onSwipe = (el, fn) => {
   let x0 = null, y0 = 0;
-  el.addEventListener("touchstart", (e) => ((x0 = e.touches[0].clientX), (y0 = e.touches[0].clientY)), { passive: true });
+  const selecting = () => !!String(window.getSelection() || "").trim();
+  el.addEventListener("touchstart", (e) => (selecting() ? (x0 = null) : ((x0 = e.touches[0].clientX), (y0 = e.touches[0].clientY))), { passive: true });
   el.addEventListener("touchmove", (e) => {
     if (x0 == null) return;
+    if (selecting()) return void (x0 = null, (el.style.transform = ""));
     const dx = e.touches[0].clientX - x0;
     if (Math.abs(e.touches[0].clientY - y0) > 40) return void (x0 = null, (el.style.transform = ""));
     el.style.transform = `translateX(${Math.max(-60, Math.min(60, dx / 2))}px)`;
@@ -995,12 +1213,11 @@ const onLongPress = (el, fn) => {
   el.addEventListener("contextmenu", (e) => (e.preventDefault(), fn()));
 };
 
-// Code blocks get a Copy button; long-press copies too.
+// Code blocks get a Copy button (long-press is left to text selection).
 const codeCopy = (root) => {
   for (const pre of root.querySelectorAll(".md pre")) {
     const copy = () => navigator.clipboard.writeText(pre.querySelector("code")?.textContent ?? pre.textContent).then(() => toast("Code copied"));
     pre.prepend(h("button", { class: "code-copy", onclick: copy }, "Copy"));
-    onLongPress(pre, copy);
   }
 };
 
@@ -1023,7 +1240,7 @@ const blockFor = (e, n) => {
     );
   if (p.def && typeof p.def.renderBlock === "function") {
     try {
-      const el = p.def.renderBlock({ settings: settingsFor(e.id), on: e.on, toggle, pill, openSettings: () => openPluginSettings(e.id), chat: S.chat });
+      const el = p.def.renderBlock({ settings: settingsFor(e.id), set: (k, v) => setSetting(e.id, k, v), on: e.on, toggle, pill, openSettings: () => openPluginSettings(e.id), chat: S.chat });
       if (el instanceof Node) return el;
     } catch (err) {
       p.error = "renderBlock: " + err.message;
@@ -1097,8 +1314,7 @@ const renderComposer = (draft) => {
     h(
       "div",
       { class: "progress" },
-      S.progress,
-      S.sending ? h("button", { class: "ghost", title: "Stop waiting for this reply", onclick: () => siteCmd("cancel").catch((e) => toast(e.message, "error")) }, "Stop waiting") : null,
+      h("span", { class: "progress-text" }, composerProgress()),
     ),
   );
 };
@@ -1130,13 +1346,13 @@ const send = async (retryText) => {
     local("draft", "");
   }
   rememberPrompt(text);
-  setTimeout(scrollDown, 0);
+  // Your own message: show it going out. The reply then waits for you to look.
+  setTimeout(() => scrollDown(true), 0);
   try {
     await runChat(chat, text);
     if (S.chat === chat) render();
-    setTimeout(scrollDown, 0);
   } catch (e) {
-    toast("Not sent: " + e.message, "error");
+    if (!e.quiet) toast("Not sent: " + e.message, "error");
     if (S.chat === chat) render();
   }
 };
@@ -1144,7 +1360,7 @@ const send = async (retryText) => {
 // Check: the send looked failed but the site is answering. Take that reply for this message.
 const checkFailed = async (c, f) => {
   try {
-    await runChat(c, f.you, profile(), true);
+    await runChat(c, f.you, profile(), true, f.page);
   } catch (e) {
     toast("Check: " + e.message, "error");
     if (S.chat === c) render();
@@ -1468,6 +1684,7 @@ const settingsForm = (id) => {
   const cur = settingsFor(id);
   const out = [];
   for (const [k, d] of Object.entries(man.settings || {})) {
+    if (d.type === "hidden") continue; // kept by the plugin itself
     let input;
     const set = (v) => setSetting(id, k, v);
     if (d.type === "bool") input = h("input", { type: "checkbox", checked: !!cur[k], onchange: (e) => (set(e.target.checked), render()) });
@@ -1521,7 +1738,7 @@ const openPlugins = () =>
       h("div", { class: "row" }, h("button", { class: "primary", onclick: reloadPlugins, title: "Ctrl+Shift+R" }, "Reload plugins"), h("button", { onclick: openGuide }, "How to write one")),
       h("p", { class: "muted" }, "Your plugin folder: ", h("code", {}, S.pluginFolder || "?")),
       h("div", { class: "row" }, url, h("button", { onclick: install }, "Install")),
-      h("div", { class: "row" }, h("button", { class: "small", onclick: () => api("/api/app/action", { action: "pickPlugin" }) }, "Install from a file (.zip or plugin.json)")),
+      h("div", { class: "row" }, h("button", { class: "primary", onclick: () => api("/api/app/action", { action: "pickPlugin" }) }, "Install from a file (.zip or plugin.json)")),
       h("h3", {}, `Order and switches for profile “${prof.name}”`),
       h("p", { class: "muted" }, "Before-send hooks run top to bottom; after-reply hooks too."),
       ...prof.plugins.map((e, i) => {
@@ -1600,6 +1817,18 @@ const openDoc = async (file, title) => {
   }
   openSheet(title, () => [h("div", { class: "md doc", html: mdToHtml(text) })]);
 };
+// Plain text of a message in a box: drag the handles, select all, or copy a part.
+const openSelect = (t) =>
+  openSheet("Select text", () => {
+    const box = (label, text) => {
+      const ta = h("textarea", { class: "select-box", readonly: true }, text);
+      return [h("div", { class: "row" }, h("strong", {}, label), h("button", { class: "small", onclick: () => (ta.focus(), ta.select()) }, "Select all"), h("button", { class: "small primary", onclick: () => {
+        const part = ta.value.slice(ta.selectionStart, ta.selectionEnd) || ta.value;
+        navigator.clipboard.writeText(part).then(() => toast(part === ta.value ? "Copied all" : "Copied selection"));
+      } }, "Copy selection")), ta];
+    };
+    return [...box("Reply", t.reply || ""), ...(t.thinking ? box("Thinking", t.thinking) : []), ...box("Your message", t.you || "")];
+  });
 const openGuide = () => openDoc("PLUGINS.md", "Writing plugins");
 const openQuickStart = () => openDoc("QUICKSTART.md", "Quick start");
 
@@ -1734,12 +1963,20 @@ const openSettings = () =>
     const tok = h("input", { type: "password", placeholder: S.app.apiToken ? "token set (type to replace, empty to clear)" : "optional" });
     return [
       ...lookControls(),
-      h("h3", {}, "Keyboard"),
+      h("h3", {}, "Site pages at once"),
+      h("p", { class: "muted" }, "Each page is a separate copy of the site, so this many chats (yours, plugins' and other apps') get answered at the same time. More pages use more memory, and many messages at once on one account can look like a bot to the site."),
+      h("div", { class: "row stepper" },
+        h("button", { class: "small", "aria-label": "Fewer pages", disabled: pageCount() <= 1, onclick: () => setPageCount(pageCount() - 1).then(render) }, "−"),
+        h("strong", {}, `${pageCount()} ${pageCount() === 1 ? "page" : "pages"}`),
+        h("button", { class: "small", "aria-label": "More pages", disabled: pageCount() >= 4, onclick: () => setPageCount(pageCount() + 1).then(render) }, "+"),
+      ),
+      h("p", { class: "muted" }, "Log in once: all pages share the login. In the site view, Page 1/2 switches between them."),
       h("h3", {}, "Waiting for replies"),
-      h("p", { class: "muted" }, "In minutes. 0 = no limit. Stop waiting under the message box always works."),
+      h("p", { class: "muted" }, "In minutes. 0 = no limit. Stop waiting on a reply that's coming always works."),
       ...[["idleMin", "Give up after this long with no activity on the page"], ["maxMin", "Give up after this long in total"]].map(([k, label]) =>
         h("label", { class: "field inline" }, h("span", {}, label), h("input", { type: "number", min: "0", step: "1", style: "width:5em", value: String((S.config.wait || {})[k] || 0), oninput: (e) => ((S.config.wait = { ...(S.config.wait || {}), [k]: Math.max(0, +e.target.value || 0) }), saveConfig()) })),
       ),
+      h("h3", {}, "Keyboard"),
       h("label", { class: "field inline" }, h("span", {}, "Enter sends (Shift+Enter for a new line)"), h("input", { type: "checkbox", checked: !!S.config.ui.enterSends, onchange: (e) => ((S.config.ui.enterSends = e.target.checked), saveConfig()) })),
       h("details", { class: "advanced-settings" }, h("summary", {}, "Advanced: storage, local API, background"),
       h("h3", {}, "Storage"),
@@ -1750,7 +1987,7 @@ const openSettings = () =>
       h("h3", {}, "Local API for other apps"),
       h("p", { class: "muted" }, `POST http://127.0.0.1:${S.app.port}/api/v1/chat with {"prompt": "..."} returns the decoded reply. Optional: "profile", "chat" ("new", "current" or a file path), "folder".`),
       h("pre", {}, `curl -s 127.0.0.1:${S.app.port}/api/v1/chat -d '{"prompt":"hi"}'`),
-      h("p", { class: "muted" }, "Apps that take an OpenAI API key: base URL below, model = a profile name, API key = the token (any key while no token is set). Each request becomes one new chat on the site."),
+      h("p", { class: "muted" }, "Apps that take an OpenAI API key: base URL below, model = a profile name, API key = the token (any key while no token is set). Each request becomes one new chat on the site. Requests at the same time run in parallel on the site pages (see Site pages at once), the rest wait their turn."),
       h("div", { class: "row" }, h("pre", { class: "grow" }, `http://127.0.0.1:${S.app.port}/v1`), h("button", { class: "small", onclick: () => navigator.clipboard.writeText(`http://127.0.0.1:${S.app.port}/v1`).then(() => toast("Copied")) }, "Copy")),
       h("label", { class: "field" }, h("span", {}, "API token (then send: Authorization: Bearer <token>)"), h("div", { class: "row" }, tok, h("button", {
         onclick: async () => {
@@ -1929,7 +2166,10 @@ const commands = () => [
   { name: "Previous chat", key: "Alt+↑", run: () => stepChat(-1) },
   { name: "Next chat", key: "Alt+↓", run: () => stepChat(1) },
   { name: "Link this chat to the open AI page", key: "", run: linkToSite, menu: true },
-  { name: "Copy page report (to fix a site)", key: "", run: copyPageReport, menu: true },
+  // Plugins' own menu entries.
+  ...[...S.plugins.values()].flatMap((p) =>
+    (p.def?.menu || []).map((m) => ({ name: m.label, key: "", menu: true, run: () => Promise.resolve().then(() => m.run()).catch((e) => toast(e.message, "error")) })),
+  ),
   { name: "Import messages from the linked site chat", key: "", run: importHistory, menu: true },
   { name: "Add the page's newest reply to this chat", key: "", run: addFromPage, menu: true },
   { name: "Decode newest reply on the AI page (preview)", key: "", run: decodeLast },
@@ -1946,8 +2186,7 @@ const openHelp = () =>
     ...[
       ["Swipe a reply right", "quote it in your message"],
       ["Swipe a reply left", "copy it"],
-      ["Long-press your last message", "edit and resend"],
-      ["Long-press a code block", "copy the code"],
+      ["Long-press any text", "select it (or Options › Select text)"],
       ["Long-press a chat in the list", "pin, move, delete"],
       ["Tap the title", "chat info, tags, history"],
       ["Tap the model name", "choose model and switches"],
@@ -2104,7 +2343,7 @@ if (window.visualViewport) {
   const fit = () => document.documentElement.style.setProperty("--vvh", window.visualViewport.height + "px");
   window.visualViewport.addEventListener("resize", () => {
     fit();
-    if (document.activeElement?.closest?.(".composer")) scrollDown();
+    if (document.activeElement?.closest?.(".composer") && nearBottom()) scrollDown();
   });
   fit();
 }
@@ -2114,7 +2353,7 @@ const boot = async () => {
   app.replaceChildren(h("p", { class: "muted boot" }, "Starting…"));
   try {
     S.app = await api("/api/app");
-    if (S.app.site && S.app.site.url) S.site = { connected: true, url: S.app.site.url, title: S.app.site.title };
+    for (const p of S.app.pages || []) Object.assign(pg(p.page), { connected: p.connected, url: p.url, title: p.title });
     const cfg = await api("/api/config");
     S.config = Object.assign(DEFAULT_CONFIG(), cfg);
     S.config.git = Object.assign(DEFAULT_CONFIG().git, cfg.git || {});
@@ -2127,6 +2366,7 @@ const boot = async () => {
     S.chat = newChat();
     if (S.config.lastChat && S.chats.some((c) => c.path === S.config.lastChat)) await openChat(S.config.lastChat).catch(() => {});
     saveConfig();
+    if (pageCount() !== (S.app.pages || []).length) await setPageCount(pageCount());
     render();
     scrollDown();
     warmSite();

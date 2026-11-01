@@ -31,12 +31,16 @@ plugins/
     "suffix": { "type": "text", "label": "Text to add", "default": "" },
     "style": { "type": "select", "label": "Style", "options": { "up": "UPPER", "low": "lower" }, "default": "up" },
     "notes": { "type": "textarea", "label": "Notes", "default": "" },
-    "times": { "type": "number", "label": "Times", "default": 1 }
+    "times": { "type": "number", "label": "Times", "default": 1 },
+    "picked": { "type": "hidden", "default": [] }
   }
 }
 ```
 
 - `id`: letters, digits, `-` and `_`. Same as the folder name.
+- Setting types: `bool`, `text`, `textarea`, `select`, `number`, and `hidden`
+  (any JSON value your plugin keeps itself, set with `ctx.set`; it isn't shown
+  in the ⚙ form). Settings are saved per profile.
 - `block.place`: `toggles` (the row above the message box, the default) or `top` (the top bar). `"block": false` means no block.
 - `advanced: true` puts the block in the folded **Advanced** row.
 - `settings` get a settings screen built for you (the ⚙ on the block). Types: `bool`, `text`, `textarea`, `number`, `select`. Add `help` for a hint line. Settings are saved per profile.
@@ -56,7 +60,10 @@ PP.plugin({
   },
   // Buttons under every reply, even when the plugin is off. run gets the raw reply.
   messageActions: [{ label: "Shout this", run: (raw, ctx) => raw.toUpperCase() }],
+  // Entries in the ⋯ menu, even when the plugin is off.
+  menu: [{ label: "Shout the last reply", run: () => PP.toast(PP.chat.turns.at(-1)?.reply.toUpperCase() || "nothing yet") }],
   // Optional: draw your own block. ctx.pill(label) is the standard switch.
+  // ctx.set(key, value) saves one of this plugin's settings for the profile.
   renderBlock(ctx) {
     return ctx.pill(ctx.on ? "SHOUT on" : "shout");
   },
@@ -77,6 +84,57 @@ Plugins that are on run in the order shown in the Plugins screen (move them with
 `PP` (global) has: `PP.h(tag, props, ...children)` to make elements,
 `PP.md(text)` Markdown to HTML, `PP.toast(text)`, `PP.api(path, body)`,
 `PP.site(cmd)` to talk to the AI page, `PP.chat`, `PP.profile`.
+
+### Your own screens: `PP.sheet`
+
+`PP.sheet(title, render)` opens a bottom sheet. `render()` returns an array of
+elements (made with `PP.h`) and runs again whenever you call `PP.render()`, so
+keep state in variables and redraw:
+
+```js
+let n = 0;
+const open = () => PP.sheet("Counter", () => [
+  PP.h("p", {}, `Tapped ${n} times`),
+  PP.h("button", { class: "primary", onclick: () => (n++, PP.render()) }, "Tap"),
+]);
+```
+
+The built-in System prompt plugin (stack + library) is a full example.
+
+### Running code in the AI page
+
+`await PP.site("run", { code })` runs `code` inside the AI page as
+`new Function("PP", "site", code)`, with the page helpers (see Site scripts)
+and the site plugin's selectors, and resolves to the object it returns. The
+built-in **Page report** plugin works this way.
+
+### Keeping files
+
+Plugins can keep data as files in your history folder (git keeps every
+version): read with `PP.api("/api/history/file?path=my-plugin.json")` (its
+`text` is `null` when the file doesn't exist), write with
+`PP.api("/api/history/save", { files: [{ path, text }], message })`.
+
+### Side requests: `PP.ask`
+
+`await PP.ask(prompt, { profile, hooks })` sends `prompt` in a fresh chat on
+the site and resolves to `{ reply, thinking, url }`. It is not saved as a chat
+and doesn't show up in the open one. Use it for jobs next to the main
+conversation, like "summarise this into memory".
+
+- `profile`: a profile name (default: the active one).
+- `hooks: true` runs that profile's plugins on it too (off by default).
+- It takes a free site page. Inside `beforeSend` / `afterReply` you need
+  **Settings › Site pages at once** at 2 or more (the message being answered
+  holds a page); with 1 page it fails with a clear error instead of hanging.
+- Several `PP.ask` calls at once run in parallel, up to the page count.
+
+```js
+afterReply: async (text, ctx) => {
+  PP.ask("Summarise in 3 lines:\n\n" + text).then((r) => PP.toast("Memory: " + r.reply.slice(0, 60)));
+  return text; // don't wait for it
+},
+```
 
 ## AI sites
 
@@ -136,12 +194,24 @@ return {
 };
 ```
 
-Helpers: `all(sel)`, `first(selectors)`, `textOf(el)`, `sleep(ms)`,
-`typeInto(site, text)`, `waitReply(site, snapshot)`, `snapshot(site)`,
-`lastReply(site)`, `lastReplyEl(site)`, `lastThinking(site)`,
-`answerText(site, el)`, `list(site)`, `info(site)`, `status(text)`.
+Helpers: `all(sel)`, `first(selectors)`, `textOf(el)` (plain text),
+`toMarkdown(el)` (the element as Markdown: bold, lists, headings, code,
+tables), `sleep(ms)`, `typeInto(site, text)`, `waitReply(site, snapshot)`,
+`snapshot(site)`, `lastReply(site)`, `lastReplyEl(site)`, `lastThinking(site)`,
+`answerText(site, el)` (the reply as Markdown, without thinking inside it),
+`list(site)`, `info(site)`, `status(text, live)`.
 `site.settings` holds the site plugin's settings. `send` may also return
 `thinking`.
+
+Replies are read as Markdown, so return `PP.answerText(site, el)` rather than
+`PP.textOf(el)` to keep formatting.
+
+`status(text, { thinking, reply })` updates the line under a reply that's on
+its way; with `thinking` and/or `reply` the app shows them live (thinking open,
+the reply so far under it). The built-in wait does this for you.
+
+With several site pages (Settings › Site pages at once) each page runs its own
+copy of your script; nothing to change.
 
 ## Themes
 
