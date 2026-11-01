@@ -115,14 +115,6 @@ const PP = (window.PP = {
   site: (cmd, extra) => siteCmd(cmd, extra),
 });
 
-const loadScript = (src) =>
-  new Promise((ok, fail) => {
-    const s = h("script", { src });
-    s.onload = ok;
-    s.onerror = () => fail(new Error("could not load " + src));
-    document.head.append(s);
-  });
-
 const loadPlugins = async () => {
   const { plugins } = await api("/api/plugins");
   S.plugins.clear();
@@ -145,7 +137,12 @@ const loadPlugins = async () => {
     if (!main) continue;
     loadingId = p.id;
     try {
-      await loadScript(`/plugins/${encodeURIComponent(p.id)}/${main}?t=${Date.now()}`);
+      // Each plugin runs in its own function scope, so reloading it (or two
+      // plugins using the same top-level names) doesn't clash.
+      const url = `/plugins/${encodeURIComponent(p.id)}/${main}`;
+      const r = await fetch(url + "?t=" + Date.now());
+      if (!r.ok) throw new Error(main + " not found");
+      new Function("PP", (await r.text()) + "\n//# sourceURL=" + location.origin + url)(PP);
       if (!S.plugins.get(p.id).def && !S.plugins.get(p.id).error) S.plugins.get(p.id).error = "main.js did not call PP.plugin({...})";
     } catch (e) {
       S.plugins.get(p.id).error = e.message;
