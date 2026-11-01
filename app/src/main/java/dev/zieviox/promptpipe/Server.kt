@@ -84,6 +84,11 @@ class Server(private val app: App) : NanoHTTPD("127.0.0.1", App.PORT) {
                 val parts = uri.removePrefix("/plugins/").split("/", limit = 2)
                 return stream(if (parts.size == 2) app.store.pluginFile(parts[0], parts[1]) else null, uri)
             }
+            // Safe mode reads the built-in copies even where a plugin of yours overrides one.
+            uri.startsWith("/builtin/") -> {
+                val parts = uri.removePrefix("/builtin/").split("/", limit = 2)
+                return stream(if (parts.size == 2) app.store.builtinFile(parts[0], parts[1]) else null, uri)
+            }
             uri.startsWith("/api/v1/") -> return external(s)
             uri.startsWith("/v1/") -> return openai(s)
         }
@@ -118,12 +123,18 @@ class Server(private val app: App) : NanoHTTPD("127.0.0.1", App.PORT) {
                 ok()
             } else json(config())
             "/api/events" -> json(app.hub.poll(q["after"]?.toIntOrNull() ?: 0, 25_000))
-            "/api/plugins" -> json(JSONObject().put("plugins", app.store.listPlugins()).put("folder", app.store.plugins.path))
+            "/api/plugins" -> json(JSONObject().put("plugins", app.store.listPlugins(q["builtin"] == "1")).put("folder", app.store.plugins.path))
             "/api/plugins/install" -> {
                 val log = JSONArray()
                 val id = app.store.install(b.getString("url")) { log.put(it) }
                 json(JSONObject().put("id", id).put("log", log))
             }
+            // Plugin updates: the latest release's plugin bundle (see Store.updateFromRelease).
+            "/api/plugins/update" -> {
+                val log = JSONArray()
+                json(app.store.updateFromRelease(b.optString("repo", "Zieviox/promptpipe"), b.optBoolean("force")) { log.put(it) }.put("log", log))
+            }
+            "/api/plugins/bundle" -> json(app.store.bundleInfo())
             "/api/plugins/fork" -> json(JSONObject().put("path", app.store.fork(b.getString("id"))))
             "/api/site" -> json(app.hub.request(b, b.optLong("timeout", 31 * 60_000L)))
             "/api/site/open" -> json(app.hub.open(b.getString("url"), b.optInt("page", 0)))
@@ -151,6 +162,13 @@ class Server(private val app: App) : NanoHTTPD("127.0.0.1", App.PORT) {
 
     private fun gitCfg() = config().optJSONObject("git") ?: JSONObject()
 
+    // Files that belong to one chat live in .memory/<chat path without .md>/
+    // (hidden from the chat list); they move and go with the chat.
+    private fun companion(chatPath: String): java.io.File? {
+        if (!chatPath.endsWith(".md") || chatPath.split("/").any { it.startsWith(".") }) return null
+        return app.store.file(".memory/" + chatPath.removeSuffix(".md"))
+    }
+
     // Write files, apply moves/deletes and folders, then commit them together.
     private fun save(b: JSONObject): Response {
         val touched = mutableListOf<String>()
@@ -164,6 +182,13 @@ class Server(private val app: App) : NanoHTTPD("127.0.0.1", App.PORT) {
                 to.parentFile?.mkdirs()
                 if (!from.renameTo(to)) throw IOException("could not move ${m.getString("from")}")
                 touched.add(m.getString("to"))
+                // A chat's companion files (e.g. Memory's summaries) move with it.
+                val cf = companion(m.getString("from"))
+                val ct = companion(m.getString("to"))
+                if (cf != null && ct != null && cf.isDirectory && !ct.exists()) {
+                    ct.parentFile?.mkdirs()
+                    if (cf.renameTo(ct)) touched.add(ct.relativeTo(app.store.history).path)
+                }
             }
         }
         b.optJSONArray("files")?.let { a ->
@@ -175,7 +200,12 @@ class Server(private val app: App) : NanoHTTPD("127.0.0.1", App.PORT) {
                 touched.add(f.getString("path"))
             }
         }
-        b.optJSONArray("delete")?.let { a -> for (i in 0 until a.length()) app.store.file(a.getString(i)).delete() }
+        b.optJSONArray("delete")?.let { a ->
+            for (i in 0 until a.length()) {
+                app.store.file(a.getString(i)).delete()
+                companion(a.getString(i))?.let { if (it.isDirectory) it.deleteRecursively() }
+            }
+        }
         val out = JSONObject().put("ok", true)
         val cfg = gitCfg()
         if (cfg.optBoolean("enabled", true)) {

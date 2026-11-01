@@ -484,13 +484,21 @@
   //   return { async send(text, site) { ...; return { raw } }, last(site), list(site), info(site) }
   // Commands it leaves out use the selector based defaults above.
   const helpers = { all, first, visible, sleep, textOf, typeInto, waitReply, snapshot, lastReply, lastReplyEl, lastThinking, answerText, toMarkdown: mdOf, list, info, status: (t, live) => status(t, live) };
-  let compiled = { code: null, mod: {} };
-  const scriptFor = (site) => {
-    if (!site || !site.script) return {};
-    if (compiled.code !== site.script) {
-      compiled = { code: site.script, mod: new Function("PP", site.script)(helpers) || {} };
+  // Driver plugins ("kind": "driver") bring the same kind of script for every
+  // site (site.drivers). Order: the site's own script, then drivers (the last
+  // installed wins), then the defaults above.
+  const compiled = new Map(); // code -> commands
+  const compile = (code) => {
+    if (!compiled.has(code)) {
+      if (compiled.size > 16) compiled.clear();
+      compiled.set(code, new Function("PP", code)(helpers) || {});
     }
-    return compiled.mod;
+    return compiled.get(code);
+  };
+  const scriptFor = (site) => {
+    if (!site) return {};
+    const codes = [...(site.drivers || []), ...(site.script ? [site.script] : [])];
+    return codes.length ? Object.assign({}, ...codes.map(compile)) : {};
   };
   const handlers = {};
   for (const cmd of Object.keys(builtin)) {

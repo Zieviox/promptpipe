@@ -46,17 +46,57 @@ class Store(private val ctx: Context) {
     // ---------- plugins ----------
     private fun builtinIds(): List<String> = ctx.assets.list("plugins")?.toList() ?: emptyList()
 
-    fun listPlugins(): JSONArray {
+    // Plugin updates: the release's plugin bundle, downloaded into app storage.
+    // A plugin there is used instead of the built-in one when its version is
+    // newer; your own plugins folder still wins over both. Safe mode uses only
+    // what came with the app.
+    private val updates get() = File(ctx.filesDir, "plugin-updates")
+    private fun updateIds(): List<String> = updates.listFiles()?.filter { File(it, "plugin.json").isFile }?.map { it.name } ?: emptyList()
+    private fun builtinManifest(id: String): JSONObject? = try {
+        JSONObject(ctx.assets.open("plugins/$id/plugin.json").bufferedReader().use { it.readText() })
+    } catch (e: Exception) {
+        null
+    }
+
+    private fun newer(a: String, b: String): Boolean {
+        val x = a.split('.').map { it.toIntOrNull() ?: 0 }
+        val y = b.split('.').map { it.toIntOrNull() ?: 0 }
+        for (i in 0 until maxOf(x.size, y.size)) {
+            val d = x.getOrElse(i) { 0 } - y.getOrElse(i) { 0 }
+            if (d != 0) return d > 0
+        }
+        return false
+    }
+
+    // The downloaded copy of a plugin, when it should be used.
+    private fun updateDir(id: String): File? {
+        if (!safeName(id)) return null
+        val dir = File(updates, id)
+        val m = try {
+            JSONObject(File(dir, "plugin.json").readText())
+        } catch (e: Exception) {
+            return null
+        }
+        val b = builtinManifest(id) ?: return dir
+        return if (newer(m.optString("version"), b.optString("version"))) dir else null
+    }
+
+    // builtinOnly: just the plugins that come with the app (safe mode).
+    fun listPlugins(builtinOnly: Boolean = false): JSONArray {
         val out = JSONArray()
-        val user = plugins.listFiles()?.filter { File(it, "plugin.json").isFile }?.associateBy { it.name } ?: emptyMap()
-        val ids = (builtinIds() + user.keys).distinct().sorted()
+        val user = if (builtinOnly) emptyMap() else plugins.listFiles()?.filter { File(it, "plugin.json").isFile }?.associateBy { it.name } ?: emptyMap()
+        val builtin = builtinIds()
+        val ids = (builtin + (if (builtinOnly) emptyList() else updateIds()) + user.keys).distinct().sorted()
         for (id in ids) {
             val dir = user[id]
+            val upd = if (dir == null && !builtinOnly) updateDir(id) else null
+            if (dir == null && upd == null && id !in builtin) continue
             val entry = JSONObject().put("id", id).put("source", if (dir != null) "user" else "builtin")
-            if (dir != null && id in builtinIds()) entry.put("overrides", true)
+            if (dir != null && (id in builtin || File(updates, id).isDirectory)) entry.put("overrides", true)
+            if (upd != null) entry.put("updated", true)
             try {
-                val text = if (dir != null) File(dir, "plugin.json").readText()
-                else ctx.assets.open("plugins/$id/plugin.json").bufferedReader().readText()
+                val text = (dir ?: upd)?.let { File(it, "plugin.json").readText() }
+                    ?: ctx.assets.open("plugins/$id/plugin.json").bufferedReader().use { it.readText() }
                 entry.put("manifest", JSONObject(text))
             } catch (e: Exception) {
                 entry.put("error", "plugin.json: ${e.message}")
@@ -70,6 +110,12 @@ class Store(private val ctx: Context) {
         if (!safeName(id) || path.split('/').any { it == ".." || it.isEmpty() }) return null
         val f = File(File(plugins, id), path)
         if (File(plugins, id).isDirectory) return if (f.isFile) f.inputStream() else null
+        updateDir(id)?.let { val u = File(it, path); return if (u.isFile) u.inputStream() else null }
+        return builtinFile(id, path)
+    }
+
+    fun builtinFile(id: String, path: String): InputStream? {
+        if (!safeName(id) || path.split('/').any { it == ".." || it.isEmpty() }) return null
         return try {
             ctx.assets.open("plugins/$id/$path")
         } catch (e: IOException) {
@@ -79,10 +125,11 @@ class Store(private val ctx: Context) {
 
     // Copy a built-in plugin into the plugins folder so it can be edited.
     fun fork(id: String): String {
-        if (!safeName(id) || id !in builtinIds()) throw IOException("no built-in plugin '$id'")
+        val upd = updateDir(id)
+        if (!safeName(id) || (id !in builtinIds() && upd == null)) throw IOException("no built-in plugin '$id'")
         val dest = File(plugins, id)
         if (dest.exists()) throw IOException("plugins/$id already exists")
-        copyAssetDir("plugins/$id", dest)
+        if (upd != null) upd.copyRecursively(dest) else copyAssetDir("plugins/$id", dest)
         return dest.absolutePath
     }
 
@@ -154,8 +201,9 @@ class Store(private val ctx: Context) {
         return id
     }
 
-    private fun installZipBytes(bytes: ByteArray, log: (String) -> Unit): String {
-        val tmp = File(ctx.cacheDir, "plugin-unzip").also { it.deleteRecursively(); it.mkdirs() }
+    private fun unzip(bytes: ByteArray, tmp: File) {
+        tmp.deleteRecursively()
+        tmp.mkdirs()
         ZipInputStream(bytes.inputStream()).use { zip ->
             while (true) {
                 val e = zip.nextEntry ?: break
@@ -167,6 +215,14 @@ class Store(private val ctx: Context) {
                 }
             }
         }
+    }
+
+    // A plugin bundle zip (bundle.json + one folder per plugin) installs as the
+    // plugin update; any other zip is one plugin. Bundles return "bundle:<version>".
+    private fun installZipBytes(bytes: ByteArray, log: (String) -> Unit): String {
+        val tmp = File(ctx.cacheDir, "plugin-unzip")
+        unzip(bytes, tmp)
+        tmp.walkTopDown().maxDepth(2).firstOrNull { it.name == "bundle.json" }?.let { return "bundle:" + installBundle(it, log).optString("version") }
         val manifestFile = tmp.walkTopDown().firstOrNull { it.name == "plugin.json" }
             ?: throw IOException("no plugin.json in the zip")
         val id = JSONObject(manifestFile.readText()).optString("id")
@@ -179,8 +235,57 @@ class Store(private val ctx: Context) {
         return id
     }
 
+    private fun installBundle(manifest: File, log: (String) -> Unit): JSONObject {
+        val info = JSONObject(manifest.readText())
+        val root = manifest.parentFile!!
+        val fresh = File(ctx.filesDir, "plugin-updates.new").also { it.deleteRecursively(); it.mkdirs() }
+        val ids = JSONArray()
+        for (d in root.listFiles() ?: emptyArray()) {
+            if (d.isDirectory && safeName(d.name) && File(d, "plugin.json").isFile) {
+                d.copyRecursively(File(fresh, d.name), overwrite = true)
+                ids.put(d.name)
+            }
+        }
+        if (ids.length() == 0) throw IOException("the bundle has no plugins")
+        manifest.copyTo(File(fresh, "bundle.json"), overwrite = true)
+        updates.deleteRecursively()
+        if (!fresh.renameTo(updates)) throw IOException("couldn't move the plugin update into place")
+        root.deleteRecursively()
+        log("plugin bundle ${info.optString("version")} installed (${ids.length()} plugins)")
+        return info.put("plugins", ids)
+    }
+
+    // What plugin bundle is installed: { version, plugins, checked } or {}.
+    fun bundleInfo(): JSONObject = try {
+        JSONObject(File(updates, "bundle.json").readText())
+    } catch (e: Exception) {
+        JSONObject()
+    }
+
+    // Download the plugin bundle of the latest GitHub release of `repo`
+    // (an asset named promptpipe-plugins-<version>.zip). force: even when that
+    // version is installed already.
+    fun updateFromRelease(repo: String, force: Boolean, log: (String) -> Unit): JSONObject {
+        if (!repo.matches(Regex("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"))) throw IOException("updates come from owner/repo, not '$repo'")
+        log("checking $repo")
+        val rel = JSONObject(String(fetch("https://api.github.com/repos/$repo/releases/latest")))
+        val assets = rel.optJSONArray("assets") ?: JSONArray()
+        val asset = (0 until assets.length()).map { assets.getJSONObject(it) }
+            .firstOrNull { it.optString("name").startsWith("promptpipe-plugins") && it.optString("name").endsWith(".zip") }
+            ?: throw IOException("release ${rel.optString("tag_name")} has no plugin bundle")
+        val version = asset.optString("name").removePrefix("promptpipe-plugins-").removePrefix("v").removeSuffix(".zip")
+        val have = bundleInfo().optString("version")
+        if (!force && have.isNotEmpty() && !newer(version, have)) return JSONObject().put("version", have).put("upToDate", true)
+        log("downloading ${asset.optString("name")}")
+        val tmp = File(ctx.cacheDir, "bundle-unzip")
+        unzip(fetch(asset.getString("browser_download_url")), tmp)
+        val manifest = tmp.walkTopDown().maxDepth(2).firstOrNull { it.name == "bundle.json" } ?: throw IOException("the bundle has no bundle.json")
+        return installBundle(manifest, log).put("updated", true)
+    }
+
     private fun fetch(url: String): ByteArray {
         val c = URL(url).openConnection() as HttpURLConnection
+        c.setRequestProperty("User-Agent", "promptpipe")
         c.connectTimeout = 15000
         c.readTimeout = 30000
         c.instanceFollowRedirects = true
@@ -203,7 +308,8 @@ class Store(private val ctx: Context) {
         val root = history.canonicalFile
         val files = JSONArray()
         val folders = JSONArray()
-        root.walkTopDown().onEnter { it.name != ".git" }.forEach { f ->
+        // Folders starting with "." (.git, .memory, …) aren't part of the chat list.
+        root.walkTopDown().onEnter { it == root || !it.name.startsWith(".") }.forEach { f ->
             val rel = f.relativeTo(root).path
             if (rel.isEmpty()) return@forEach
             if (f.isDirectory) folders.put(rel)
@@ -223,7 +329,7 @@ class Store(private val ctx: Context) {
     fun allChats(): JSONArray {
         val root = history.canonicalFile
         val out = JSONArray()
-        root.walkTopDown().onEnter { it.name != ".git" }.filter { it.isFile && it.name.endsWith(".md") }.forEach {
+        root.walkTopDown().onEnter { it == root || !it.name.startsWith(".") }.filter { it.isFile && it.name.endsWith(".md") }.forEach {
             out.put(JSONObject().put("path", it.relativeTo(root).path).put("text", it.readText()).put("mtime", it.lastModified()))
         }
         return out

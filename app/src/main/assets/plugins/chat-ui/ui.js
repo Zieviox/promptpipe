@@ -1,246 +1,10 @@
 "use strict";
-// promptpipe chat UI. Talks to the app over /api (see Server.kt):
-// plugins and profiles, the AI page, chat files and git.
-
-// ---------- helpers ----------
-const h = (tag, props = {}, ...kids) => {
-  const e = document.createElement(tag);
-  for (const [k, v] of Object.entries(props || {})) {
-    if (v == null || v === false) continue;
-    if (k.startsWith("on")) e.addEventListener(k.slice(2).toLowerCase(), v);
-    else if (k === "class") e.className = v;
-    else if (k === "html") e.innerHTML = v;
-    else if (k in e && typeof v !== "string") e[k] = v;
-    else if (k === "value") e.value = v;
-    else e.setAttribute(k, v === true ? "" : v);
-  }
-  for (const k of kids.flat()) if (k != null && k !== false) e.append(k instanceof Node ? k : String(k));
-  return e;
-};
-
-const api = async (path, body) => {
-  const r = await fetch(path, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  const j = await r.json().catch(() => ({ error: "bad answer from the app (" + r.status + ")" }));
-  if (!r.ok || j.error) throw new Error(j.error || "HTTP " + r.status);
-  return j;
-};
-
-const toast = (msg, kind = "info") => {
-  const t = h("div", { class: "toast " + kind, role: kind === "error" ? "alert" : "status" }, msg);
-  document.getElementById("toasts").append(t);
-  setTimeout(() => t.remove(), kind === "error" ? 8000 : 3500);
-};
-
-const iso = () => new Date().toISOString();
-const slug = (s) => (s || "chat").toLowerCase().normalize("NFKD").replace(/[^\w\s-]/g, "").trim().replace(/[\s_]+/g, "-").slice(0, 40) || "chat";
-const sameUrl = (a, b) => (a || "").replace(/[?#].*$/, "").replace(/\/$/, "") === (b || "").replace(/[?#].*$/, "").replace(/\/$/, "");
-const local = (key, val) => {
-  try {
-    if (val === undefined) return JSON.parse(localStorage.getItem("pp:" + key));
-    localStorage.setItem("pp:" + key, JSON.stringify(val));
-  } catch (e) {
-    return null;
-  }
-};
-
-// ---------- state ----------
-const S = {
-  app: {},
-  config: null,
-  plugins: new Map(), // id -> { id, manifest, source, def, error }
-  chats: [], // { path, meta, mtime }
-  folders: [],
-  tags: { counters: {}, tags: [] },
-  chat: null,
-  folder: "", // where new chats go
-  openFolders: new Set(local("openFolders") || []),
-  siteChats: [],
-  // Site pages (several = chats in parallel); page = the one the site view shows.
-  pages: [],
-  page: 0,
-  pageTurns: {}, // page -> the message being answered there
-  busy: false,
-  progress: "",
-  drawer: false,
-  sheet: null, // { title, render }
-  advOpen: !!local("advOpen"),
-  query: "",
-  traces: new WeakMap(), // turn -> full trace (this session only)
-  openTurns: new WeakSet(), // turns whose options are unfolded
-};
-
-// S.site = the page the site view shows (most commands act on it).
-const pg = (i) => (S.pages[i] = S.pages[i] || { connected: false, url: "", title: "", busy: false });
-Object.defineProperty(S, "site", {
-  get: () => pg(S.page),
-  set: (v) => Object.assign(pg(S.page), v),
-});
-
-const DEFAULT_CONFIG = () => ({
-  profiles: [
-    {
-      // The site is filled in with the first site plugin you install.
-      id: "p1",
-      name: "Default",
-      site: "",
-      plugins: [
-        { id: "base64", on: false, settings: {} },
-        { id: "system-prompt", on: false, settings: {} },
-      ],
-    },
-  ],
-  activeProfile: "p1",
-  lastChat: "",
-  git: { enabled: true, name: "", email: "", remote: "", autoPush: false },
-  api: { folder: "api" },
-  ui: { scale: 1, theme: "", enterSends: false },
-  // Minutes to wait for a reply; 0 = no limit (Stop waiting is always there).
-  wait: { idleMin: 0, maxMin: 0 },
-  // Site pages at once: sends (yours, plugins', other apps') run in parallel up to this many.
-  pages: 1,
-});
-
-let configTimer = 0;
-const saveConfig = () => {
-  clearTimeout(configTimer);
-  configTimer = setTimeout(() => api("/api/config", S.config).catch((e) => toast("Settings not saved: " + e.message, "error")), 400);
-};
-
-// ---------- plugins ----------
-// A plugin's main.js calls PP.plugin({...hooks}). See /docs/PLUGINS.md.
-let loadingId = null;
-const PP = (window.PP = {
-  plugin(def) {
-    const p = S.plugins.get(loadingId);
-    if (p) p.def = def;
-  },
-  h,
-  api,
-  toast,
-  md: (text) => mdToHtml(text),
-  get chat() {
-    return S.chat;
-  },
-  get profile() {
-    return profile();
-  },
-  site: (cmd, extra) => siteCmd(cmd, extra),
-  // Ask the site something on the side (a fresh chat, not saved): resolves to { reply, thinking, url }.
-  ask: (prompt, opts) => askSite(prompt, opts),
-  // A sheet of the plugin's own: render() returns its elements and runs again on PP.render().
-  sheet: (title, renderFn) => openSheet(title, renderFn),
-  render: () => render(),
-  // Another plugin's settings for the active profile (read only), e.g. PP.settings("system-prompt").stack.
-  settings: (id) => settingsFor(id),
-  // The site plugin of the active profile ({ name, url, ... }).
-  get sitePlugin() {
-    return siteFor();
-  },
-});
-
-const loadPlugins = async () => {
-  const { plugins } = await api("/api/plugins");
-  S.plugins.clear();
-  window.onerror = (msg, src, line) => {
-    const p = S.plugins.get(loadingId);
-    if (p && src && src.includes("/plugins/" + p.id + "/")) p.error = `${msg} (line ${line})`;
-  };
-  for (const p of plugins) {
-    S.plugins.set(p.id, { ...p, def: null });
-    if (p.manifest && p.manifest.siteScript) {
-      try {
-        const r = await fetch(`/plugins/${encodeURIComponent(p.id)}/${p.manifest.siteScript}?t=${Date.now()}`);
-        if (!r.ok) throw new Error(p.manifest.siteScript + " not found");
-        S.plugins.get(p.id).siteScript = await r.text();
-      } catch (e) {
-        S.plugins.get(p.id).error = e.message;
-      }
-    }
-    const main = p.manifest && p.manifest.main;
-    if (!main) continue;
-    loadingId = p.id;
-    try {
-      // Each plugin runs in its own function scope, so reloading it (or two
-      // plugins using the same top-level names) doesn't clash.
-      const url = `/plugins/${encodeURIComponent(p.id)}/${main}`;
-      const r = await fetch(url + "?t=" + Date.now());
-      if (!r.ok) throw new Error(main + " not found");
-      new Function("PP", (await r.text()) + "\n//# sourceURL=" + location.origin + url)(PP);
-      if (!S.plugins.get(p.id).def && !S.plugins.get(p.id).error) S.plugins.get(p.id).error = "main.js did not call PP.plugin({...})";
-    } catch (e) {
-      S.plugins.get(p.id).error = e.message;
-    }
-  }
-  loadingId = null;
-  syncProfiles();
-};
-
-const isSite = (p) => p && p.manifest && (p.manifest.kind === "site" || p.manifest.site);
-const isTheme = (p) => p && p.manifest && p.manifest.kind === "theme";
-const isStep = (p) => p && p.manifest && !isSite(p) && !isTheme(p);
-const pluginName = (id) => S.plugins.get(id)?.manifest?.name || id;
-
-// Every profile lists every non-site plugin once (new ones are added switched off).
-const syncProfiles = () => {
-  // A profile whose site isn't installed takes the first site that is.
-  const sites = [...S.plugins.values()].filter(isSite);
-  for (const prof of S.config.profiles) {
-    if (sites.length && !sites.some((p) => p.id === prof.site)) prof.site = sites[0].id;
-  }
-  for (const prof of S.config.profiles) {
-    prof.plugins = prof.plugins.filter((e) => !S.plugins.has(e.id) || isStep(S.plugins.get(e.id)));
-    for (const p of S.plugins.values()) {
-      if (isStep(p) && !prof.plugins.some((e) => e.id === p.id)) prof.plugins.push({ id: p.id, on: false, settings: {} });
-    }
-  }
-};
-
-const profile = () => S.config.profiles.find((p) => p.id === S.config.activeProfile) || S.config.profiles[0];
-const entryFor = (id, prof = profile()) => {
-  let e = prof.plugins.find((x) => x.id === id);
-  if (!e) prof.plugins.push((e = { id, on: false, settings: {} }));
-  return e;
-};
-
-// Settings: what the profile saved, else the manifest's default.
-const settingsFor = (id, prof = profile()) => {
-  const man = S.plugins.get(id)?.manifest || {};
-  const saved = id === prof.site ? prof.siteSettings || {} : entryFor(id, prof).settings;
-  const out = {};
-  for (const [k, d] of Object.entries(man.settings || {})) out[k] = k in saved ? saved[k] : d.default;
-  return out;
-};
-const setSetting = (id, key, value, prof = profile()) => {
-  if (id === prof.site) (prof.siteSettings = prof.siteSettings || {})[key] = value;
-  else entryFor(id, prof).settings[key] = value;
-  saveConfig();
-};
-
-const siteFor = (prof = profile()) => {
-  const p = S.plugins.get(prof.site);
-  if (!p || !isSite(p)) return null;
-  const site = JSON.parse(JSON.stringify(p.manifest.site));
-  site.settings = settingsFor(p.id, prof);
-  if (site.settings.replySelector) site.reply = [site.settings.replySelector, ...site.reply];
-  site.name = p.manifest.name;
-  if (p.siteScript) site.script = p.siteScript;
-  return site;
-};
-
-const activePlugins = (prof = profile()) => prof.plugins.filter((e) => e.on && S.plugins.get(e.id)?.def);
-
-const runHooks = async (hook, text, ctx, trace, prof) => {
-  for (const e of activePlugins(prof)) {
-    const def = S.plugins.get(e.id).def;
-    if (typeof def[hook] !== "function") continue;
-    const notes = [];
-    const out = await def[hook](text, { ...ctx, settings: settingsFor(e.id, prof), note: (m) => notes.push(m) });
-    if (typeof out === "string") text = out;
-    trace.push({ label: `${pluginName(e.id)} · ${hook === "beforeSend" ? "before" : "after"}`, text, notes });
-    ctx.notes.push(...notes.map((n) => `${pluginName(e.id)}: ${n}`));
-  }
-  return text;
-};
+// App part: the chat screen ("kind": "ui"). Everything you see: the header,
+// messages, composer, drawer, sheets, search, command list and keys. It fills
+// in the core's render, renderStatus, toast (optional), openSheet,
+// rerenderSheet, closeDrawer, scrollDown, fillComposer and markUnseen.
+// Replace it with your own UI plugin of id "chat-ui", or pick another
+// "kind": "ui" plugin in Settings.
 
 // ---------- look: UI scale and theme ----------
 // Themes are plugins too ("kind": "theme" with a CSS file of colour variables).
@@ -250,7 +14,7 @@ const applyLook = () => {
   document.documentElement.style.setProperty("--scale", String(ui.scale));
   let link = document.getElementById("theme-css");
   const p = S.plugins.get(ui.theme);
-  const href = isTheme(p) && p.manifest.css ? `/plugins/${encodeURIComponent(p.id)}/${p.manifest.css}?t=${Date.now()}` : "";
+  const href = isTheme(p) && p.manifest.css ? pluginUrl(p.id, p.manifest.css) + "?t=" + Date.now() : "";
   if (!href) return link && link.remove();
   if (!link) document.head.append((link = h("link", { id: "theme-css", rel: "stylesheet" })));
   if (!link.href.startsWith(location.origin + href.split("?")[0])) link.href = href;
@@ -267,102 +31,6 @@ const setTheme = (id) => {
   saveConfig();
   applyLook();
   render();
-};
-
-// ---------- AI page ----------
-const siteCmd = (cmd, extra = {}) => api("/api/site", { cmd, site: siteFor(), page: S.page, ...extra });
-const openSite = async (url, page = S.page, turn = null) => {
-  if (turn) turn.progress = "Opening " + url;
-  else S.progress = "Opening " + url;
-  render();
-  const r = await api("/api/site/open", { url, page });
-  Object.assign(pg(page), { connected: true, url: r.url, title: r.title });
-  return r;
-};
-
-// ---------- page pool ----------
-// Each send takes a free site page and gives it back when done; when all are
-// busy it waits its turn. A chat never has two sends at once.
-const pageCount = () => Math.max(1, Math.min(4, +S.config.pages || 1));
-const setPageCount = (n) => {
-  S.config.pages = Math.max(1, Math.min(4, +n || 1));
-  saveConfig();
-  return api("/api/site/pages", { count: S.config.pages }).then(pump, (e) => toast(e.message, "error"));
-};
-const waiting = [];
-// want: { page } for that exact page, or { url } to prefer a page already there.
-const acquire = (want = {}) => new Promise((res) => (waiting.push({ want, res }), pump()));
-const pump = () => {
-  for (let k = 0; k < waiting.length; k++) {
-    const { want, res } = waiting[k];
-    const free = [...Array(pageCount()).keys()].filter((i) => !pg(i).busy);
-    const ok = want.page != null ? free.filter((i) => i === want.page) : free;
-    if (!ok.length) continue;
-    const at = (f) => ok.find((i) => f(pg(i).url || ""));
-    const i = (want.url && (at((u) => sameUrl(u, want.url)) ?? at((u) => sameHost(u, want.url)))) ?? ok[0];
-    pg(i).busy = true;
-    waiting.splice(k--, 1);
-    res(i);
-  }
-  renderStatus();
-};
-const release = (i) => {
-  pg(i).busy = false;
-  pump();
-};
-const busyPages = () => [...Array(pageCount()).keys()].filter((i) => pg(i).busy).length;
-const sameHost = (a, b) => {
-  try {
-    return new URL(a).host === new URL(b).host;
-  } catch (e) {
-    return false;
-  }
-};
-// Load the profile's site in the background (the app starts on a blank page),
-// so it is ready to log in to or send to.
-const warmSite = () => {
-  const s = siteFor();
-  if (!s || S.site.busy || sameHost(S.site.url || "", s.url)) return Promise.resolve();
-  const url = S.chat?.meta.source && sameHost(S.chat.meta.source, s.url) ? S.chat.meta.source : s.url;
-  const page = S.page;
-  return api("/api/site/open", { url, page })
-    .then((r) => {
-      Object.assign(pg(page), { connected: true, url: r.url, title: r.title });
-      render();
-    })
-    .catch(() => {});
-};
-const showSite = () => {
-  if (!siteFor()) return toast("Install an AI site plugin first (⋯ → Plugins)", "error");
-  // Show the page the open chat is being answered on, if any.
-  const t = Object.values(S.pageTurns).find((x) => S.chat?.turns.includes(x));
-  if (!t) warmSite();
-  return api("/api/app/action", t ? { action: "site", page: t.page } : { action: "site" }).catch((e) => toast(e.message, "error"));
-};
-
-// Model and switches chosen in the app (saved per profile) are set on the page
-// before sending, when the page shows something else.
-// Returns the profile's own object, so changes to it are saved with the profile.
-const choicesFor = (prof = profile()) => {
-  const ss = (prof.siteSettings = prof.siteSettings || {});
-  ss.model = ss.model || "";
-  ss.switches = ss.switches || {};
-  return ss;
-};
-const applySiteChoices = async (site, prof, page = S.page, turn = null) => {
-  const want = choicesFor(prof);
-  if (!want.model && !Object.keys(want.switches).length) return;
-  const cur = await api("/api/site", { cmd: "info", site, page });
-  if (want.model && !(cur.model || "").toLowerCase().includes(want.model.toLowerCase())) {
-    if (turn) turn.progress = "Choosing " + want.model + "…";
-    else S.progress = "Choosing " + want.model + "…";
-    render();
-    const r = await api("/api/site", { cmd: "setModel", site, page, model: want.model });
-    pg(page).model = r.model;
-  }
-  for (const [name, on] of Object.entries(want.switches)) {
-    if ((site.switches || []).some((x) => x.name === name)) await api("/api/site", { cmd: "setSwitch", site, page, name, on });
-  }
 };
 
 const openModels = () =>
@@ -428,213 +96,6 @@ const openModels = () =>
     return [box];
   });
 
-// A short vibration when a reply arrives, so you know without looking.
-const haptic = () => api("/api/app/action", { action: "haptic" }).catch(() => {});
-
-const rememberPrompt = (text) => {
-  const list = (local("recent") || []).filter((t) => t !== text);
-  list.unshift(text);
-  local("recent", list.slice(0, 5));
-};
-
-// A chat's sends go one after another (several chats run side by side).
-const chatQueues = new WeakMap();
-const oneAtATime = (chat, fn) => {
-  const prev = chatQueues.get(chat) || Promise.resolve();
-  const run = prev.then(fn, fn);
-  chatQueues.set(chat, run.catch(() => {}));
-  return run;
-};
-
-// Send one message in `chat` through the profile's plugins and save the turn.
-// follow: don't send; take the reply the site is already giving (Check / Add
-// from page), on `onPage` (the shown page unless given).
-// Messages sent while one is on its way wait in the chat's queue (shown under
-// the chat, where they can be edited or taken out) and go out in order.
-const runChat = (chat, prompt, prof = profile(), follow = false, onPage = null) => {
-  const q = follow ? null : { you: prompt, at: iso() };
-  if (q) (chat.queued = chat.queued || []).push(q);
-  if (q && S.chat === chat) render();
-  return oneAtATime(chat, async () => {
-    if (q) {
-      const k = chat.queued.indexOf(q);
-      if (k < 0) throw Object.assign(new Error("taken out of the queue"), { quiet: true });
-      chat.queued.splice(k, 1);
-    }
-    const site = siteFor(prof);
-    if (!site) throw new Error("this profile has no AI site plugin (Profiles sheet)");
-    const turn = { at: iso(), you: prompt, sent: "", raw: "", reply: "", profile: prof.name, tags: [], notes: [], pending: true, progress: "Waiting for a free site page…" };
-    chat.turns.push(turn);
-    const trace = [{ label: "You", text: prompt, notes: [] }];
-    S.traces.set(turn, trace);
-    render();
-    const page = await acquire(follow ? { page: onPage ?? S.page } : { url: chat.meta.source || site.url });
-    turn.page = page;
-    S.pageTurns[page] = turn;
-    turn.progress = "";
-    render();
-    try {
-      // Be on this chat's page on the site, or on a fresh chat for a new one.
-      // (When following, stay on whatever the page shows now.)
-      const here = pg(page).url;
-      if (follow) {
-      } else if (chat.meta.source) {
-        if (!sameUrl(here, chat.meta.source)) await openSite(chat.meta.source, page, turn);
-      } else if (!sameUrl(here, site.url)) await openSite(site.url, page, turn);
-      if (!follow) await applySiteChoices(site, prof, page, turn);
-      const ctx = { chat, profile: prof, firstMessage: chat.turns.length === 1, notes: turn.notes };
-      turn.sent = prompt ? await inHooks(() => runHooks("beforeSend", prompt, ctx, trace, prof)) : "";
-      turn.progress = (follow ? "Reading the reply on " : "Sending to ") + site.name + (pageCount() > 1 ? ` (page ${page + 1})` : "") + "…";
-      render();
-      const started = Date.now();
-      const w = S.config.wait || {};
-      const idleMs = (+w.idleMin || 0) * 60000;
-      const maxMs = (+w.maxMin || 0) * 60000;
-      // The app itself waits as long as the page may (a week when there is no limit).
-      const r = await api("/api/site", { cmd: follow ? "follow" : "send", site, page, text: turn.sent, idleMs, maxMs, timeout: maxMs ? maxMs + 60000 : 7 * 86400000 });
-      if (follow && !prompt) {
-        // Added from the page: your side is whatever the page shows, decoded like a reply.
-        turn.sent = r.you || "";
-        turn.you = r.you ? await inHooks(() => runHooks("afterReply", r.you, { ...ctx, notes: [] }, [], prof)).catch(() => r.you) : "(from the page)";
-        turn.notes.push("added from the page");
-      }
-      turn.secs = Math.max(1, Math.round((Date.now() - started) / 1000));
-      turn.raw = r.raw;
-      if (r.thinking) turn.thinking = r.thinking;
-      trace.push({ label: "Raw reply", text: r.raw, notes: [] });
-      try {
-        turn.reply = await inHooks(() => runHooks("afterReply", r.raw, ctx, trace, prof));
-      } catch (e) {
-        turn.reply = r.raw;
-        turn.error = e.message;
-        trace.push({ label: "Error", text: e.message, error: true, notes: [] });
-      }
-      Object.assign(pg(page), { connected: true, url: r.url, title: r.title, model: r.model });
-      if (!sameUrl(r.url, site.url)) chat.meta.source = r.url;
-      chat.meta.ai = site.name;
-      if (r.model) chat.meta.model = r.model;
-      chat.meta.profile = prof.name;
-      if (!chat.meta.title || chat.meta.title === "New chat") chat.meta.title = (turn.you || "Chat").split("\n")[0].slice(0, 60);
-      delete turn.pending;
-      turn.tags = tagsForNewMessage(chat);
-      await saveChat(chat, `chat: ${chat.meta.title} (#${chat.turns.length})`, [tagsFile()]);
-      haptic();
-      markUnseen(chat, turn);
-      return turn;
-    } catch (e) {
-      // Nothing came back: the message moves to the chat's failed list (not
-      // saved to the file), where it can be retried, checked or edited.
-      chat.turns.splice(chat.turns.indexOf(turn), 1);
-      (chat.failed = chat.failed || []).push({ you: prompt, error: e.message, at: turn.at, page });
-      throw e;
-    } finally {
-      if (S.pageTurns[page] === turn) delete S.pageTurns[page];
-      delete turn.progress;
-      delete turn.live;
-      release(page);
-      render();
-    }
-  });
-};
-
-// Plugin hooks that run while a page is held. PP.ask from inside them needs a
-// second page, or it would wait for itself forever.
-let hookDepth = 0;
-const inHooks = async (fn) => {
-  hookDepth++;
-  try {
-    return await fn();
-  } finally {
-    hookDepth--;
-  }
-};
-
-// PP.ask: a side request for plugins, in a fresh chat on its own page; not
-// saved as a chat. opts: { profile: name, hooks: true to run the profile's plugins }.
-const askSite = async (prompt, opts = {}) => {
-  const prof = S.config.profiles.find((p) => opts.profile && p.name.toLowerCase() === String(opts.profile).toLowerCase()) || profile();
-  const site = siteFor(prof);
-  if (!site) throw new Error("PP.ask: this profile has no AI site plugin");
-  if (hookDepth > 0 && pageCount() === 1) throw new Error("PP.ask inside a plugin step needs 2 or more site pages (Settings › Site pages at once)");
-  const page = await acquire({ url: site.url });
-  try {
-    const quiet = {}; // progress of side requests isn't shown under the message box
-    await openSite(site.url, page, quiet);
-    await applySiteChoices(site, prof, page, quiet);
-    const ctx = { chat: null, profile: prof, firstMessage: true, notes: [] };
-    const text = opts.hooks ? await inHooks(() => runHooks("beforeSend", prompt, ctx, [], prof)) : prompt;
-    const w = S.config.wait || {};
-    const maxMs = (+w.maxMin || 0) * 60000;
-    const r = await api("/api/site", { cmd: "send", site, page, text, idleMs: (+w.idleMin || 0) * 60000, maxMs, timeout: maxMs ? maxMs + 60000 : 7 * 86400000 });
-    Object.assign(pg(page), { connected: true, url: r.url, title: r.title, model: r.model });
-    const reply = opts.hooks ? await inHooks(() => runHooks("afterReply", r.raw, ctx, [], prof)) : r.raw;
-    return { reply, raw: r.raw, thinking: r.thinking || "", url: r.url, page };
-  } finally {
-    release(page);
-  }
-};
-
-// ---------- history (chat files + git) ----------
-const loadTree = async () => {
-  const t = await api("/api/history/tree");
-  S.historyRoot = t.root;
-  S.folders = t.folders.filter((f) => !f.split("/").some((p) => p.startsWith(".")));
-  S.chats = t.files.map((f) => ({ path: f.path, meta: ChatFile.parseFront(f.head), mtime: f.mtime }));
-  S.chats.sort((a, b) => (b.meta.updated || "").localeCompare(a.meta.updated || ""));
-};
-
-const loadTags = async () => {
-  try {
-    const r = await api("/api/history/file?path=tags.json");
-    if (r.text) S.tags = { counters: {}, tags: [], ...JSON.parse(r.text) };
-  } catch (e) {}
-};
-const tagsFile = () => ({ path: "tags.json", text: JSON.stringify(S.tags, null, 2) + "\n" });
-
-const newChat = (folder = S.folder) => ({
-  path: null,
-  folder,
-  meta: { title: "New chat", source: "", ai: "", model: "", profile: profile().name, tags: [], created: iso(), updated: iso() },
-  turns: [],
-});
-
-const saveChat = async (chat, message, extra = []) => {
-  if (!chat.path) {
-    const d = new Date();
-    const p = (n) => String(n).padStart(2, "0");
-    const name = `${slug(chat.meta.title)}-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.md`;
-    chat.path = (chat.folder ? chat.folder + "/" : "") + name;
-  }
-  chat.meta.updated = iso();
-  const res = await api("/api/history/save", { files: [{ path: chat.path, text: ChatFile.toMd(chat) }, ...extra], message });
-  if (res.gitError) toast("Saved, but git failed: " + res.gitError, "error");
-  S.index = null; // search index is rebuilt on the next search
-  S.config.lastChat = chat.path;
-  saveConfig();
-  await loadTree();
-  return res;
-};
-
-const openChat = async (path) => {
-  const r = await api("/api/history/file?path=" + encodeURIComponent(path));
-  if (r.text == null) throw new Error("chat file not found: " + path);
-  S.chat = ChatFile.fromMd(path, r.text);
-  S.unseen = [];
-  S.chat.folder = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
-  S.config.lastChat = path;
-  saveConfig();
-  closeDrawer();
-  render();
-  scrollDown();
-};
-
-const startNewChat = (folder) => {
-  S.chat = newChat(folder ?? S.folder);
-  S.unseen = [];
-  closeDrawer();
-  render();
-  setTimeout(() => document.querySelector(".composer textarea")?.focus(), 0);
-};
 
 // Open a chat that exists on the AI site: its local file if there is one,
 // otherwise a new local chat linked to it.
@@ -647,114 +108,6 @@ const siteLinkRow = () => {
     openSiteChat({ url, title: S.siteChats.find((c) => sameUrl(c.url, url))?.title || url.replace(/^https?:\/\/[^/]+/, "") });
   };
   return h("div", { class: "row site-link" }, input, h("button", { class: "small", onclick: go }, "Open"));
-};
-
-const openSiteChat = async (c) => {
-  const known = S.chats.find((x) => sameUrl(x.meta.source, c.url));
-  if (known) return openChat(known.path);
-  S.chat = newChat();
-  S.chat.meta.title = c.title;
-  S.chat.meta.source = c.url;
-  S.chat.meta.ai = siteFor()?.name || "";
-  closeDrawer();
-  render();
-  toast("Linked to the site chat. Your next message continues it there.");
-};
-
-const moveChat = async (chat, folder) => {
-  if (!chat.path) return toast("Send a message first, then move it", "error");
-  const name = chat.path.split("/").pop();
-  const to = (folder ? folder + "/" : "") + name;
-  if (to === chat.path) return;
-  await api("/api/history/save", { moves: [{ from: chat.path, to }], message: `move: ${chat.meta.title} -> ${folder || "(top)"}` });
-  if (S.chat && S.chat.path === chat.path) {
-    S.chat.path = to;
-    S.chat.folder = folder;
-  }
-  await loadTree();
-  render();
-  toast("Moved to " + (folder || "top level"));
-};
-
-const deleteChat = async (path) => {
-  await api("/api/history/save", { delete: [path], message: "delete: " + path });
-  if (S.chat && S.chat.path === path) S.chat = newChat();
-  await loadTree();
-  render();
-};
-
-const makeFolder = async (name) => {
-  name = name.trim().replace(/^\/+|\/+$/g, "");
-  if (!name || name.split("/").some((p) => p === ".." || p.startsWith("."))) return toast("Not a valid folder name", "error");
-  await api("/api/history/save", { files: [{ path: name + "/.gitkeep", text: "" }], message: "folder: " + name });
-  S.openFolders.add(name);
-  await loadTree();
-  render();
-};
-
-// ---------- tags ----------
-// Tags live on messages. Chat tags are defaults that every message of the chat
-// gets. Counter tags: "draft#" takes the next number (draft#1, draft#2, ...);
-// as a chat tag, each new message gets its own next number. A message holds one
-// value per counter; +1 on its chip moves it to the next free number.
-const counterOf = (tag) => /^(.+)#(\d+)$/.exec(tag);
-const cleanTag = (raw) => raw.trim().replace(/\s+/g, "-");
-const nextCount = (name) => (S.tags.counters[name] = (S.tags.counters[name] || 0) + 1);
-
-const knownTags = () => {
-  const set = new Set(S.tags.tags);
-  for (const k of Object.keys(S.tags.counters)) set.add(k + "#");
-  for (const c of S.chats) for (const t of c.meta.tags || []) set.add(t);
-  return [...set].sort();
-};
-const remember = (tag) => {
-  if (!counterOf(tag) && !tag.endsWith("#") && !S.tags.tags.includes(tag)) S.tags.tags.push(tag);
-};
-
-// Tags a new message starts with: the chat's tags, counters numbered.
-const tagsForNewMessage = (chat) => chat.meta.tags.map((t) => (t.endsWith("#") ? `${t.slice(0, -1)}#${nextCount(t.slice(0, -1))}` : t));
-
-const addChatTag = async (chat, raw) => {
-  let tag = cleanTag(raw);
-  if (!tag) return;
-  if (counterOf(tag)) tag = counterOf(tag)[1] + "#"; // chat tags hold the counter, not a number
-  if (tag.endsWith("#")) S.tags.counters[tag.slice(0, -1)] ??= 0;
-  remember(tag);
-  if (!chat.meta.tags.includes(tag)) chat.meta.tags.push(tag);
-  await persist(chat, `tag: ${chat.meta.title} +${tag} (chat)`);
-};
-
-const removeChatTag = async (chat, tag) => {
-  chat.meta.tags = chat.meta.tags.filter((t) => t !== tag);
-  await persist(chat, `tag: ${chat.meta.title} -${tag} (chat)`);
-};
-
-const addMessageTag = async (chat, turn, raw) => {
-  let tag = cleanTag(raw);
-  if (!tag) return;
-  const counter = tag.endsWith("#") ? tag.slice(0, -1) : counterOf(tag)?.[1];
-  turn.tags = turn.tags || [];
-  if (counter) {
-    const n = tag.endsWith("#") ? nextCount(counter) : Number(counterOf(tag)[2]);
-    S.tags.counters[counter] = Math.max(S.tags.counters[counter] || 0, n);
-    tag = `${counter}#${n}`;
-    turn.tags = turn.tags.filter((t) => counterOf(t)?.[1] !== counter);
-  }
-  remember(tag);
-  if (!turn.tags.includes(tag)) turn.tags.push(tag);
-  await persist(chat, `tag: ${chat.meta.title} #${chat.turns.indexOf(turn) + 1} +${tag}`);
-};
-
-const removeMessageTag = async (chat, turn, tag) => {
-  turn.tags = (turn.tags || []).filter((t) => t !== tag);
-  await persist(chat, `tag: ${chat.meta.title} #${chat.turns.indexOf(turn) + 1} -${tag}`);
-};
-
-// Tag changes of a chat that has no file yet are kept until its first message.
-const persist = async (chat, message) => {
-  if (chat.path) await saveChat(chat, message, [tagsFile()]);
-  else await api("/api/history/save", { files: [tagsFile()], message: "tags" }).catch(() => {});
-  render();
 };
 
 const tagInput = (placeholder, onAdd, keep) =>
@@ -773,89 +126,26 @@ const tagInput = (placeholder, onAdd, keep) =>
     },
   });
 
-// ---------- external jobs (other apps via /api/v1/chat) ----------
-const runJob = async (ev) => {
-  const req = ev.req || {};
-  try {
-    const prof = S.config.profiles.find((p) => (req.profile && p.name.toLowerCase() === String(req.profile).toLowerCase()) || p.id === req.profile) || profile();
-    let chat;
-    if (req.chat === "current" && S.chat) chat = S.chat;
-    else if (req.chat && req.chat !== "new") chat = ChatFile.fromMd(req.chat, (await api("/api/history/file?path=" + encodeURIComponent(req.chat))).text || "");
-    else chat = newChat(req.folder ?? S.config.api.folder ?? "api");
-    if (!chat.meta.tags) chat.meta.tags = [];
-    const turn = await runChat(chat, req.prompt, prof);
-    await api("/api/jobs/done", { id: ev.id, result: { reply: turn.reply, thinking: turn.thinking || "", raw: turn.raw, sent: turn.sent, chat: chat.path, source: chat.meta.source, error: turn.error } });
-    if (S.chat && S.chat.path === chat.path) render();
-  } catch (e) {
-    api("/api/jobs/done", { id: ev.id, error: e.message }).catch(() => {});
-  }
-};
-
-// ---------- events from the app ----------
-const pollEvents = async () => {
-  let after = 0;
-  let first = true;
-  for (;;) {
-    try {
-      const r = await api("/api/events?after=" + after);
-      for (const ev of r.events) {
-        if (ev.type === "site") {
-          const p = pg(ev.page || 0);
-          if (ev.event === "progress") {
-            const t = S.pageTurns[ev.page || 0];
-            if (t) {
-              t.progress = ev.text;
-              // Empty parts don't wipe what a site script already showed.
-              if (ev.live) for (const [k, v] of Object.entries(ev.live)) if (v) t.live = { ...t.live, [k]: v };
-            } else if (S.progress) S.progress = ev.text;
-          } else Object.assign(p, { connected: ev.connected !== false, url: ev.url || p.url, title: ev.title || p.title });
-          renderStatus();
-        } else if (ev.type === "shown") {
-          // The site view now shows another page: commands like Check act on that one.
-          S.page = ev.page || 0;
-          render();
-        } else if (first) continue; // old events from before this page loaded
-        else if (ev.type === "job") runJob(ev);
-        else if (ev.type === "share") {
-          // Text shared from another app starts a new chat with it in the box.
-          if (S.chat.turns.length) startNewChat();
-          setTimeout(() => fillComposer(ev.text, "append"), 50);
-        } else if (ev.type === "pluginInstalled") {
-          await loadPlugins();
-          entryFor(ev.id).on = true;
-          saveConfig();
-          toast("Installed " + ev.id);
-          warmSite();
-          rerenderSheet();
-          render();
-        } else if (ev.type === "error") toast(ev.text, "error");
-      }
-      after = r.seq;
-      first = false;
-    } catch (e) {
-      await new Promise((r) => setTimeout(r, 3000));
-    }
-  }
-};
-
 // ---------- rendering ----------
-const app = document.getElementById("app");
 
-const render = () => {
+render = () => {
   const keepFocus = document.activeElement?.dataset?.keep;
   const draft = document.querySelector(".composer textarea")?.value;
   const listScroll = document.querySelector(".messages")?.scrollTop;
   const composer = renderComposer(draft);
   // Floats just above the composer; shows once you scroll up.
   composer.prepend(jumpButton());
-  app.replaceChildren(renderTop(), renderTagsRow(), renderMessages(), composer);
+  app.replaceChildren(...[safeBanner(), renderTop(), renderTagsRow(), renderMessages(), composer].filter(Boolean));
   if (S.drawer) app.append(h("div", { class: "scrim", onclick: closeDrawer }), renderDrawer());
   if (S.sheet) app.append(h("div", { class: "scrim", onclick: closeSheet }), renderSheet());
   if (listScroll != null) document.querySelector(".messages").scrollTop = listScroll;
   if (keepFocus) document.querySelector(`[data-keep="${keepFocus}"]`)?.focus();
 };
 
-const scrollDown = (smooth = false) => {
+const safeBanner = () =>
+  SAFE ? h("div", { class: "safe-banner", role: "status" }, h("span", { class: "grow" }, "Safe mode: only built-in plugins are on."), h("button", { class: "small", onclick: () => restart(false) }, "Leave safe mode")) : null;
+
+scrollDown = (smooth = false) => {
   const m = document.querySelector(".messages");
   if (m) m.scrollTo({ top: m.scrollHeight, behavior: smooth ? "smooth" : "auto" });
 };
@@ -867,7 +157,7 @@ const nearBottom = () => {
 // Replies never move the chat: you scroll. A new reply shows on the jump
 // button ("1 new reply"); tapping it goes to the start of that reply.
 S.unseen = [];
-const markUnseen = (chat, turn) => {
+markUnseen = (chat, turn) => {
   if (S.chat !== chat) return;
   const i = chat.turns.indexOf(turn);
   if (i >= 0 && !S.unseen.includes(i)) S.unseen.push(i);
@@ -904,7 +194,7 @@ const checkSeen = (box) => {
   if (S.unseen.length !== before) document.querySelector(".jump")?.replaceWith(jumpButton());
 };
 
-const renderStatus = () => {
+renderStatus = () => {
   const el = document.querySelector(".site-dot");
   if (el) el.replaceWith(siteDot());
   const pr = document.querySelector(".composer .progress-text");
@@ -1038,7 +328,10 @@ const renderMessages = () => {
       ),
     );
   }
-  c.turns.forEach((t, i) => box.append(renderTurn(c, t, i)));
+  c.turns.forEach((t, i) => {
+    const extra = pluginTurnParts(c, t, i);
+    box.append(...extra.before, renderTurn(c, t, i), ...extra.after);
+  });
   (c.failed || []).forEach((f, i) =>
     box.append(
       h(
@@ -1086,6 +379,26 @@ const renderMessages = () => {
     checkSeen(box);
   }, { passive: true });
   return box;
+};
+
+// renderTurn hook: a plugin draws something above or under a message (e.g. a
+// divider). It returns a node / list of nodes (drawn above), or
+// { before, after }. Errors show on the plugin, never break the chat.
+const pluginTurnParts = (c, t, i) => {
+  const out = { before: [], after: [] };
+  const list = (x) => [].concat(x || []).filter((n) => n instanceof Node);
+  for (const e of activePlugins()) {
+    const p = S.plugins.get(e.id);
+    if (typeof p.def.renderTurn !== "function") continue;
+    try {
+      const r = p.def.renderTurn(t, i, { chat: c, settings: settingsFor(e.id), turnData: t.data?.[e.id], h, render });
+      if (r instanceof Node || Array.isArray(r)) out.before.push(...list(r));
+      else if (r) out.before.push(...list(r.before)), out.after.push(...list(r.after));
+    } catch (err) {
+      p.error = "renderTurn: " + err.message;
+    }
+  }
+  return out;
 };
 
 const renderTurn = (c, t, i) => {
@@ -1378,7 +691,7 @@ const addFromPage = async () => {
 };
 
 // Put text into the message box (edit and resend, reply, recent prompts, share).
-const fillComposer = (text, mode = "replace") => {
+fillComposer = (text, mode = "replace") => {
   const ta = document.querySelector(".composer textarea");
   if (!ta) return;
   ta.value = mode === "append" && ta.value.trim() ? ta.value.replace(/\s+$/, "") + "\n\n" + text : text;
@@ -1403,7 +716,7 @@ const openDrawer = () => {
   render();
   setTimeout(() => document.querySelector(".drawer input")?.focus(), 0);
 };
-const closeDrawer = () => {
+closeDrawer = () => {
   if (!S.drawer) return;
   S.drawer = false;
   if (history.state?.layer === "drawer") history.back();
@@ -1633,7 +946,7 @@ const renameChat = () => {
 };
 
 // ---------- sheets ----------
-const openSheet = (title, renderFn) => {
+openSheet = (title, renderFn) => {
   if (history.state?.layer !== "sheet") history.pushState({ layer: "sheet" }, "");
   S.sheet = { title, render: renderFn };
   render();
@@ -1661,7 +974,7 @@ const renderSheet = () =>
     h("div", { class: "sheet-body" }, S.sheet.render()),
   );
 
-const rerenderSheet = () => S.sheet && render();
+rerenderSheet = () => S.sheet && render();
 
 // Focus a sheet's field when the sheet opens, not again on later redraws.
 const autofocus = (input, select) => {
@@ -1717,6 +1030,7 @@ const openPlugins = () =>
     const install = async () => {
       try {
         const r = await api("/api/plugins/install", { url: url.value });
+        if (r.id.startsWith("bundle:")) return emit("pluginBundle", { version: r.id.slice(7) });
         toast("Installed " + r.id);
         await loadPlugins();
         entryFor(r.id).on = true;
@@ -1733,7 +1047,7 @@ const openPlugins = () =>
       saveConfig();
       render();
     };
-    const badge = (p) => (p.source === "builtin" ? "built-in" : p.overrides ? "your copy (overrides built-in)" : "your folder");
+    const badge = (p) => (p.source === "builtin" ? (p.updated ? "updated" : "built-in") : p.overrides ? "your copy (overrides built-in)" : "your folder");
     return [
       h("div", { class: "row" }, h("button", { class: "primary", onclick: reloadPlugins, title: "Ctrl+Shift+R" }, "Reload plugins"), h("button", { onclick: openGuide }, "How to write one")),
       h("p", { class: "muted" }, "Your plugin folder: ", h("code", {}, S.pluginFolder || "?")),
@@ -1784,6 +1098,8 @@ const openPlugins = () =>
           p.source === "builtin" ? h("button", { class: "small", onclick: () => forkPlugin(p.id) }, "Copy") : null,
         ),
       ),
+      h("h3", {}, "App parts"),
+      ...appPartsControls(),
     ];
   });
 
@@ -1958,6 +1274,65 @@ const lookControls = () => {
   ];
 };
 
+// App parts: the core/ui plugins the app is made of, which ones are yours, and
+// a way out (safe mode) if one of yours breaks.
+const appPartsControls = () => {
+  const uis = [...S.plugins.values()].filter((p) => isPart(p) && p.manifest.kind === "ui");
+  const loaded = new Map((S.parts || []).map((p) => [p.id, p]));
+  const parts = [...S.plugins.values()].filter((p) => isPart(p) || isDriver(p));
+  return [
+    h("p", { class: "muted" }, "The app is made of plugins too: sending, chat files, history, the local API and this screen. Copy one to change it; your copy replaces the built-in one when the app restarts. If yours breaks, the app opens in safe mode with only built-in plugins."),
+    ...parts.map((p) =>
+      h(
+        "div",
+        { class: "plugin-row" },
+        h(
+          "div",
+          { class: "grow" },
+          h("b", {}, p.manifest.name || p.id),
+          " ",
+          h("small", { class: "muted" }, `${p.id} · v${p.manifest.version || "?"} · ${p.source === "builtin" ? (p.updated ? "updated" : "built-in") : p.overrides ? "your copy" : "yours"}${isDriver(p) ? " · site driver" : isPart(p) && !loaded.has(p.id) ? " · not loaded" : ""}`),
+          p.error ? h("div", { class: "error" }, "✕ " + p.error) : null,
+        ),
+        p.source === "builtin" && !SAFE ? h("button", { class: "small", title: "Copy into your plugin folder to edit it", onclick: () => forkPlugin(p.id) }, "Copy") : null,
+      ),
+    ),
+    uis.length > 1
+      ? h(
+          "label",
+          { class: "field inline" },
+          h("span", {}, "App screen (UI plugin)"),
+          h("select", { onchange: (e) => ((S.config.ui.part = e.target.value), saveConfig(), toast("Restart the app to switch")) }, uis.map((p) => h("option", { value: p.id, selected: (S.config.ui.part || "chat-ui") === p.id }, p.manifest.name || p.id))),
+        )
+      : null,
+    h("h3", {}, "Plugin updates"),
+    (() => {
+      const u = S.updates || {};
+      const b = u.bundle || {};
+      return h(
+        "div",
+        {},
+        h("p", { class: "muted" }, b.version ? `Downloaded plugins: ${b.version} (${(b.plugins || []).length}). Newer ones than the app's are used.` : "No downloaded plugins yet: the ones built into the app are used.", (S.config.updates || {}).checked ? ` Last checked ${new Date(S.config.updates.checked).toLocaleString()}.` : ""),
+        u.error ? h("p", { class: "error" }, "✕ " + u.error + ". Download the zip, then install it from the file.") : null,
+        h(
+          "div",
+          { class: "row" },
+          h("button", { class: "small primary", disabled: !!u.busy || SAFE, onclick: () => updatePlugins() }, u.busy ? "Checking…" : "Update plugins"),
+          h("button", { class: "small", title: releasePage(), onclick: () => api("/api/app/action", { action: "openUrl", url: releasePage() }) }, "Download the zip"),
+          h("button", { class: "small", onclick: () => api("/api/app/action", { action: "pickPlugin" }) }, "Install the zip"),
+        ),
+        h("label", { class: "field inline" }, h("span", {}, "Check once a day when the app starts"), h("input", { type: "checkbox", checked: (S.config.updates || {}).auto !== false, onchange: (e) => ((S.config.updates = { ...(S.config.updates || {}), auto: e.target.checked }), saveConfig()) })),
+      );
+    })(),
+    h(
+      "div",
+      { class: "row" },
+      h("button", { class: "small", onclick: () => restart() }, "Restart app"),
+      SAFE ? h("button", { class: "small primary", onclick: () => restart(false) }, "Leave safe mode") : h("button", { class: "small", title: "Start with only built-in plugins", onclick: () => restart(true) }, "Restart in safe mode"),
+    ),
+  ];
+};
+
 const openSettings = () =>
   openSheet("Settings", () => {
     const tok = h("input", { type: "password", placeholder: S.app.apiToken ? "token set (type to replace, empty to clear)" : "optional" });
@@ -1978,6 +1353,8 @@ const openSettings = () =>
       ),
       h("h3", {}, "Keyboard"),
       h("label", { class: "field inline" }, h("span", {}, "Enter sends (Shift+Enter for a new line)"), h("input", { type: "checkbox", checked: !!S.config.ui.enterSends, onchange: (e) => ((S.config.ui.enterSends = e.target.checked), saveConfig()) })),
+      h("h3", {}, "App parts"),
+      ...appPartsControls(),
       h("details", { class: "advanced-settings" }, h("summary", {}, "Advanced: storage, local API, background"),
       h("h3", {}, "Storage"),
       h("p", {}, h("code", {}, S.app.storage || "?")),
@@ -2348,32 +1725,14 @@ if (window.visualViewport) {
   fit();
 }
 
-// ---------- start ----------
-const boot = async () => {
-  app.replaceChildren(h("p", { class: "muted boot" }, "Starting…"));
-  try {
-    S.app = await api("/api/app");
-    for (const p of S.app.pages || []) Object.assign(pg(p.page), { connected: p.connected, url: p.url, title: p.title });
-    const cfg = await api("/api/config");
-    S.config = Object.assign(DEFAULT_CONFIG(), cfg);
-    S.config.git = Object.assign(DEFAULT_CONFIG().git, cfg.git || {});
-    S.config.api = Object.assign(DEFAULT_CONFIG().api, cfg.api || {});
-    S.config.ui = Object.assign(DEFAULT_CONFIG().ui, cfg.ui || {});
-    S.pluginFolder = (await api("/api/plugins")).folder;
-    await loadPlugins();
-    applyLook();
-    await Promise.all([loadTree(), loadTags()]);
-    S.chat = newChat();
-    if (S.config.lastChat && S.chats.some((c) => c.path === S.config.lastChat)) await openChat(S.config.lastChat).catch(() => {});
-    saveConfig();
-    if (pageCount() !== (S.app.pages || []).length) await setPageCount(pageCount());
-    render();
-    scrollDown();
-    warmSite();
-  } catch (e) {
-    app.replaceChildren(h("p", { class: "error boot" }, "Could not start: " + e.message), h("button", { onclick: () => location.reload() }, "Retry"));
-    return;
-  }
-  pollEvents();
-};
-boot();
+
+on("start", () => applyLook());
+on("ready", () => {
+  render();
+  scrollDown();
+});
+// Text shared from another app starts a new chat with it in the box.
+on("share", (ev) => {
+  if (S.chat.turns.length) startNewChat();
+  setTimeout(() => fillComposer(ev.text, "append"), 50);
+});

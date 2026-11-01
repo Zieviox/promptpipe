@@ -112,7 +112,8 @@ class MainActivity : Activity(), Hub.Screen {
             try {
                 val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: throw java.io.IOException("can't read the file")
                 val id = app.store.installFile(uri.lastPathSegment ?: "file", bytes) {}
-                hub.emit(JSONObject().put("type", "pluginInstalled").put("id", id))
+                if (id.startsWith("bundle:")) hub.emit(JSONObject().put("type", "pluginBundle").put("version", id.removePrefix("bundle:")))
+                else hub.emit(JSONObject().put("type", "pluginInstalled").put("id", id))
             } catch (e: Exception) {
                 hub.emit(JSONObject().put("type", "error").put("text", "Install failed: ${e.message}"))
             }

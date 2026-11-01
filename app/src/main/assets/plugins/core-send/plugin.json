@@ -1,0 +1,10 @@
+{
+  "name": "Sending",
+  "version": "1.0.0",
+  "kind": "core",
+  "order": 20,
+  "description": "App part: the send pipeline, page pool, queue and PP.ask.",
+  "scripts": [
+    "send.js"
+  ]
+}

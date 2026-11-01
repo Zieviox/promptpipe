@@ -86,6 +86,8 @@
       const info = { at: t.at, profile: t.profile || "", tags: t.tags || [], notes: t.notes || [] };
       if (t.error) info.error = t.error;
       if (t.secs != null) info.secs = t.secs;
+      // Plugins' own notes on this message (ctx.setTurnData), by plugin id.
+      if (t.data && Object.keys(t.data).length) info.data = t.data;
       out.push(`## ${i + 1} · ${stamp(t.at)}`, "", `<!-- pp:turn ${JSON.stringify(info)} -->`, "");
       const tags = messageTags(m, t);
       if (tags.length) out.push("Tags: " + tags.map((x) => "`" + x + "`").join(" "), "");
@@ -125,6 +127,7 @@
         notes: info.notes || [],
         error: info.error,
         secs: info.secs,
+        data: info.data || {},
         you: dropHeading(sec.you || ""),
         reply: dropHeading(sec.ai || ""),
         thinking: (sec.think || "").replace(/^\s*<details><summary>Thinking<\/summary>\s*/, "").replace(/\s*<\/details>\s*$/, ""),

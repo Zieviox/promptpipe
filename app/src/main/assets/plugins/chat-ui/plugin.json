@@ -1,0 +1,13 @@
+{
+  "name": "Chat screen",
+  "version": "1.0.0",
+  "kind": "ui",
+  "order": 50,
+  "description": "App part: the whole chat UI. Copy it to change anything you see.",
+  "scripts": [
+    "ui.js"
+  ],
+  "css": [
+    "ui.css"
+  ]
+}
