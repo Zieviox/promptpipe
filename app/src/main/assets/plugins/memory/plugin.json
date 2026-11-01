@@ -1,8 +1,8 @@
 {
   "id": "memory",
   "name": "Memory",
-  "version": "2.1.0",
-  "description": "Puts your pinned facts and the earlier chat in front of every message, so a fresh AI chat has the context. Everything goes in full until the max is reached. After that, the older turns are summarised in a separate chat on the site (with its own system prompt stack) and the summary goes in instead; the recent turns stay in full.",
+  "version": "2.2.0",
+  "description": "Puts your pinned facts and the earlier chat in front of every message, so a fresh AI chat has the context. Everything goes in full until the max is reached. After that, older messages are summarised in fixed parts (10 messages, then 10 parts, ...) kept as Markdown files next to the chat, one file per level of detail; the oldest go in at the coarsest level and recent messages stay word for word. Works across Sub-chats.",
   "main": "main.js",
   "block": {
     "place": "toggles",
@@ -19,7 +19,22 @@
       "type": "number",
       "label": "Send memory every N messages",
       "default": 1,
-      "help": "1 = every message. Use a higher number if the AI site keeps the chat itself."
+      "help": "1 = every message. Use a higher number if the AI site keeps the chat itself. A new site chat (a new sub-chat) always gets it."
+    },
+    "send": {
+      "type": "select",
+      "label": "What to send",
+      "options": {
+        "all": "Everything",
+        "unseen": "Only what this site chat hasn't seen"
+      },
+      "default": "all",
+      "help": "The second leaves out messages that already went to this site chat (it has them), which saves room with Sub-chats."
+    },
+    "names": {
+      "type": "bool",
+      "label": "Name the AI on each line when the chat used more than one site",
+      "default": true
     },
     "recent": {
       "type": "number",
@@ -37,21 +52,27 @@
       "type": "number",
       "label": "Start summarising this many messages before the max",
       "default": 6,
-      "help": "Uses the chat's average message size. The summary is made in the background after a reply, so it's ready when the max is reached and sends don't wait for it. 0 = only at the max."
+      "help": "Uses the chat's average message size. Parts are summarised in the background after a reply, so they're ready when the max is reached and sends don't wait for them. 0 = only at the max."
     },
     "overflow": {
       "type": "select",
       "label": "Over the max",
       "options": {
-        "summary": "Summarise older turns in another chat",
-        "clip": "Clip older turns, drop the oldest (no extra chat)"
+        "summary": "Summarise older messages in parts (another chat on the site)",
+        "clip": "Clip older messages, drop the oldest (no extra chat)"
       },
       "default": "summary"
     },
+    "chunk": {
+      "type": "number",
+      "label": "Messages per summary part",
+      "default": 10,
+      "help": "Level 1 summarises this many messages, level 2 this many level-1 parts, and so on. Parts are fixed: each is made once."
+    },
     "summaryPrompt": {
       "type": "textarea",
-      "label": "Summary request (sent with the older turns)",
-      "default": "Summarise the conversation below so it can continue in a new chat that only sees your summary. Keep every name, fact, decision and promise, what each character wants and knows, open threads, the current situation and the user's preferences. Leave out small talk. Write plain text, as short as possible without losing any of that. Reply with the summary only.",
+      "label": "Summary request (sent with each part)",
+      "default": "Summarise this part of a conversation so it can continue in a new chat that only sees summaries. Keep every name, fact, decision and promise, what each character wants and knows, open threads, the situation at the end of this part and the user's preferences. Leave out small talk. Write plain text, as short as possible without losing any of that. Reply with the summary only.",
       "help": "Goes after the summary's system prompts, before the turns."
     },
     "summaryHooks": {

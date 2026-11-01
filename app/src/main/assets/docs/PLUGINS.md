@@ -398,6 +398,22 @@ If the download fails: **Download the zip**, then **Install the zip** (or
 Plugins › Install from a file): a bundle is recognised and installed whole.
 Make one with `sh scripts/plugin-bundle.sh <version>` in the repo.
 
+## Plugin guides
+
+A plugin can carry its own guide: put a `GUIDE.md` in its folder. Every file
+in a plugin's folder is served at `/plugins/<id>/<file>`, so the plugin can
+show it with `fetch("/plugins/<id>/GUIDE.md")` and `PP.md` in a sheet.
+Built-in guides:
+
+- **Memory**: [plugins/memory/GUIDE.md](/plugins/memory/GUIDE.md) (levels of
+  detail, the `.memory/` files, Sub-chats)
+- **Sub-chats**: [plugins/sub-chats/GUIDE.md](/plugins/sub-chats/GUIDE.md)
+  (new site chats inside a chat; a full example of `route`, turn data and
+  `renderTurn`)
+
+Plugins can share pure helpers on `PP`: Sub-chats sets `PP.subChats`
+(`segments(chat)`, ...) and Memory sets `PP.memory` (`plan`, `lodFromMd`, ...).
+
 ## Installing someone else's plugin
 
 Plugins → **Install from a file** and pick a `.zip` (with a `plugin.json`
