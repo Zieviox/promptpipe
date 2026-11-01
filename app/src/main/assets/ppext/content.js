@@ -117,10 +117,16 @@
     return "";
   };
 
+  // A visible "Log in" / "Sign in" button (in common languages) means we're logged out.
+  const loggedOut = () =>
+    [...document.querySelectorAll("button, a, [role=button]")].some(
+      (b) => visible(b) && /^\s*(log ?in|sign ?in|fazer login|entrar|iniciar sesi[oó]n|anmelden|se connecter|connexion|accedi|登录|ログイン)\s*$/i.test(textOf(b)),
+    );
+
   const typeInto = async (site, text, snap) => {
     // The site may still be loading (it just opened or switched chats), so wait for the box.
     const el = await waitFor(() => first(site.input), 15000);
-    if (!el) throw new Error("chat input box not found on the page after 15s (are you logged in? tap the site name to look)");
+    if (!el) throw new Error(loggedOut() ? "the site looks logged out: tap the site name and log in, then Retry" : "chat input box not found on the page after 15s (are you logged in? tap the site name to look)");
     el.focus();
     if (el.isContentEditable) {
       document.execCommand("selectAll", false, null);
@@ -170,6 +176,7 @@
     // Press again only while our text is clearly still waiting in the same box.
     if (el.isConnected && boxText()) press();
     if (!(await waitFor(() => went() || null, 10000))) {
+      if (loggedOut()) throw new Error("the site looks logged out: tap the site name and log in, then Retry");
       throw new Error("couldn't tell whether the site sent it. If the site is answering, tap Check");
     }
   };
