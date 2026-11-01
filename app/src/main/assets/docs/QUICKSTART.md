@@ -105,7 +105,14 @@ more memory, and many messages at once can look like a bot to the site.
 ### Writing your own plugins
 ⋯ → **Writing plugins** (the guide), or `docs/PLUGINS.md` in the repo.
 A plugin is a folder with `plugin.json` (+ `main.js`); site plugins are mostly
-CSS selectors. When a site changes, ⋯ → **Copy page report** shows what to fix.
+CSS selectors. When a site changes, ⋯ → **Page report** shows what to fix.
+The app itself is plugins too: Settings › App parts lists them, with **Copy**
+to change one and **Restart in safe mode** if one of yours breaks.
+
+### Plugin updates
+Settings › App parts › **Update plugins** gets the latest plugins without a new
+APK (the app also checks once a day). If that fails, **Download the zip** and
+**Install the zip**. Restart the app after an update.
 
 ### Keyboard (optional)
 Ctrl+Enter send · Ctrl+K commands · Ctrl+B chats · Ctrl+F search · Ctrl+M model ·

@@ -6,7 +6,9 @@ reads the replies, runs them through your plugins, and keeps every chat as a
 Markdown file on your phone.
 
 - **Plugins for everything**: steps before your message and after the reply,
-  AI sites, themes. A plugin is a folder with a `plugin.json`.
+  AI sites, themes, and the app itself (sending, chat files, history, the
+  whole screen) as built-in plugins you can copy and change. Safe mode if one
+  breaks; plugin updates download without a new APK.
 - **Your chats stay yours**: Markdown files in `/sdcard/PromptPipe/history/`,
   a git repository (optional push to your own GitHub).
 - **Tags, folders, full-text search**, per-message tags, counter tags (`part#`).
@@ -61,11 +63,13 @@ over each other); without it Gradle's usual debug key is used.
   and the bridge between them), `Server` (local HTTP on 127.0.0.1:7790),
   `Store` (files, plugins), `GitStore` (JGit), `MainActivity`, `KeepAlive`
   (foreground service).
-- `app/src/main/assets/ui/`: the chat screen (plain JS).
+- `app/src/main/assets/ui/`: the core (`core.js`): state, plugin loader, app
+  events, safe mode. Everything else is a plugin.
 - `app/src/main/assets/ppext/`: the built-in extension whose content script
   drives the AI page.
-- `app/src/main/assets/plugins/`: built-in plugins (Base64, System prompt,
-  Memory, Page report, themes).
+- `app/src/main/assets/plugins/`: built-in plugins: the app parts
+  (`core-*`, `chat-ui`), Base64, System prompt, Memory, Page report, themes.
+- `scripts/plugin-bundle.sh`: makes the release's plugin bundle zip.
 
 Built on GeckoView (Firefox's engine), NanoHTTPD and JGit.
 

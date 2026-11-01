@@ -3,6 +3,20 @@
 A plugin is a folder in your plugin folder (`/sdcard/PromptPipe/plugins/<id>/`).
 Add or edit one, then tap **Reload plugins** (Ctrl+Shift+R). No rebuild needed.
 
+The whole app is plugins, apart from the browser and the bits that need the
+phone (pages, files, git, the local server). Sending, chat files, history, the
+local API and the chat screen itself are built-in plugins you can copy and
+change: see [App parts](#app-parts). Plugin kinds:
+
+| kind | what it is |
+|---|---|
+| (none) | steps: hooks on your messages and replies, a block, menu entries |
+| `site` | an AI site: selectors, maybe a site script |
+| `driver` | default page commands for every site |
+| `theme` | a CSS file |
+| `core` | an app part (sending, history, ...) |
+| `ui` | the app's whole screen |
+
 The quickest start is a built-in one: Plugins → **Copy** next to it puts an
 editable copy in your folder. Your copy replaces the built-in one.
 
@@ -43,7 +57,7 @@ plugins/
   in the ⚙ form). Settings are saved per profile.
 - `block.place`: `toggles` (the row above the message box, the default) or `top` (the top bar). `"block": false` means no block.
 - `advanced: true` puts the block in the folded **Advanced** row.
-- `settings` get a settings screen built for you (the ⚙ on the block). Types: `bool`, `text`, `textarea`, `number`, `select`. Add `help` for a hint line. Settings are saved per profile.
+- `settings` get a settings screen built for you (the ⚙ on the block). Add `help` for a hint line.
 
 ## main.js
 
@@ -62,6 +76,18 @@ PP.plugin({
   messageActions: [{ label: "Shout this", run: (raw, ctx) => raw.toUpperCase() }],
   // Entries in the ⋯ menu, even when the plugin is off.
   menu: [{ label: "Shout the last reply", run: () => PP.toast(PP.chat.turns.at(-1)?.reply.toUpperCase() || "nothing yet") }],
+  // Before a message goes out: pick the profile and the site chat for it.
+  // Return { profile: "name or id", url: "https://..." | "new" }, or nothing to
+  // leave it. The first plugin (in order) that answers wins. Not run for
+  // PP.ask or when taking a reply from the page.
+  route(ctx) {
+    return ctx.chat.turns.length > 40 ? { url: "new" } : null;
+  },
+  // Draw something above (or under) a message, like a divider. Return a node,
+  // a list of nodes (drawn above), or { before, after }. Runs while the plugin is on.
+  renderTurn(turn, i, ctx) {
+    return ctx.turnData?.fresh ? ctx.h("hr", { title: "new site chat from here" }) : null;
+  },
   // Optional: draw your own block. ctx.pill(label) is the standard switch.
   // ctx.set(key, value) saves one of this plugin's settings for the profile.
   renderBlock(ctx) {
@@ -78,12 +104,54 @@ Plugins that are on run in the order shown in the Plugins screen (move them with
 - `settings`: this plugin's settings for the current profile
 - `firstMessage`: true for the first message of a chat
 - `chat`: the chat (`chat.meta.title`, `chat.meta.tags`, `chat.turns`)
-- `profile`: the active profile
+- `profile`: the profile the message goes through
 - `note(text)`: adds a note to the message's trace
+- `turn`: the message being answered (`you`, `sent`, `raw`, `reply`, `at`, `data`)
+- `page`: the site page it's on (0, 1, ...)
+- `url`: the site chat's address (in `afterReply`, where the reply came from)
+- `turnData`: what this plugin saved on this message, or `undefined`
+- `setTurnData(value)`: save this plugin's own notes on the message (any JSON).
+  They're stored in the chat file (`"data": { "<plugin id>": value }` in the
+  message's `pp:turn` line) and come back as `ctx.turnData` / `turn.data[id]`.
 
-`PP` (global) has: `PP.h(tag, props, ...children)` to make elements,
-`PP.md(text)` Markdown to HTML, `PP.toast(text)`, `PP.api(path, body)`,
-`PP.site(cmd)` to talk to the AI page, `PP.chat`, `PP.profile`.
+`route(ctx)` gets `chat`, `prompt`, `profile` and `settings`;
+`renderTurn(turn, i, ctx)` gets `chat`, `settings`, `turnData`, `h` and `render`.
+
+```js
+// Remember which site chat each message went to.
+afterReply(text, ctx) {
+  ctx.setTurnData({ url: ctx.url });
+  return text;
+},
+```
+
+### `PP` reference
+
+| | |
+|---|---|
+| `PP.plugin(def)` | register this plugin's hooks |
+| `PP.h(tag, props, ...children)` | make an element (`onclick`, `class`, `html` ...) |
+| `PP.md(text)` | Markdown to HTML |
+| `PP.toast(text, kind)` | a short message; `kind` `"error"` for errors |
+| `PP.api(path, body)` | call the app (GET without body, POST with); see Where things are |
+| `PP.site(cmd, extra)` | a command on the shown AI page: `info`, `models`, `setModel`, `last`, `list`, `run` ... |
+| `PP.ask(prompt, opts)` | a side request in a fresh site chat (below) |
+| `PP.sheet(title, render)` / `PP.render()` | your own screen; redraw |
+| `PP.chat` / `PP.profile` | the open chat; the active profile |
+| `PP.settings(id)` | another plugin's settings in the active profile |
+| `PP.sitePlugin` | the active profile's site (`name`, `url`, selectors) |
+| `PP.on(type, fn)` / `PP.emit(type, data)` | app events (below); your own events too |
+| `PP.safe` | true in safe mode |
+
+### App events: `PP.on`
+
+`PP.on(type, fn)` runs `fn(event)` when the app says something. Types:
+`start` and `ready` (at start), `plugins` (plugins loaded or reloaded),
+`site` (a site page loaded or changed), `shown` (the site view switched page),
+`job` (another app's request to the local API), `share` (text shared to the
+app), `pluginInstalled`, `pluginBundle`. `PP.emit("my-plugin:thing", data)`
+sends your own. Listeners go away when plugins reload, so register them in
+main.js.
 
 ### Your own screens: `PP.sheet`
 
@@ -213,6 +281,14 @@ the reply so far under it). The built-in wait does this for you.
 With several site pages (Settings › Site pages at once) each page runs its own
 copy of your script; nothing to change.
 
+### Site drivers
+
+A plugin with `"kind": "driver"` and a `siteScript` replaces the default page
+commands for **every** site: same script shape as above. Order: the site
+plugin's own script first, then drivers, then the built-in defaults. Use it to
+change how sending or waiting works everywhere without copying each site
+plugin. Drivers show under Settings › App parts.
+
 ## Themes
 
 A theme is a plugin with `"kind": "theme"` and a CSS file:
@@ -233,6 +309,95 @@ A theme is a plugin with `"kind": "theme"` and a CSS file:
 Pick it in Settings → Look (also UI scale there, or Ctrl+= / Ctrl+-).
 Paper and Ember are built-in examples.
 
+## App parts
+
+The app itself is built-in plugins with `"kind": "core"` (and one `"kind": "ui"`):
+
+| id | part | gives (top-level names) |
+|---|---|---|
+| `core-markdown` | Markdown to HTML | `mdToHtml` |
+| `core-chatfile` | the chat file format | `ChatFile.toMd`, `fromMd`, `parseFront` |
+| `core-send` | page pool, queue, sending, `PP.ask` | `runChat`, `askSite`, `acquire`, `release`, `pageCount`, `setPageCount`, `warmSite`, `showSite`, `applySiteChoices` ... |
+| `core-history` | chat files, folders, git, tags | `newChat`, `openChat`, `saveChat`, `startNewChat`, `moveChat`, `deleteChat`, `loadTree`, tag functions ... |
+| `core-jobs` | other apps' requests (local API) | `runJob` (on the `job` event) |
+| `chat-ui` | the whole screen | see The UI below |
+
+Under them is the core (`/ui/core.js`, not a plugin): `S` (all state:
+`S.config`, `S.chat`, `S.chats`, `S.plugins`, `S.pages` ...), `h`, `api`,
+`toast`, `PP`, `on`/`emit`, plugin settings (`profile()`, `settingsFor`,
+`siteFor`, `runHooks`, `runRoute`), and `siteCmd`/`openSite`.
+
+How parts load:
+
+```json
+{ "id": "core-send", "name": "Sending", "version": "1.0.0", "kind": "core", "order": 20, "scripts": ["send.js"], "css": [] }
+```
+
+- They load once, at start, before anything shows, in `order` (low first).
+  They're plain scripts sharing one scope: what a part declares at top level
+  (`const runChat = ...`) the parts after it, and the UI, use directly. Start
+  each file with `"use strict";`.
+- A part does its startup in `on("start", fn)` (load data) and
+  `on("ready", fn)` (after all parts started), not at top level.
+- To change one: Settings › App parts › **Copy**, edit it in your plugin
+  folder, then **Restart app** (parts don't reload with Reload plugins). Keep
+  the names the other parts use (the table above); add what you like.
+- A new part needs no built-in to replace: give it a new id and an `order`.
+
+### The UI
+
+The `"kind": "ui"` plugin is everything you see. It assigns the core's
+screen functions (they start as do-nothing versions):
+
+`render()`, `renderStatus()`, `openSheet(title, render)`, `rerenderSheet()`,
+`closeDrawer()`, `scrollDown()`, `fillComposer(text, mode)`,
+`markUnseen(chat, turn)`, and optionally `toast(text, kind)`. Draw into `app`
+(the `#app` element).
+
+A whole working screen, as an example:
+
+```js
+// plugins/mini-ui/ui.js  (plugin.json: { "id": "mini-ui", "name": "Mini UI",
+//   "version": "1.0.0", "kind": "ui", "scripts": ["ui.js"] })
+"use strict";
+render = () => {
+  const box = h("textarea", { rows: 3, placeholder: "Message" });
+  const send = () => runChat(S.chat, box.value).catch((e) => e.quiet || toast(e.message, "error"));
+  app.replaceChildren(
+    h("h1", {}, S.chat.meta.title),
+    ...S.chat.turns.map((t) => h("div", {}, h("p", {}, h("b", {}, "You: "), t.you), h("div", { html: mdToHtml(t.reply || t.progress || "…") }))),
+    box,
+    h("button", { onclick: send }, "Send"),
+  );
+};
+renderStatus = () => render();
+on("ready", () => render());
+```
+
+With more than one UI plugin installed, Settings › App parts › **App screen**
+picks which one runs (restart to switch). Copying `chat-ui` and changing it
+is the easy way to restyle or rearrange the built-in screen.
+
+### Safe mode
+
+If a part of yours fails to load, the app restarts in **safe mode**: only
+built-in plugins, with a banner and a note saying which one failed. Fix or
+remove it, then **Leave safe mode**. Settings › App parts › **Restart in safe
+mode** does it by hand (the address is `/?safe=1`).
+
+## Plugin updates
+
+Each release carries a plugin bundle, `promptpipe-plugins-<version>.zip`:
+`bundle.json` plus one folder per plugin. The app downloads it from the latest
+release (once a day at start, or Settings › App parts › **Update plugins**) and
+uses a plugin from it when its version is newer than the built-in one. Your
+own plugins folder still wins, and safe mode uses only what came with the app.
+Restart the app after an update.
+
+If the download fails: **Download the zip**, then **Install the zip** (or
+Plugins › Install from a file): a bundle is recognised and installed whole.
+Make one with `sh scripts/plugin-bundle.sh <version>` in the repo.
+
 ## Installing someone else's plugin
 
 Plugins → **Install from a file** and pick a `.zip` (with a `plugin.json`
@@ -249,4 +414,14 @@ Or copy the folder into your plugin folder yourself (Termux:
 
 - `/sdcard/PromptPipe/plugins/` your plugins
 - `/sdcard/PromptPipe/config.json` profiles and plugin settings (plain JSON)
-- `/sdcard/PromptPipe/history/` chats as Markdown, a git repository
+- `/sdcard/PromptPipe/history/` chats as Markdown, a git repository; a chat's
+  `.memory/<chat path>/` folder is for plugins' files about it (hidden from the
+  chat list, moved and deleted with the chat)
+
+App routes plugins can call with `PP.api`: `/api/app`, `/api/config`,
+`/api/plugins` (`?builtin=1`), `/api/plugins/install` `{url}`,
+`/api/plugins/update` `{repo, force}`, `/api/plugins/bundle`,
+`/api/history/tree`, `/api/history/file?path=`, `/api/history/save`
+`{files, moves, delete, message}`, `/api/site` `{cmd, site, page}`,
+`/api/site/open` `{url, page}`, `/api/site/pages` `{count}`,
+`/api/app/action` `{action: "site" | "openUrl" | "haptic" | "pickPlugin" ...}`.
