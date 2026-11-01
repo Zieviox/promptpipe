@@ -1,0 +1,5 @@
+:root {
+  --bg: #120f0d; --raise: #1c1815; --raise2: #251f1b; --hair: #2e2723; --text: #ece4dc; --muted: #a3968b; --faint: #6e635a;
+  --accent: #f0a35e; --accent-bg: #f0a35e1f; --ok: #9ccf7a; --err: #ff8a7a; --warn: #f0c86e;
+}
+button.primary:hover, .send:hover { background: #f5b67d; }

@@ -1,0 +1,10 @@
+:root {
+  --bg: #f6f4ef; --raise: #ebe8e1; --raise2: #e2ded5; --hair: #d9d4ca; --text: #1f2024; --muted: #5f6168; --faint: #8f9097;
+  --accent: #3f51c9; --accent-bg: #3f51c91a; --ok: #2f9a63; --err: #c94040; --warn: #a77a10;
+  color-scheme: light;
+}
+button.primary, .send { color: #fff; }
+button.primary:hover, .send:hover { background: #3343b0; }
+.toast { background: #1f2024; color: #f6f4ef; }
+.scrim { background: #0004; }
+mark { background: #f3d77a; }

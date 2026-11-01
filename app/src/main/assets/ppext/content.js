@@ -1,0 +1,419 @@
+// Runs inside the AI chat page. The app sends commands over a native port:
+//   send  {site, text}  type the text, send it, wait for the finished reply
+//   last  {site}        newest reply on the page
+//   list  {site}        chats listed in the site's sidebar
+//   info  {site}        current address, title and model
+// `site` is the site plugin's selectors (see docs/PLUGINS.md, "AI sites").
+(() => {
+  if (window.top !== window || window.__ppBridge) return;
+  window.__ppBridge = true;
+
+  const visible = (el) => !!el && el.getClientRects().length > 0;
+  const all = (sel) => {
+    try {
+      return [...document.querySelectorAll(sel)];
+    } catch (e) {
+      return [];
+    }
+  };
+  const first = (sels) => {
+    for (const s of sels || []) {
+      const el = all(s).find(visible);
+      if (el) return el;
+    }
+    return null;
+  };
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const waitFor = async (find, ms) => {
+    const end = Date.now() + ms;
+    for (;;) {
+      const el = find();
+      if (el || Date.now() > end) return el;
+      await sleep(250);
+    }
+  };
+  const textOf = (el) => (el ? (el.innerText || el.textContent || "").trim() : "");
+
+  const snapshot = (site) => {
+    const snap = {};
+    for (const s of site.reply || []) {
+      const els = all(s);
+      snap[s] = { count: els.length, last: textOf(els[els.length - 1]) };
+    }
+    return snap;
+  };
+
+  // Thinking (reasoning) shown by some models: the newest element matching
+  // site.thinking that appeared since `before`. If it sits inside the reply,
+  // it is left out of the reply text.
+  const thinkCount = (site) => (site.thinking || []).reduce((n, s) => n + all(s).length, 0);
+  const lastThinking = (site) => {
+    for (const s of site.thinking || []) {
+      const els = all(s);
+      if (els.length) return els[els.length - 1];
+    }
+    return null;
+  };
+  // A thinking block in the same message as the reply (up to 3 levels up).
+  const nearThinking = (site, replyEl) => {
+    let box = replyEl;
+    for (let up = 0; box && up < 3; up++, box = box.parentElement) {
+      for (const s of site.thinking || []) {
+        let found = [];
+        try {
+          found = [...box.querySelectorAll(s)];
+        } catch (e) {}
+        const t = found.filter((n) => !n.contains(replyEl) && textOf(n));
+        if (t.length) return t[t.length - 1];
+      }
+    }
+    return null;
+  };
+  // All elements for the first selector that matches anything with text.
+  const pickAll = (sels) => {
+    for (const s of sels || []) {
+      const els = all(s).filter((e) => textOf(e));
+      if (els.length) return els;
+    }
+    return [];
+  };
+
+  // Outline of the newest message's HTML, so a site's selectors can be fixed.
+  const probe = (site) => {
+    let box = lastReplyEl(site) || document.body;
+    for (let up = 0; up < 4 && box.parentElement && box.parentElement !== document.body; up++) box = box.parentElement;
+    const lines = [];
+    const walk = (el, depth) => {
+      if (lines.length > 400 || depth > 14) return;
+      const cls = typeof el.className === "string" && el.className.trim() ? "." + el.className.trim().split(/\s+/).join(".") : "";
+      const attrs = ["id", "role", "aria-label", "aria-expanded", "data-testid"].filter((a) => el.getAttribute(a)).map((a) => `[${a}=${el.getAttribute(a)}]`).join("");
+      const own = [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent.trim()).join(" ").slice(0, 50);
+      lines.push("  ".repeat(depth) + el.tagName.toLowerCase() + cls + attrs + (own ? `  "${own}"` : ""));
+      for (const c of el.children) if (!/^(svg|script|style|path)$/i.test(c.tagName)) walk(c, depth + 1);
+    };
+    walk(box, 0);
+    return { url: location.href, report: lines.join("\n") };
+  };
+  const answerText = (site, el) => {
+    if (!el || !(site.thinking || []).length) return textOf(el);
+    const clone = el.cloneNode(true);
+    for (const s of site.thinking) clone.querySelectorAll(s).forEach((n) => n.remove());
+    return textOf(clone) || textOf(el);
+  };
+  const lastReplyEl = (site) => {
+    for (const s of site.reply || []) {
+      const els = all(s);
+      if (els.length && textOf(els[els.length - 1])) return els[els.length - 1];
+    }
+    return null;
+  };
+
+  const lastReply = (site) => {
+    for (const s of site.reply || []) {
+      const els = all(s);
+      const t = textOf(els[els.length - 1]);
+      if (t) return t;
+    }
+    return "";
+  };
+
+  const typeInto = async (site, text, snap) => {
+    // The site may still be loading (it just opened or switched chats), so wait for the box.
+    const el = await waitFor(() => first(site.input), 15000);
+    if (!el) throw new Error("chat input box not found on the page after 15s (are you logged in? tap the site name to look)");
+    el.focus();
+    if (el.isContentEditable) {
+      document.execCommand("selectAll", false, null);
+      document.execCommand("insertText", false, text);
+    } else {
+      // Native setter so React/Vue notice the change.
+      const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      Object.getOwnPropertyDescriptor(proto, "value").set.call(el, text);
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    // Long text can take the site a moment to accept: wait for an enabled send button.
+    const enabled = (b) => b && !b.disabled && b.getAttribute("aria-disabled") !== "true";
+    // No send selector matched (sites change, or use <div role=button>): the
+    // last enabled button in the box's own area is almost always Send.
+    const nearSend = () => {
+      let box = el.parentElement;
+      for (let up = 0; box && up < 6; up++, box = box.parentElement) {
+        const btns = [...box.querySelectorAll("button, [role=button]")].filter((b) => visible(b) && !b.contains(el) && el.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+        // Send is the last one; while it's still disabled, wait rather than press a toggle.
+        if (btns.length) return enabled(btns[btns.length - 1]) ? btns[btns.length - 1] : null;
+      }
+      return null;
+    };
+    const btn = await waitFor(() => {
+      const b = first(site.send);
+      return enabled(b) ? b : null;
+    }, 1500) || await waitFor(nearSend, 2500);
+    const boxText = () => (el.isContentEditable ? el.innerText : el.value || "").trim();
+    const press = () => {
+      if (btn) return btn.click();
+      const opts = { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true };
+      el.dispatchEvent(new KeyboardEvent("keydown", opts));
+      el.dispatchEvent(new KeyboardEvent("keypress", opts));
+      el.dispatchEvent(new KeyboardEvent("keyup", opts));
+    };
+    const startUrl = location.href;
+    const usersBefore = pickAll(site.user).length;
+    press();
+    // Sent = the box emptied or was replaced, the page moved to a new chat, or
+    // the stop button showed up. Try once more, then say so.
+    const went = () => {
+      const now = first(site.input);
+      const grew = (snap && (site.reply || []).some((s) => all(s).length > (snap[s] || { count: 0 }).count)) || pickAll(site.user).length > usersBefore;
+      return grew || !el.isConnected || location.href !== startUrl || !boxText() || (now && now !== el && !(now.isContentEditable ? now.innerText : now.value || "").trim()) || !!first(site.stop);
+    };
+    if (await waitFor(() => went() || null, 5000)) return;
+    // Press again only while our text is clearly still waiting in the same box.
+    if (el.isConnected && boxText()) press();
+    if (!(await waitFor(() => went() || null, 10000))) {
+      throw new Error("couldn't tell whether the site sent it. If the site is answering, tap Check");
+    }
+  };
+
+  // Wait for a new reply that has stopped changing.
+  // Set by the "cancel" command (Stop waiting in the app).
+  let cancelled = false;
+  // idleMs / maxMs: give up after that long with no activity / in total; 0 = never.
+  const waitReply = async (site, before, idleMs = 0, maxMs = 0) => {
+    const start = Date.now();
+    cancelled = false;
+    let text = "";
+    let stableSince = 0;
+    // Activity = new reply text, new thinking text or a visible stop button.
+    let lastActivity = Date.now();
+    let thinkText = "";
+    const timedOut = () => (maxMs > 0 && Date.now() - start >= maxMs) || (idleMs > 0 && Date.now() - lastActivity >= idleMs);
+    while (!timedOut()) {
+      if (cancelled) throw new Error("stopped waiting (if the site answers anyway, ⋯ → Add the page's newest reply)");
+      await sleep(500);
+      let now = "";
+      for (const s of site.reply || []) {
+        const els = all(s);
+        const last = textOf(els[els.length - 1]);
+        const b = before[s] || { count: 0, last: "" };
+        if (last && (els.length > b.count || last !== b.last)) {
+          now = last;
+          break;
+        }
+      }
+      const busy = !!first(site.stop);
+      const th = textOf(lastThinking(site));
+      if (busy || th !== thinkText || now !== text) lastActivity = Date.now();
+      thinkText = th;
+      if (now && now === text && !busy) {
+        if (Date.now() - stableSince > 2000) return text;
+      } else {
+        if (now !== text) status(`waiting for reply… ${now.length} chars`);
+        text = now;
+        stableSince = Date.now();
+      }
+    }
+    throw new Error(maxMs > 0 && Date.now() - start >= maxMs ? `no finished reply after ${Math.round(maxMs / 60000)} min (your limit in Settings)` : `no activity on the page for ${Math.round(idleMs / 60000)} min (your limit in Settings; or check the site plugin's reply selectors)`);
+  };
+
+  const info = (site) => ({
+    url: location.href,
+    title: document.title,
+    model: site ? textOf(first(site.model || [])) : "",
+  });
+
+  const list = (site) => {
+    const seen = new Set();
+    const out = [];
+    for (const a of all((site.chatLinks || []).join(","))) {
+      const url = a.href;
+      if (!url || seen.has(url)) continue;
+      seen.add(url);
+      out.push({ url, title: textOf(a).split("\n")[0].slice(0, 120) || url });
+    }
+    return out;
+  };
+
+  // Model picker and site switches (e.g. DeepThink). site.modelPicker =
+  // { open: [selectors of the button], options: [selectors of menu items] };
+  // site.switches = [{ name, selector, text }]: the element matching selector
+  // whose text contains `text`.
+  const pressEscape = () => {
+    for (const t of [document.activeElement, document.body]) {
+      if (t) t.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", keyCode: 27, bubbles: true }));
+    }
+  };
+  const optionEls = (site) => {
+    const seen = new Set();
+    const out = [];
+    for (const s of (site.modelPicker && site.modelPicker.options) || []) {
+      for (const el of all(s).filter(visible)) {
+        const name = textOf(el).split("\n")[0].trim();
+        if (name && !seen.has(name)) {
+          seen.add(name);
+          out.push({ name, el });
+        }
+      }
+      if (out.length) break;
+    }
+    return out;
+  };
+  const openPicker = async (site) => {
+    const btn = await waitFor(() => first((site.modelPicker && site.modelPicker.open) || []), 5000);
+    if (!btn) throw new Error("model picker not found on the page (check the site plugin's modelPicker selectors)");
+    btn.click();
+    for (let i = 0; i < 10 && !optionEls(site).length; i++) await sleep(200);
+  };
+  const switchEl = (sw) => all(sw.selector || "button, [role=button]").find((el) => visible(el) && (!sw.text || textOf(el).includes(sw.text)));
+  const switchOn = (el) =>
+    !!el && (el.getAttribute("aria-pressed") === "true" || el.getAttribute("aria-checked") === "true" || /(^|[\s_-])(active|selected|checked|on)([\s_-]|$)/i.test(el.className && el.className.baseVal !== undefined ? el.className.baseVal : el.className || ""));
+  const switches = (site) => (site.switches || []).map((sw) => {
+    const el = switchEl(sw);
+    return { name: sw.name, found: !!el, on: switchOn(el) };
+  });
+
+  const builtin = {
+    async models(m) {
+      await openPicker(m.site);
+      const models = optionEls(m.site).map((o) => o.name);
+      pressEscape();
+      await sleep(200);
+      return { models, switches: switches(m.site), ...info(m.site) };
+    },
+    async setModel(m) {
+      await openPicker(m.site);
+      const want = m.model.toLowerCase();
+      const opt = optionEls(m.site).find((o) => o.name.toLowerCase() === want) || optionEls(m.site).find((o) => o.name.toLowerCase().includes(want));
+      if (!opt) {
+        pressEscape();
+        throw new Error(`model "${m.model}" is not in the site's list`);
+      }
+      opt.el.click();
+      await sleep(600);
+      return { switches: switches(m.site), ...info(m.site) };
+    },
+    async setSwitch(m) {
+      const sw = (m.site.switches || []).find((x) => x.name === m.name);
+      const el = sw && switchEl(sw);
+      if (!el) throw new Error(`switch "${m.name}" not found on the page`);
+      if (m.on === undefined || switchOn(el) !== !!m.on) el.click();
+      await sleep(300);
+      return { switches: switches(m.site), ...info(m.site) };
+    },
+    info: (m) => info(m.site),
+    last: (m) => ({ raw: answerText(m.site, lastReplyEl(m.site)), thinking: textOf(lastThinking(m.site)), ...info(m.site) }),
+    list: (m) => ({ chats: list(m.site), ...info(m.site) }),
+    probe: (m) => probe(m.site),
+    cancel: () => ((cancelled = true), {}),
+    // Earlier messages of the open chat, in page order: [{you, reply, thinking}].
+    // The reply now on the page (or the one still coming): waits until it is finished.
+    async follow(m) {
+      const raw = await waitReply(m.site, {}, m.idleMs || 0, m.maxMs || 0);
+      const replyEl = lastReplyEl(m.site);
+      const thinkEl = nearThinking(m.site, replyEl);
+      const users = pickAll(m.site.user);
+      return { raw: thinkEl ? answerText(m.site, replyEl) || raw : raw, thinking: textOf(thinkEl), you: textOf(users[users.length - 1]), ...info(m.site) };
+    },
+    history: (m) => {
+      const pick = pickAll;
+      const users = pick(m.site.user);
+      const replies = pick(m.site.reply).filter((r) => !users.some((u) => u.contains(r) || r.contains(u)));
+      if (!users.length && !replies.length) throw new Error("no messages found on the page (the site plugin may need 'user' selectors; try Copy page report)");
+      const marks = [...users.map((el) => ({ el, you: true })), ...replies.map((el) => ({ el, you: false }))];
+      marks.sort((a, b) => (a.el.compareDocumentPosition(b.el) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+      const turns = [];
+      for (const k of marks) {
+        if (k.you) turns.push({ you: textOf(k.el), reply: "", thinking: "" });
+        else {
+          if (!turns.length || turns[turns.length - 1].reply) turns.push({ you: "", reply: "", thinking: "" });
+          const t = turns[turns.length - 1];
+          const th = nearThinking(m.site, k.el);
+          t.reply = answerText(m.site, k.el);
+          t.thinking = textOf(th);
+        }
+      }
+      return { turns, ...info(m.site) };
+    },
+    async send(m) {
+      const snap = snapshot(m.site);
+      const thinkBefore = thinkCount(m.site);
+      await typeInto(m.site, m.text, snap);
+      const raw = await waitReply(m.site, snap, m.idleMs || 0, m.maxMs || 0);
+      await sleep(300); // let the address update for a new chat
+      const replyEl = lastReplyEl(m.site);
+      // Thinking: a new thinking block anywhere, or one sitting next to this reply.
+      const thinkEl = thinkCount(m.site) > thinkBefore ? lastThinking(m.site) : nearThinking(m.site, replyEl);
+      return {
+        raw: thinkEl ? answerText(m.site, replyEl) || raw : raw,
+        thinking: textOf(thinkEl),
+        ...info(m.site),
+      };
+    },
+  };
+
+  // A site plugin may bring a script (its "siteScript" file). It runs here, in
+  // the AI page, gets these helpers, and returns the commands it replaces:
+  //   return { async send(text, site) { ...; return { raw } }, last(site), list(site), info(site) }
+  // Commands it leaves out use the selector based defaults above.
+  const helpers = { all, first, visible, sleep, textOf, typeInto, waitReply, snapshot, lastReply, lastReplyEl, lastThinking, answerText, list, info, status: (t) => status(t) };
+  let compiled = { code: null, mod: {} };
+  const scriptFor = (site) => {
+    if (!site || !site.script) return {};
+    if (compiled.code !== site.script) {
+      compiled = { code: site.script, mod: new Function("PP", site.script)(helpers) || {} };
+    }
+    return compiled.mod;
+  };
+  const handlers = {};
+  for (const cmd of Object.keys(builtin)) {
+    handlers[cmd] = async (m) => {
+      const own = scriptFor(m.site)[cmd];
+      if (!own) return builtin[cmd](m);
+      const r = cmd === "send" ? await own(m.text, m.site, builtin.send.bind(null, m)) : await own(m.site);
+      if (cmd === "list") return { chats: Array.isArray(r) ? r : (r && r.chats) || [], ...info(m.site) };
+      return { ...info(m.site), ...(r || {}) };
+    };
+  }
+
+  let port = null;
+  let tries = 0;
+  const status = (text) => port && port.postMessage({ type: "event", event: "progress", text });
+
+  const connect = () => {
+    try {
+      port = browser.runtime.connectNative("pp");
+    } catch (e) {
+      return retry();
+    }
+    port.onDisconnect.addListener(() => {
+      port = null;
+      retry();
+    });
+    port.onMessage.addListener(async (m) => {
+      if (m.type === "welcome") return void (tries = 0);
+      const p = port;
+      try {
+        const fn = handlers[m.cmd];
+        if (!fn) throw new Error("unknown command " + m.cmd);
+        const result = await fn(m);
+        p.postMessage({ type: "reply", id: m.id, ok: true, result });
+      } catch (e) {
+        p.postMessage({ type: "reply", id: m.id, ok: false, error: String((e && e.message) || e) });
+      }
+    });
+    port.postMessage({ type: "hello", url: location.href, title: document.title });
+  };
+  // Pages other than the app's site page (popups) have no listener: give up after a while.
+  const retry = () => {
+    if (++tries < 40) setTimeout(connect, Math.min(500 * tries, 5000));
+  };
+  connect();
+
+  // Single page apps change the address without reloading: report it.
+  let lastUrl = location.href;
+  setInterval(() => {
+    if (port && location.href !== lastUrl) {
+      lastUrl = location.href;
+      port.postMessage({ type: "event", event: "url", url: lastUrl, title: document.title });
+    }
+  }, 1500);
+})();
