@@ -1,18 +1,33 @@
 {
   "id": "base64",
   "name": "Base64",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Asks the AI to answer in base64 (and encodes your message), then decodes the reply. Small AI mistakes in the base64 are repaired.",
   "main": "main.js",
-  "block": { "place": "toggles", "label": "Base64" },
+  "block": {
+    "place": "toggles",
+    "label": "Base64"
+  },
   "settings": {
-    "encodePrompt": { "type": "bool", "label": "Encode my message too", "default": true },
+    "encodePrompt": {
+      "type": "bool",
+      "label": "Encode my message too",
+      "default": true
+    },
     "instruction": {
       "type": "textarea",
       "label": "Instruction added to the message",
       "default": "Reply with base64 only: encode your whole answer as UTF-8 base64. No plain text, no code block, no explanation outside the base64."
     },
-    "strict": { "type": "bool", "label": "Strict (fail on any damage instead of repairing)", "default": false },
-    "keepOnFail": { "type": "bool", "label": "Show the raw reply if decoding fails", "default": true }
+    "strict": {
+      "type": "bool",
+      "label": "Strict (fail on any damage instead of repairing)",
+      "default": false
+    },
+    "keepOnFail": {
+      "type": "bool",
+      "label": "Show the raw reply if decoding fails",
+      "default": true
+    }
   }
 }
