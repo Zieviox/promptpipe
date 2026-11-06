@@ -45,8 +45,8 @@ tls=$(llvm-readelf -lW "$OUT" | grep TLS)
 echo "$tls"
 case "$tls" in *0x40|*0x80|*0x100) ;; *) echo "TLS segment underaligned: Android would refuse to start the core."; exit 1;; esac
 
-step "4/4 building APK (Gradle prints each task)"
-"$GRADLE" assembleDebug --console=plain -PgeckoviewVersion="$GV" -PversionName="$VNAME" -PversionCode="$VCODE"
+step "4/4 building APK (Gradle prints each task, live progress and downloads at the bottom)"
+"$GRADLE" assembleDebug --console=verbose -PgeckoviewVersion="$GV" -PversionName="$VNAME" -PversionCode="$VCODE"
 
 APK=build/promptpipe-$VNAME.apk
 cp app/build/outputs/apk/debug/app-debug.apk "$APK"
