@@ -46,12 +46,26 @@ class Hub(private val app: App) {
     }
 
     // The app screen, opened with the security key once the core answers.
+    // Until then it shows "Starting…", and if the core doesn't answer, why.
     fun openScreen() = kotlin.concurrent.thread(isDaemon = true) {
-        for (i in 0 until 100) {
-            if (app.core.ready()) break
+        main.post { uiSession.loadUri(page("Starting promptpipe…", "")) }
+        for (i in 0 until 150) {
+            if (app.core.ready()) {
+                main.post { uiSession.loadUri("${App.base}/open?key=${app.core.key}") }
+                return@thread
+            }
             Thread.sleep(200)
         }
-        main.post { uiSession.loadUri("${App.base}/open?key=${app.core.key}") }
+        val why = app.core.problem.ifEmpty { "the core didn't answer within 30 seconds" }
+        main.post { uiSession.loadUri(page("promptpipe couldn't start: $why", "Last lines of ${app.core.logFile.path}:\n\n${app.core.lastLog()}")) }
+    }
+
+    // A plain page made on the spot (no server needed), in the app's dark colours.
+    private fun page(title: String, detail: String): String {
+        fun esc(s: String) = s.replace("&", "&amp;").replace("<", "&lt;")
+        val html = "<meta name=viewport content='width=device-width'><body style='background:#0b0c0f;color:#d8dbe2;font:16px system-ui;padding:24px'>" +
+            "<p>${esc(title)}</p>" + (if (detail.isEmpty()) "" else "<pre style='white-space:pre-wrap;font-size:12px;color:#9aa1ad'>${esc(detail)}</pre><p><a style='color:#e8875a' href='${App.base}/open?key=${app.core.key}'>Try again</a></p>")
+        return "data:text/html;charset=utf-8," + java.net.URLEncoder.encode(html, "UTF-8").replace("+", "%20")
     }
 
     // ---------- site pages ----------
@@ -203,7 +217,7 @@ class Hub(private val app: App) {
 
         // Links in chats open in the normal browser, not inside the app UI.
         override fun onLoadRequest(session: GeckoSession, request: GeckoSession.NavigationDelegate.LoadRequest): GeckoResult<AllowOrDeny>? {
-            if (request.uri.startsWith(App.base) || request.uri.startsWith("about:")) return GeckoResult.fromValue(AllowOrDeny.ALLOW)
+            if (request.uri.startsWith(App.base) || request.uri.startsWith("about:") || request.uri.startsWith("data:")) return GeckoResult.fromValue(AllowOrDeny.ALLOW)
             main.post { screen?.runAction("openUrl", JSONObject().put("url", request.uri)) }
             return GeckoResult.fromValue(AllowOrDeny.DENY)
         }

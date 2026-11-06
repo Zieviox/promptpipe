@@ -15,15 +15,23 @@ import kotlin.concurrent.thread
 class Core(private val app: App) {
     val key: String = ByteArray(24).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
     @Volatile private var proc: Process? = null
+    // What went wrong last, for the screen to show (never a silent blank page).
+    @Volatile var problem: String = ""
+    val logFile get() = File(app.store.base, "logs/core.log")
     private val sender = Executors.newSingleThreadExecutor() // emits and status, in order
 
     fun start() {
         val store = app.store
         thread(name = "core", isDaemon = true) {
             // Off the main thread: copying the app files can take a moment after an install.
-            store.migrateSecrets()
-            val info = app.packageManager.getPackageInfo(app.packageName, 0)
-            store.extractAssets("${info.versionName}-${info.lastUpdateTime}") // new on every install
+            try {
+                store.migrateSecrets()
+                val info = app.packageManager.getPackageInfo(app.packageName, 0)
+                store.extractAssets("${info.versionName}-${info.lastUpdateTime}") // new on every install
+            } catch (e: Exception) {
+                log("preparing the app files failed: $e")
+                problem = "preparing the app files failed: ${e.message ?: e}"
+            }
             var backoff = 1000L
             while (true) {
                 val started = System.currentTimeMillis()
@@ -31,6 +39,8 @@ class Core(private val app: App) {
                     run(store)
                 } catch (e: Exception) {
                     Log.e(App.TAG, "core failed to start", e)
+                    log("core failed to start: $e")
+                    problem = "the core failed to start: ${e.message ?: e}"
                 }
                 // It should never stop; if it does, start it again (slower each time it fails fast).
                 backoff = if (System.currentTimeMillis() - started > 60_000) 1000L else (backoff * 2).coerceAtMost(30_000)
@@ -50,12 +60,27 @@ class Core(private val app: App) {
             "--port", App.PORT.toString(),
         ).redirectErrorStream(true)
         pb.environment()["PP_KEY"] = key
+        logFile.parentFile?.mkdirs()
+        if (logFile.length() > 512 * 1024) logFile.delete()
+        log("starting ${bin.path} (exists: ${bin.exists()}, runnable: ${bin.canExecute()})")
         val p = pb.start()
         proc = p
-        p.inputStream.bufferedReader().forEachLine { Log.i(App.TAG, it) }
+        p.inputStream.bufferedReader().forEachLine {
+            Log.i(App.TAG, it)
+            log(it)
+        }
         val code = p.waitFor()
         Log.w(App.TAG, "core exited with $code")
+        log("core exited with code $code")
+        problem = "the core stopped (exit code $code)"
     }
+
+    // The core's output also goes to PromptPipe/logs/core.log, readable from a file manager or Termux.
+    @Synchronized fun log(line: String) {
+        try { logFile.appendText("${java.time.LocalTime.now().withNano(0)} $line\n") } catch (e: Exception) {}
+    }
+
+    fun lastLog(lines: Int = 15): String = try { logFile.readLines().takeLast(lines).joinToString("\n") } catch (e: Exception) { "(no log yet)" }
 
     // ---------- calls to the core ----------
 
