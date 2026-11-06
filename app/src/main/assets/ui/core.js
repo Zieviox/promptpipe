@@ -130,6 +130,10 @@ const PP = (window.PP = {
   // App events (see "events" below): PP.on("job", fn), PP.emit("my-event", data).
   on: (type, fn) => on(type, fn),
   emit: (type, ev) => emit(type, ev),
+  // Ask before something you can't undo: resolves to true or null. The UI part
+  // brings its own (the browser's confirm() may be switched off in the app).
+  confirm: (msg) => Promise.resolve(window.confirm(msg) || null),
+  askText: (msg, value = "") => Promise.resolve(window.prompt(msg, value) || null),
   // True in safe mode (only built-in plugins are loaded).
   safe: SAFE,
   md: (text) => mdToHtml(text),
@@ -263,27 +267,41 @@ const runRoute = async (ctx, prof) => {
   return null;
 };
 
-const activePlugins = (prof = profile()) => prof.plugins.filter((e) => e.on && S.plugins.get(e.id)?.def);
+// Which plugins run, and whether one is on. The pipeline part (core-pipeline)
+// replaces these with its presets; without it, the profile's switches decide.
+let activePlugins = (prof = profile()) => prof.plugins.filter((e) => e.on && S.plugins.get(e.id)?.def);
+let stepOn = (id, prof = profile()) => !!entryFor(id, prof).on;
+let setStepOn = (id, on, prof = profile()) => {
+  entryFor(id, prof).on = on;
+  saveConfig();
+};
+
+// What a plugin hook gets besides the text.
+const hookCtx = (id, ctx, prof, notes) => ({
+  ...ctx,
+  settings: settingsFor(id, prof),
+  note: (m) => notes.push(m),
+  // This plugin's own notes on the message, saved in the chat file.
+  turnData: ctx.turn?.data?.[id],
+  setTurnData: (v) => ctx.turn && ((ctx.turn.data = ctx.turn.data || {})[id] = v),
+});
 
 const runHooks = async (hook, text, ctx, trace, prof) => {
   for (const e of activePlugins(prof)) {
     const def = S.plugins.get(e.id).def;
     if (typeof def[hook] !== "function") continue;
     const notes = [];
-    const out = await def[hook](text, {
-      ...ctx,
-      settings: settingsFor(e.id, prof),
-      note: (m) => notes.push(m),
-      // This plugin's own notes on the message, saved in the chat file.
-      turnData: ctx.turn?.data?.[e.id],
-      setTurnData: (v) => ctx.turn && ((ctx.turn.data = ctx.turn.data || {})[e.id] = v),
-    });
+    const out = await def[hook](text, hookCtx(e.id, ctx, prof, notes));
     if (typeof out === "string") text = out;
     trace.push({ label: `${pluginName(e.id)} · ${hook === "beforeSend" ? "before" : "after"}`, text, notes });
     ctx.notes.push(...notes.map((n) => `${pluginName(e.id)}: ${n}`));
   }
   return text;
 };
+
+// The message that goes to the site: your text through the before-send steps.
+// The pipeline part replaces it (pieces, steps and your message, in rows).
+let buildMessage = (prompt, ctx, trace, prof) => runHooks("beforeSend", prompt, ctx, trace, prof);
 
 // ---------- AI page ----------
 const siteCmd = (cmd, extra = {}) => api("/api/site", { cmd, site: siteFor(), page: S.page, ...extra });
@@ -360,8 +378,7 @@ const pollEvents = async () => {
         } else if (first) continue; // old events from before this page loaded
         else if (ev.type === "pluginInstalled") {
           await loadPlugins();
-          entryFor(ev.id).on = true;
-          saveConfig();
+          setStepOn(ev.id, true);
           toast("Installed " + ev.id);
           rerenderSheet();
           render();

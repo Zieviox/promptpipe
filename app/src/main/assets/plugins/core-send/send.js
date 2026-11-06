@@ -156,7 +156,7 @@ const runChat = (chat, prompt, prof = profile(), follow = false, onPage = null) 
       // first-message setup yet (system prompt "first message only" ...).
       const freshSite = !follow && sameUrl(target, site.url);
       const ctx = { chat, turn, page, url: pg(page).url, profile: steps, siteProfile: prof, firstMessage: chat.turns.length === 1 || freshSite, freshSite, notes: turn.notes };
-      turn.sent = prompt ? await inHooks(() => runHooks("beforeSend", prompt, ctx, trace, steps)) : "";
+      turn.sent = prompt ? await inHooks(() => buildMessage(prompt, ctx, trace, steps)) : "";
       turn.progress = (follow ? "Reading the reply on " : "Sending to ") + site.name + (pageCount() > 1 ? ` (page ${page + 1})` : "") + "…";
       render();
       const started = Date.now();
@@ -237,7 +237,7 @@ const askSite = async (prompt, opts = {}) => {
     await openSite(site.url, page, quiet);
     await applySiteChoices(site, prof, page, quiet);
     const ctx = { chat: null, profile: prof, firstMessage: true, notes: [] };
-    const text = opts.hooks ? await inHooks(() => runHooks("beforeSend", prompt, ctx, [], prof)) : prompt;
+    const text = opts.hooks ? await inHooks(() => buildMessage(prompt, ctx, [], prof)) : prompt;
     const w = S.config.wait || {};
     const maxMs = (+w.maxMin || 0) * 60000;
     const r = await api("/api/site", { cmd: "send", site, page, text, idleMs: (+w.idleMin || 0) * 60000, maxMs, timeout: maxMs ? maxMs + 60000 : 7 * 86400000 });

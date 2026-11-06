@@ -1,7 +1,7 @@
 {
   "id": "memory",
   "name": "Memory",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Puts your pinned facts and the earlier chat in front of every message, so a fresh AI chat has the context. Everything goes in full until the max is reached. After that, older messages are summarised in fixed parts (10 messages, then 10 parts, ...) kept as Markdown files next to the chat, one file per level of detail; the oldest go in at the coarsest level and recent messages stay word for word. Works across Sub-chats.",
   "main": "main.js",
   "block": {

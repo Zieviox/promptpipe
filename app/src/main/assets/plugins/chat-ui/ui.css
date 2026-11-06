@@ -272,3 +272,28 @@ mark { background: #e7c46a33; color: var(--text); border-radius: 3px; padding: 0
 .jump.new { width: auto; padding: 0 14px; border-radius: 20px; background: var(--accent); color: #0b0c0f; font-weight: 600; font-size: 13px; border-color: transparent; }
 .safe-banner { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: #e7c46a1f; color: var(--warn); font-size: 13px; }
 .toast, .error { overflow-wrap: anywhere; }
+
+/* ---------- asking (the app's own confirm / text prompt) ---------- */
+.ask-wrap .scrim { z-index: 30; }
+.ask { position: fixed; z-index: 31; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(420px, calc(100vw - 32px)); background: var(--raise); border: 1px solid var(--hair);
+  border-radius: 18px; padding: 18px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 12px 40px #0008; animation: fade .15s; }
+.ask p { margin: 0; }
+.ask input { padding: 10px 12px; background: var(--bg); }
+.ask button { min-height: 44px; }
+
+/* ---------- pipeline ---------- */
+.pipe-list { display: flex; flex-direction: column; gap: 6px; }
+.pipe-row { border: 1px solid var(--hair); border-radius: 14px; background: var(--raise); }
+.pipe-row.off .pipe-name { opacity: .55; }
+.pipe-row.anchor { border-style: dashed; background: transparent; }
+.pipe-head { display: flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; }
+.pipe-head input[type=checkbox] { width: 22px; height: 22px; flex: none; }
+.pipe-name { display: flex; flex-direction: column; align-items: flex-start; text-align: left; min-height: 44px; padding: 4px 6px; position: relative; padding-right: 22px; }
+.pipe-name small { font-size: 12px; }
+.pipe-name .chev { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+.pipe-anchor-dot { width: 22px; height: 22px; flex: none; border-radius: 50%; border: 2px solid var(--accent); box-sizing: border-box; }
+.pipe-details { padding: 4px 12px 12px; display: flex; flex-direction: column; gap: 10px; }
+.pipe-preview { white-space: pre-wrap; word-break: break-word; background: var(--bg); border: 1px solid var(--hair); border-radius: 12px; padding: 10px 12px; margin: 0; font-size: 13px; max-height: 40dvh; overflow: auto; }
+.pill.preset .pill-main { font-weight: 600; }
+.pill.group.off { opacity: .7; }
+.core-log { max-height: 60dvh; font-size: 12px; }

@@ -156,6 +156,13 @@ api_route :: proc(req: ^Request) -> Response {
 		if !safe do return json_error(400, "bad path")
 		content, exists := read_text(path)
 		return json_res(200, fmt.tprintf(`{{"path":%s,"text":%s}}`, quote(rel), exists ? quote(content) : "null"))
+	case "/api/log":
+		// The end of the core's log (the shell writes the core's output to logs/core.log).
+		path := join(S.data_dir, "logs", "core.log")
+		content, exists := read_text(path)
+		if len(content) > 64_000 do content = content[len(content) - 64_000:]
+		for len(content) > 0 && (content[0] & 0xC0) == 0x80 do content = content[1:] // don't start inside a character
+		return json_res(200, fmt.tprintf(`{{"path":%s,"exists":%s,"text":%s}}`, quote(path), exists ? "true" : "false", quote(content)))
 	case "/api/history/all": return json_res(200, history_all())
 	case "/api/history/save": return save(body)
 	case "/api/git/log":

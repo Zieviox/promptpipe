@@ -274,6 +274,7 @@ const ICONS = {
   search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
   more: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
   send: '<path d="M12 19V5M5.5 11.5L12 5l6.5 6.5"/>',
+  layers: '<path d="M12 4l8 4-8 4-8-4z"/><path d="M4 12l8 4 8-4M4 16l8 4 8-4"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/>',
 };
 const svgIcon = (name) => {
@@ -539,21 +540,21 @@ const codeCopy = (root) => {
 const blockFor = (e, n) => {
   const p = S.plugins.get(e.id);
   const label = p.manifest.block?.label || p.manifest.name || p.id;
+  const on = stepOn(e.id);
   const toggle = () => {
-    e.on = !e.on;
-    saveConfig();
+    setStepOn(e.id, !on);
     render();
   };
   const pill = (text) =>
     h(
       "span",
-      { class: "pill " + (e.on ? "on" : "off") + (p.error ? " broken" : "") },
-      h("button", { class: "pill-main", "aria-pressed": String(e.on), title: (n <= 9 ? `Alt+${n} toggles. ` : "") + (p.manifest.description || ""), onclick: toggle }, h("span", { class: "dot" }), text ?? label),
+      { class: "pill " + (on ? "on" : "off") + (p.error ? " broken" : "") },
+      h("button", { class: "pill-main", "aria-pressed": String(on), title: (n <= 9 ? `Alt+${n} toggles. ` : "") + (p.manifest.description || ""), onclick: toggle }, h("span", { class: "dot" }), text ?? label),
       h("button", { class: "pill-gear", title: "Settings", "aria-label": label + " settings", onclick: () => openPluginSettings(e.id) }, svgIcon("gear")),
     );
   if (p.def && typeof p.def.renderBlock === "function") {
     try {
-      const el = p.def.renderBlock({ settings: settingsFor(e.id), set: (k, v) => setSetting(e.id, k, v), on: e.on, toggle, pill, openSettings: () => openPluginSettings(e.id), chat: S.chat });
+      const el = p.def.renderBlock({ settings: settingsFor(e.id), set: (k, v) => setSetting(e.id, k, v), on, toggle, pill, openSettings: () => openPluginSettings(e.id), chat: S.chat });
       if (el instanceof Node) return el;
     } catch (err) {
       p.error = "renderBlock: " + err.message;
@@ -562,12 +563,34 @@ const blockFor = (e, n) => {
   return pill();
 };
 
-const blockEntries = (place) =>
-  profile().plugins.filter((e) => {
-    const p = S.plugins.get(e.id);
-    if (!isStep(p) || p.manifest.block === false) return false;
-    return (p.manifest.block?.place || "toggles") === place;
-  });
+// In the order of the preset's rows (plugins without a row come last).
+const blockEntries = (place) => {
+  const rows = presetOf()?.rows || [];
+  const at = (id) => {
+    const i = rows.findIndex((r) => r.type === "step" && r.plugin === id);
+    return i < 0 ? 1e9 : i;
+  };
+  return profile()
+    .plugins.filter((e) => {
+      const p = S.plugins.get(e.id);
+      if (!isStep(p) || p.manifest.block === false) return false;
+      return (p.manifest.block?.place || "toggles") === place;
+    })
+    .sort((a, b) => at(a.id) - at(b.id));
+};
+
+// The preset chip (opens the pipeline) and a chip per group (its switch).
+const presetChips = () => {
+  const pre = presetOf();
+  if (!pre) return [];
+  return [
+    h("span", { class: "pill preset on" },
+      h("button", { class: "pill-main", title: "The pipeline: what goes with your message", onclick: openPipeline }, svgIcon("layers"), pre.name)),
+    ...(pre.groups || []).map((g) =>
+      h("span", { class: "pill group " + (g.on !== false ? "on" : "off") },
+        h("button", { class: "pill-main", "aria-pressed": String(g.on !== false), title: "Turns every row of this group on or off", onclick: () => ((g.on = g.on === false), saveConfig(), render()) }, h("span", { class: "dot" }), g.name))),
+  ];
+};
 
 const topBlocks = () => blockEntries("top").map((e, i) => blockFor(e, 99));
 
@@ -576,7 +599,7 @@ const renderBlocks = () => {
   const main = entries.filter((e) => !S.plugins.get(e.id).manifest.advanced);
   const adv = entries.filter((e) => S.plugins.get(e.id).manifest.advanced);
   let n = 0;
-  const row = h("div", { class: "blocks" }, main.map((e) => blockFor(e, ++n)));
+  const row = h("div", { class: "blocks" }, presetChips(), main.map((e) => blockFor(e, ++n)));
   if (adv.length) {
     row.append(
       h("button", { class: "adv-toggle", "aria-expanded": String(S.advOpen), title: "Ctrl+Shift+A", onclick: toggleAdvanced }, `Advanced ${adv.length} ${S.advOpen ? "▾" : "▸"}`),
@@ -893,8 +916,8 @@ const openChatActions = (c) => {
           "button",
           {
             class: "danger",
-            onclick: () => {
-              if (confirm(`Delete "${c.meta.title}"? It stays in git history.`)) deleteChat(c.path).then(closeSheet);
+            onclick: async () => {
+              if (await askConfirm(`Delete "${c.meta.title}"? It stays in git history.`)) deleteChat(c.path).then(closeSheet);
             },
           },
           "Delete",
@@ -944,6 +967,32 @@ const renameChat = () => {
     ];
   });
 };
+
+// ---------- asking ----------
+// The app's own confirm and text prompt (the app's browser has none of its own).
+// askUser(message, { value, ok, danger }) resolves to true / the text, or null on Cancel.
+const askUser = (message, { value = null, ok = "OK", danger = false } = {}) =>
+  new Promise((done) => {
+    const input = value === null ? null : h("input", { value, "aria-label": message });
+    const finish = (v) => (wrap.remove(), done(v));
+    const yes = () => finish(input ? input.value.trim() || null : true);
+    const wrap = h("div", { class: "ask-wrap" },
+      h("div", { class: "scrim", onclick: () => finish(null) }),
+      h("div", { class: "ask", role: "alertdialog", "aria-label": message },
+        h("p", {}, message),
+        input,
+        h("div", { class: "row" },
+          h("button", { class: "grow", onclick: () => finish(null) }, "Cancel"),
+          h("button", { class: "grow " + (danger ? "danger" : "primary"), onclick: yes }, ok))));
+    if (input) input.addEventListener("keydown", (e) => e.key === "Enter" && yes());
+    wrap.addEventListener("keydown", (e) => e.key === "Escape" && finish(null));
+    document.body.append(wrap);
+    (input || wrap.querySelector(".ask button:last-child")).focus();
+  });
+const askConfirm = (message, ok = "Delete") => askUser(message, { ok, danger: true });
+const askText = (message, value = "", ok = "OK") => askUser(message, { value, ok });
+PP.confirm = askConfirm;
+PP.askText = askText;
 
 // ---------- sheets ----------
 openSheet = (title, renderFn) => {
@@ -1017,11 +1066,127 @@ const openPluginSettings = (id) => {
   openSheet(`${p.manifest?.name || id} · ${profile().name}`, () => [
     h("p", { class: "muted" }, p.manifest?.description || ""),
     p.error ? h("p", { class: "error" }, "✕ " + p.error) : null,
-    isSite(p) ? null : h("label", { class: "field inline" }, h("span", {}, "On in this profile"), h("input", { type: "checkbox", checked: entryFor(id).on, onchange: (e) => ((entryFor(id).on = e.target.checked), saveConfig(), render()) })),
+    isSite(p) ? null : h("label", { class: "field inline" }, h("span", {}, `On in the preset “${presetOf()?.name || "?"}”`), h("input", { type: "checkbox", checked: stepOn(id), onchange: (e) => (setStepOn(id, e.target.checked), render()) })),
     ...settingsForm(id),
-    h("p", { class: "muted" }, "Settings are saved per profile."),
+    h("p", { class: "muted" }, "Settings are saved per profile; the switch and the order are the preset's (Pipeline)."),
   ]);
 };
+
+// The pipeline: the profile's preset, its rows in the order they are sent,
+// groups with one switch each, and a preview of what goes out.
+let pipeOpen = null; // the row whose details are unfolded
+const openPipeline = () =>
+  openSheet("Pipeline", () => {
+    const prof = profile();
+    const pre = presetOf(prof);
+    const P = PP.pipeline;
+    if (!pre) return [h("p", { class: "muted" }, "No presets yet.")];
+    const redraw = () => (saveConfig(), rerenderSheet(), render());
+    const groupSelect = (r) =>
+      h("label", { class: "field" }, h("span", {}, "Group"),
+        h("select", { onchange: (e) => ((r.group = e.target.value), redraw()) },
+          h("option", { value: "", selected: !r.group }, "No group"),
+          (pre.groups || []).map((g) => h("option", { value: g.id, selected: r.group === g.id }, g.name))));
+    const details = (r, i) => {
+      if (r.type === "piece")
+        return h("div", { class: "pipe-details" },
+          h("label", { class: "field" }, h("span", {}, "Name"), h("input", { value: r.name || "", oninput: (e) => ((r.name = e.target.value), saveConfig()) })),
+          h("label", { class: "field" }, h("span", {}, "Text"), h("textarea", { rows: 6, value: r.text || "", placeholder: "What to send. Empty pieces aren't sent.", oninput: (e) => ((r.text = e.target.value), saveConfig()) })),
+          h("label", { class: "field" }, h("span", {}, "Send it"),
+            h("select", { onchange: (e) => ((r.when = e.target.value), redraw()) }, Object.entries(P.WHEN).map(([v, l]) => h("option", { value: v, selected: (r.when || "every") === v }, l)))),
+          r.when === "everyN" ? h("label", { class: "field" }, h("span", {}, "N (the first message of a site chat always gets it)"), h("input", { type: "number", min: 1, value: r.n || 5, oninput: (e) => ((r.n = Math.max(1, +e.target.value || 1)), saveConfig()) })) : null,
+          groupSelect(r),
+          h("div", { class: "row" },
+            h("button", { class: "small", onclick: () => navigator.clipboard.writeText(r.text || "").then(() => toast("Copied")) }, "Copy text"),
+            h("button", { class: "small danger", onclick: async () => {
+              if (!(await askConfirm(`Delete the piece “${rowName(r)}”?`))) return;
+              pre.rows.splice(i, 1);
+              pipeOpen = null;
+              redraw();
+            } }, "Delete piece")));
+      if (r.type === "step") {
+        const p = S.plugins.get(r.plugin);
+        const own = p?.def && typeof p.def.piece === "function";
+        return h("div", { class: "pipe-details" },
+          h("p", { class: "muted" }, p ? p.manifest.description || "" : "This plugin isn't installed, so the row is skipped."),
+          p?.def && typeof p.def.beforeSend === "function" && !own
+            ? h("label", { class: "field" }, h("span", {}, "It changes"),
+                h("select", { onchange: (e) => ((r.scope = e.target.value), redraw()) },
+                  h("option", { value: "above", selected: r.scope !== "message" }, "Everything above it"),
+                  h("option", { value: "message", selected: r.scope === "message" }, "Only your message")))
+            : own ? h("p", { class: "muted" }, "Its text goes where this row is.") : h("p", { class: "muted" }, "It doesn't change the message (it works on replies or chats), so its place doesn't matter."),
+          groupSelect(r),
+          p ? h("div", { class: "row" }, h("button", { class: "small", onclick: () => openPluginSettings(r.plugin) }, "Plugin settings")) : null);
+      }
+      return h("div", { class: "pipe-details" }, h("p", { class: "muted" }, "Your message goes here. Move it to put pieces before or after it."));
+    };
+    const rowEl = (r, i) => {
+      const live = r.type === "message" || P.rowLive(pre, r);
+      const g = r.group && (pre.groups || []).find((x) => x.id === r.group);
+      const sub = r.type === "piece" ? whenLabel(r) + (!(r.text || "").trim() ? " · empty, not sent" : "")
+        : r.type === "step" ? (S.plugins.get(r.plugin) ? "Step" + (r.scope === "message" ? " · your message only" : "") : "Step · not installed")
+        : "Where your message goes";
+      const open = pipeOpen === r;
+      return h("div", { class: "pipe-row" + (r.type === "message" ? " anchor" : "") + (live ? "" : " off") + (open ? " open" : "") },
+        h("div", { class: "pipe-head" },
+          r.type === "message"
+            ? h("span", { class: "pipe-anchor-dot", "aria-hidden": "true" })
+            : h("input", { type: "checkbox", checked: r.on !== false, "aria-label": "On", onchange: (e) => ((r.on = e.target.checked), redraw()) }),
+          h("button", { class: "ghost grow pipe-name", "aria-expanded": String(open), onclick: () => ((pipeOpen = open ? null : r), rerenderSheet()) },
+            h("b", {}, rowName(r)), h("small", { class: "muted" }, sub + (g ? ` · ${g.name}${g.on === false ? " (off)" : ""}` : "")), h("span", { class: "chev" }, open ? "▾" : "›")),
+          h("button", { class: "small", "aria-label": "Move up", disabled: i === 0, onclick: () => (P.moveRow(pre, i, -1), rerenderSheet(), render()) }, "↑"),
+          h("button", { class: "small", "aria-label": "Move down", disabled: i === pre.rows.length - 1, onclick: () => (P.moveRow(pre, i, 1), rerenderSheet(), render()) }, "↓")),
+        open ? details(r, i) : null);
+    };
+    const addPiece = (name = "", text = "") => {
+      const at = pre.rows.findIndex((r) => r.type === "message");
+      const r = P.piece(name || "New piece", text);
+      pre.rows.splice(Math.max(0, at), 0, r);
+      pipeOpen = r;
+      redraw();
+    };
+    const fromLibrary = async () => {
+      const lib = await P.promptLibrary();
+      if (!lib.length) return toast("Your system prompt library is empty");
+      openSheet("Add a piece from your library", () => [
+        h("p", { class: "muted" }, "A copy goes into this preset, before your message."),
+        ...lib.map((x) => h("div", { class: "plugin-row" },
+          h("div", { class: "grow" }, h("b", {}, x.name || x.text.trim().split("\n")[0].slice(0, 40)), h("div", { class: "muted" }, x.text.length > 160 ? x.text.slice(0, 160) + "…" : x.text)),
+          h("button", { class: "small primary", onclick: () => (closeSheet(), openPipeline(), addPiece(x.name || "", x.text)) }, "Add"))),
+      ]);
+    };
+    let first = true;
+    const preview = h("pre", { class: "pipe-preview" });
+    const showPreview = () => (preview.textContent = P.previewMessage(prof, { first }) || "(nothing)");
+    return [
+      h("div", { class: "row" },
+        h("label", { class: "field grow" }, h("span", {}, `Preset for “${prof.name}”`),
+          h("select", { onchange: (e) => (P.usePreset(e.target.value, prof), (pipeOpen = null), rerenderSheet(), render()) }, P.presets().map((x) => h("option", { value: x.id, selected: x === pre }, x.name))))),
+      h("div", { class: "row" },
+        h("button", { class: "small", onclick: async () => { const n = await askText("Name of the new preset", "New preset", "Make it"); if (n) (P.usePreset(P.addPreset(n).id, prof), rerenderSheet(), render()); } }, "New"),
+        h("button", { class: "small", onclick: async () => { const n = await askText("Name of the copy", pre.name + " copy", "Copy"); if (n) (P.usePreset(P.addPreset(n, pre).id, prof), rerenderSheet(), render()); } }, "Copy"),
+        h("button", { class: "small", onclick: async () => { const n = await askText("Rename the preset", pre.name, "Rename"); if (n) ((pre.name = n), redraw()); } }, "Rename"),
+        h("button", { class: "small danger", disabled: P.presets().length < 2, onclick: async () => (await askConfirm(`Delete the preset “${pre.name}”? Profiles using it move to the first preset.`)) && (P.removePreset(pre), rerenderSheet(), render()) }, "Delete")),
+      h("p", { class: "muted" }, "Sent top to bottom. A step changes what is above it. Tap a row for its details. Presets are shared by profiles; the changes save at once."),
+      h("div", { class: "pipe-list" }, pre.rows.map(rowEl)),
+      h("div", { class: "row" },
+        h("button", { class: "primary", onclick: () => addPiece() }, "Add piece"),
+        h("button", { onclick: fromLibrary }, "Add from library")),
+      h("h3", {}, "Groups"),
+      (pre.groups || []).length ? null : h("p", { class: "muted" }, "A group's switch turns all its rows on or off. Put a row in a group from its details."),
+      ...(pre.groups || []).map((g) => h("div", { class: "plugin-row" },
+        h("input", { type: "checkbox", checked: g.on !== false, "aria-label": "Group on", onchange: (e) => ((g.on = e.target.checked), redraw()) }),
+        h("input", { class: "grow", value: g.name, "aria-label": "Group name", oninput: (e) => ((g.name = e.target.value), saveConfig(), render()) }),
+        h("small", { class: "muted" }, `${pre.rows.filter((r) => r.group === g.id).length} rows`),
+        h("button", { class: "small danger", "aria-label": "Delete group", onclick: async () => (await askConfirm(`Delete the group “${g.name}”? Its rows stay, without a group.`)) && (P.removeGroup(pre, g), rerenderSheet(), render()) }, "✕"))),
+      h("div", { class: "row" }, h("button", { class: "small", onclick: async () => { const n = await askText("Group name", "Group " + ((pre.groups || []).length + 1), "Add"); if (n) (P.addGroup(pre, n), rerenderSheet(), render()); } }, "Add group")),
+      h("h3", {}, "What will be sent"),
+      h("div", { class: "row" },
+        h("label", { class: "field inline" }, h("span", {}, "As the first message of a site chat"), h("input", { type: "checkbox", checked: first, onchange: (e) => ((first = e.target.checked), showPreview()) })),
+        h("button", { class: "small", onclick: showPreview }, "Show")),
+      (showPreview(), preview),
+    ];
+  });
 
 const openPlugins = () =>
   openSheet("Plugins", () => {
@@ -1033,19 +1198,11 @@ const openPlugins = () =>
         if (r.id.startsWith("bundle:")) return emit("pluginBundle", { version: r.id.slice(7) });
         toast("Installed " + r.id);
         await loadPlugins();
-        entryFor(r.id).on = true;
-        saveConfig();
+        setStepOn(r.id, true);
         rerenderSheet();
       } catch (e) {
         toast("Install failed: " + e.message, "error");
       }
-    };
-    const move = (i, d) => {
-      const j = i + d;
-      if (j < 0 || j >= prof.plugins.length) return;
-      [prof.plugins[i], prof.plugins[j]] = [prof.plugins[j], prof.plugins[i]];
-      saveConfig();
-      render();
     };
     const badge = (p) => (p.source === "builtin" ? (p.updated ? "updated" : "built-in") : p.overrides ? "your copy (overrides built-in)" : "your folder");
     return [
@@ -1053,8 +1210,8 @@ const openPlugins = () =>
       h("p", { class: "muted" }, "Your plugin folder: ", h("code", {}, S.pluginFolder || "?")),
       h("div", { class: "row" }, url, h("button", { onclick: install }, "Install")),
       h("div", { class: "row" }, h("button", { class: "primary", onclick: () => api("/api/app/action", { action: "pickPlugin" }) }, "Install from a file (.zip or plugin.json)")),
-      h("h3", {}, `Order and switches for profile “${prof.name}”`),
-      h("p", { class: "muted" }, "Before-send hooks run top to bottom; after-reply hooks too."),
+      h("h3", {}, `Plugins · switches of the preset “${presetOf(prof)?.name || "?"}”`),
+      h("div", { class: "row" }, h("p", { class: "muted grow" }, "The order they run in, and your pieces of text, are in the pipeline."), h("button", { class: "small primary", onclick: openPipeline }, "Pipeline")),
       ...prof.plugins.map((e, i) => {
         if (S.plugins.get(e.id) && !isStep(S.plugins.get(e.id))) return null;
         const p = S.plugins.get(e.id);
@@ -1062,7 +1219,7 @@ const openPlugins = () =>
         return h(
           "div",
           { class: "plugin-row" },
-          h("input", { type: "checkbox", checked: e.on, "aria-label": "On", onchange: (ev) => ((e.on = ev.target.checked), saveConfig(), render()) }),
+          h("input", { type: "checkbox", checked: stepOn(e.id, prof), "aria-label": "On", onchange: (ev) => (setStepOn(e.id, ev.target.checked, prof), render()) }),
           h(
             "div",
             { class: "grow" },
@@ -1071,8 +1228,6 @@ const openPlugins = () =>
             h("small", { class: "muted" }, `v${p.manifest?.version || "?"} · ${badge(p)}${p.manifest?.advanced ? " · advanced" : ""}`),
             p.error ? h("div", { class: "error" }, "✕ " + p.error) : null,
           ),
-          h("button", { class: "small", onclick: () => move(i, -1), "aria-label": "Move up" }, "↑"),
-          h("button", { class: "small", onclick: () => move(i, 1), "aria-label": "Move down" }, "↓"),
           h("button", { class: "small", onclick: () => openPluginSettings(e.id), "aria-label": "Settings" }, "⚙"),
           p.source === "builtin" ? h("button", { class: "small", title: "Copy into your plugin folder to edit it", onclick: () => forkPlugin(p.id) }, "Copy") : null,
         );
@@ -1153,7 +1308,7 @@ const openProfileMenu = () =>
     const prof = profile();
     const sites = [...S.plugins.values()].filter(isSite);
     return [
-      h("p", { class: "muted" }, "A profile is a set of plugins with their settings, plus the AI site. Ctrl+P switches to the next one."),
+      h("p", { class: "muted" }, "A profile is an AI site, a preset (what goes with your message) and the plugins' settings. Ctrl+P switches to the next one."),
       ...S.config.profiles.map((p) =>
         h(
           "div",
@@ -1161,6 +1316,7 @@ const openProfileMenu = () =>
           h("input", { type: "radio", name: "prof", checked: p === prof, onchange: () => switchProfile(p.id) }),
           h("input", { class: "grow", value: p.name, "aria-label": "Profile name", oninput: (e) => ((p.name = e.target.value), saveConfig()) }),
           h("select", { "aria-label": "AI site", onchange: (e) => ((p.site = e.target.value), saveConfig(), render()) }, sites.map((s) => h("option", { value: s.id, selected: s.id === p.site }, s.manifest.name))),
+          h("select", { "aria-label": "Preset", onchange: (e) => ((p.preset = e.target.value), saveConfig(), render()) }, PP.pipeline.presets().map((x) => h("option", { value: x.id, selected: x === presetOf(p) }, x.name))),
           S.config.profiles.length > 1
             ? h("button", { class: "small danger", "aria-label": "Delete profile", onclick: () => {
                 S.config.profiles = S.config.profiles.filter((x) => x !== p);
@@ -1183,7 +1339,8 @@ const openProfileMenu = () =>
             switchProfile(copy.id);
           },
         }, "Duplicate current"),
-        h("button", { onclick: openPlugins }, "Plugins of this profile"),
+        h("button", { onclick: openPipeline }, "Pipeline"),
+        h("button", { onclick: openPlugins }, "Plugins"),
       ),
     ];
   });
@@ -1333,6 +1490,22 @@ const appPartsControls = () => {
   ];
 };
 
+// The end of the core's log, to read or copy (Termux can't reach the app's files).
+const openCoreLog = async () => {
+  const read = () => api("/api/log").catch((e) => ({ exists: false, path: "", error: e.message }));
+  let log = await read();
+  const textOf = () => (log.error ? "Couldn't read the log: " + log.error : log.exists ? log.text || "(empty)" : "No log file yet.");
+  const toEnd = () => setTimeout(() => document.querySelector(".core-log")?.scrollTo(0, 1e9), 50);
+  openSheet("Core log", () => [
+    h("p", { class: "muted" }, h("code", {}, log.path || "")),
+    h("div", { class: "row" },
+      h("button", { class: "small primary", onclick: () => navigator.clipboard.writeText(textOf()).then(() => toast("Log copied")) }, "Copy"),
+      h("button", { class: "small", onclick: async () => ((log = await read()), rerenderSheet(), toEnd()) }, "Refresh")),
+    h("pre", { class: "pipe-preview core-log" }, textOf()),
+  ]);
+  toEnd();
+};
+
 const openSettings = () =>
   openSheet("Settings", () => {
     return [
@@ -1377,6 +1550,9 @@ const openSettings = () =>
       h("h3", {}, "Background"),
       h("p", { class: "muted" }, "A notification keeps the AI page and the API alive while the app is in the background."),
       h("button", { onclick: () => api("/api/app/action", { action: "stopService" }) }, "Stop background service"),
+      h("h3", {}, "Core log"),
+      h("p", { class: "muted" }, "What the app's core printed, for reporting a problem."),
+      h("button", { onclick: openCoreLog }, "Show core log"),
       ),
       h("p", { class: "muted" }, "Version " + (S.app.version || "?")),
     ];
@@ -1527,6 +1703,7 @@ const commands = () => [
   { name: "Choose model", key: "Ctrl+M", run: openModels, menu: true },
   { name: "Expand or shrink the message box", key: "Ctrl+E", run: toggleExpand },
   { name: "Plugins", key: "Ctrl+Shift+P", run: openPlugins, menu: true },
+  { name: "Pipeline: presets, pieces and order", key: "Ctrl+Shift+L", run: openPipeline, menu: true },
   { name: "Profiles", key: "", run: openProfileMenu, menu: true },
   { name: "Next profile", key: "Ctrl+P", run: nextProfile },
   { name: "Git history", key: "", run: openGit, menu: true },
@@ -1552,7 +1729,7 @@ const commands = () => [
   { name: "Move chat to folder…", key: "", run: () => S.chat.path ? openChatActions(S.chats.find((c) => c.path === S.chat.path) || S.chat) : toast("Send a message first") },
   ...profile().plugins
     .filter((e) => isStep(S.plugins.get(e.id)))
-    .map((e) => ({ name: `Toggle ${pluginName(e.id)} (${e.on ? "on" : "off"})`, run: () => ((e.on = !e.on), saveConfig(), render()) })),
+    .map((e) => ({ name: `Toggle ${pluginName(e.id)} (${stepOn(e.id) ? "on" : "off"})`, run: () => (setStepOn(e.id, !stepOn(e.id)), render()) })),
 ];
 
 const openHelp = () =>
@@ -1695,6 +1872,7 @@ document.addEventListener("keydown", (e) => {
   if (ctrl && !e.shiftKey && k === "b") return run(() => (S.drawer ? closeDrawer() : openDrawer()));
   if (ctrl && !e.shiftKey && k === "p") return run(nextProfile);
   if (ctrl && e.shiftKey && k === "p") return run(openPlugins);
+  if (ctrl && e.shiftKey && k === "l") return run(openPipeline);
   if (ctrl && e.shiftKey && k === "r") return run(reloadPlugins);
   if (ctrl && e.shiftKey && k === "a") return run(toggleAdvanced);
   if (ctrl && !e.shiftKey && k === "t") return run(() => (renameChat(), setTimeout(() => document.querySelector(".in-sheet .tag-input")?.focus(), 50)));
@@ -1706,7 +1884,7 @@ document.addEventListener("keydown", (e) => {
   if (e.altKey && e.key === "ArrowUp") return run(() => stepChat(-1));
   if (e.altKey && e.key === "ArrowDown") return run(() => stepChat(1));
   if (e.altKey && /^[1-9]$/.test(e.key)) {
-    const pills = document.querySelectorAll(".blocks .pill-main");
+    const pills = document.querySelectorAll(".blocks .pill:not(.preset):not(.group) .pill-main");
     const b = pills[Number(e.key) - 1];
     if (b) return run(() => b.click());
   }

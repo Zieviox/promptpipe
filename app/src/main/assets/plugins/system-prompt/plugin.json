@@ -1,7 +1,7 @@
 {
   "id": "system-prompt",
   "name": "System prompt",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Puts your system prompts in front of the message: a stack of pieces from your prompt library, sent in order. Web chats have no system prompt field, so it goes in the message.",
   "main": "main.js",
   "block": { "place": "toggles", "label": "System prompt" },

@@ -416,7 +416,10 @@ PP.plugin({
     } catch (e) {}
     return text;
   },
-  async beforeSend(text, ctx) {
+  // In a pipeline, Memory is a piece: its text goes where its row is
+  // (ctx.message is your message). Elsewhere it goes in front of the message.
+  async piece(ctx) {
+    const text = ctx.message || "";
     const every = Math.max(1, Math.round(num(ctx.settings.every, 1)));
     const turns = turnsOf(ctx, text);
     const count = turns.length;
@@ -425,15 +428,19 @@ PP.plugin({
     const fresh = count > 0 && !seenBy(turns, ctx.url, ctx.chat && ctx.chat.meta && ctx.chat.meta.source).some(Boolean);
     if (!ctx.firstMessage && !fresh && count % every !== 0) {
       ctx.note("skipped (every " + every + ")");
-      return text;
+      return "";
     }
     const m = await build(text, ctx);
     if (!m.text) {
       ctx.note("nothing to send");
-      return text;
+      return "";
     }
     ctx.note(m.note + (fresh && count ? " (new site chat)" : ""));
-    return m.text + "\n\n" + text;
+    return m.text;
+  },
+  async beforeSend(text, ctx) {
+    const m = await this.piece({ ...ctx, message: text });
+    return m ? m + "\n\n" + text : text;
   },
   renderBlock(ctx) {
     const el = ctx.pill();

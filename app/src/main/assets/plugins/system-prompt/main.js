@@ -109,7 +109,7 @@ const openLibrary = (ctx) => {
               h("button", { class: "small", onclick: () => ((editing = p.id), PP.render()) }, "Edit"),
               h("button", { class: "small", onclick: () => navigator.clipboard.writeText(p.text).then(() => PP.toast("Copied")) }, "Copy"),
               h("button", { class: "small danger", onclick: async () => {
-                if (!confirm(`Delete "${nameOf(p)}" from the library?`)) return;
+                if (!(await PP.confirm(`Delete "${nameOf(p)}" from the library?`))) return;
                 lib.prompts = lib.prompts.filter((x) => x !== p);
                 setStack(s.filter((x) => x !== p.id));
                 await save("deleted " + nameOf(p));

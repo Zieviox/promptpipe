@@ -63,9 +63,15 @@ plugins/
 
 ```js
 PP.plugin({
-  // Before your message is sent. Return the new text.
+  // Before your message is sent: text is everything above this plugin's row
+  // in the pipeline (or only your message, if the row says so). Return the new text.
   beforeSend(text, ctx) {
     return text;
+  },
+  // Or, instead of beforeSend: text of your own, put where your row is
+  // (like a piece). ctx.message is your message. Return "" to add nothing.
+  piece(ctx) {
+    return ctx.settings.facts || "";
   },
   // After the reply arrives. Return the new text (this is what you see and what is saved).
   afterReply(text, ctx) {
@@ -98,7 +104,24 @@ PP.plugin({
 ```
 
 Hooks can be `async`. Throwing an error stops the message and shows the error.
-Plugins that are on run in the order shown in the Plugins screen (move them with ↑ ↓).
+
+### The pipeline
+
+What goes to the site is built by the profile's **preset** (⋯ → Pipeline, or
+the first chip above the message box): a list of rows, sent top to bottom.
+
+- **Piece**: text you wrote. *Send it*: every message, the first message of a
+  site chat, every N messages (and the first), or off. Empty pieces aren't sent.
+- **Step**: a plugin. `beforeSend` changes everything above its row (or only
+  your message: the row's *It changes* setting); `piece()` puts its own text
+  where its row is. `afterReply` hooks run in row order too.
+- **Your message**: where your message goes. Move it like any row.
+- **Groups**: one switch for several rows (the group chips above the box).
+
+Presets are shared by profiles; each profile picks one and keeps its plugins'
+settings. Every installed plugin with hooks has a row in every preset (new
+ones come in off, at the end). The app ships with Plain, RP, Writing feedback
+and Story writing.
 
 `ctx` has:
 
@@ -143,6 +166,8 @@ afterReply(text, ctx) {
 | `PP.settings(id)` | another plugin's settings in the active profile |
 | `PP.sitePlugin` | the active profile's site (`name`, `url`, selectors) |
 | `PP.on(type, fn)` / `PP.emit(type, data)` | app events (below); your own events too |
+| `PP.confirm(text)` / `PP.askText(text, value)` | ask before something you can't undo / ask for a line of text; resolve to `true` / the text, or `null` (the app has no browser `confirm()`) |
+| `PP.pipeline` | presets and rows: `presets()`, `presetOf(profile)`, `previewMessage(profile)` ... |
 | `PP.safe` | true in safe mode |
 
 ### App events: `PP.on`
@@ -319,6 +344,7 @@ The app itself is built-in plugins with `"kind": "core"` (and one `"kind": "ui"`
 |---|---|---|
 | `core-markdown` | Markdown to HTML | `mdToHtml` |
 | `core-chatfile` | the chat file format | `ChatFile.toMd`, `fromMd`, `parseFront` |
+| `core-pipeline` | presets, pieces, steps, groups | `activePlugins`, `stepOn`, `setStepOn`, `buildMessage`, `presetOf`, `previewMessage` |
 | `core-send` | page pool, queue, sending, `PP.ask` | `runChat`, `askSite`, `acquire`, `release`, `pageCount`, `setPageCount`, `warmSite`, `showSite`, `applySiteChoices` ... |
 | `core-history` | chat files, folders, git, tags | `newChat`, `openChat`, `saveChat`, `startNewChat`, `moveChat`, `deleteChat`, `loadTree`, tag functions ... |
 | `core-jobs` | other apps' requests (local API) | `runJob` (on the `job` event) |
@@ -327,7 +353,9 @@ The app itself is built-in plugins with `"kind": "core"` (and one `"kind": "ui"`
 Under them is the core (`/ui/core.js`, not a plugin): `S` (all state:
 `S.config`, `S.chat`, `S.chats`, `S.plugins`, `S.pages` ...), `h`, `api`,
 `toast`, `PP`, `on`/`emit`, plugin settings (`profile()`, `settingsFor`,
-`siteFor`, `runHooks`, `runRoute`), and `siteCmd`/`openSite`.
+`siteFor`, `runHooks`, `runRoute`, `hookCtx`), and `siteCmd`/`openSite`. Its
+`activePlugins`, `stepOn`, `setStepOn` and `buildMessage` are plain switches and
+`beforeSend` in plugin order until the pipeline part replaces them.
 
 How parts load:
 
