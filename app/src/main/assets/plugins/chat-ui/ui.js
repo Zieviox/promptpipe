@@ -1106,17 +1106,24 @@ const openPipeline = () =>
             } }, "Delete piece")));
       if (r.type === "step") {
         const p = S.plugins.get(r.plugin);
-        const own = p?.def && typeof p.def.piece === "function";
+        const own = r.part ? !!P.partOf(r) : p?.def && typeof p.def.piece === "function";
         return h("div", { class: "pipe-details" },
           h("p", { class: "muted" }, p ? p.manifest.description || "" : "This plugin isn't installed, so the row is skipped."),
-          p?.def && typeof p.def.beforeSend === "function" && !own
+          !r.part && p?.def && typeof p.def.beforeSend === "function" && !own
             ? h("label", { class: "field" }, h("span", {}, "It changes"),
                 h("select", { onchange: (e) => ((r.scope = e.target.value), redraw()) },
                   h("option", { value: "above", selected: r.scope !== "message" }, "Everything above it"),
                   h("option", { value: "message", selected: r.scope === "message" }, "Only your message")))
             : own ? h("p", { class: "muted" }, "Its text goes where this row is.") : h("p", { class: "muted" }, "It doesn't change the message (it works on replies or chats), so its place doesn't matter."),
           groupSelect(r),
-          p ? h("div", { class: "row" }, h("button", { class: "small", onclick: () => openPluginSettings(r.plugin) }, "Plugin settings")) : null);
+          h("div", { class: "row" },
+            p ? h("button", { class: "small", onclick: () => openPluginSettings(r.plugin) }, "Plugin settings") : null,
+            r.part ? h("button", { class: "small danger", onclick: async () => {
+              if (!(await askConfirm(`Take “${rowName(r)}” out of this preset?`, "Take out"))) return;
+              pre.rows.splice(i, 1);
+              pipeOpen = null;
+              redraw();
+            } }, "Take out") : null));
       }
       return h("div", { class: "pipe-details" }, h("p", { class: "muted" }, "Your message goes here. Move it to put pieces before or after it."));
     };
@@ -1124,7 +1131,7 @@ const openPipeline = () =>
       const live = r.type === "message" || P.rowLive(pre, r);
       const g = r.group && (pre.groups || []).find((x) => x.id === r.group);
       const sub = r.type === "piece" ? whenLabel(r) + (!(r.text || "").trim() ? " · empty, not sent" : "")
-        : r.type === "step" ? (S.plugins.get(r.plugin) ? "Step" + (r.scope === "message" ? " · your message only" : "") : "Step · not installed")
+        : r.type === "step" ? (!S.plugins.get(r.plugin) ? "Step · not installed" : r.part ? "Plugin piece" : "Step" + (r.scope === "message" ? " · your message only" : ""))
         : "Where your message goes";
       const open = pipeOpen === r;
       return h("div", { class: "pipe-row" + (r.type === "message" ? " anchor" : "") + (live ? "" : " off") + (open ? " open" : "") },
@@ -1152,7 +1159,23 @@ const openPipeline = () =>
         h("p", { class: "muted" }, "A copy goes into this preset, before your message."),
         ...lib.map((x) => h("div", { class: "plugin-row" },
           h("div", { class: "grow" }, h("b", {}, x.name || x.text.trim().split("\n")[0].slice(0, 40)), h("div", { class: "muted" }, x.text.length > 160 ? x.text.slice(0, 160) + "…" : x.text)),
-          h("button", { class: "small primary", onclick: () => (closeSheet(), openPipeline(), addPiece(x.name || "", x.text)) }, "Add"))),
+          h("button", { class: "small primary", onclick: () => (openPipeline(), addPiece(x.name || "", x.text)) }, "Add"))),
+      ]);
+    };
+    const fromPlugins = () => {
+      const list = P.pluginPieces();
+      if (!list.length) return toast("No plugin gives pieces of its own");
+      openSheet("Add a plugin piece", () => [
+        h("p", { class: "muted" }, "Part of a plugin's text, in a row of its own, so you can put it anywhere. It goes in before your message; move it after."),
+        ...list.map((x) => h("div", { class: "plugin-row" },
+          h("b", { class: "grow" }, x.name),
+          pre.rows.some((r) => r.plugin === x.plugin && r.part === x.part) ? h("span", { class: "muted" }, "in this preset") : null,
+          h("button", { class: "small primary", onclick: () => {
+            const at = pre.rows.findIndex((r) => r.type === "message");
+            pre.rows.splice(Math.max(0, at), 0, P.partRow(x.plugin, x.part));
+            saveConfig();
+            openPipeline(); // back to the pipeline (the same sheet layer)
+          } }, "Add"))),
       ]);
     };
     let first = true;
@@ -1171,7 +1194,8 @@ const openPipeline = () =>
       h("div", { class: "pipe-list" }, pre.rows.map(rowEl)),
       h("div", { class: "row" },
         h("button", { class: "primary", onclick: () => addPiece() }, "Add piece"),
-        h("button", { onclick: fromLibrary }, "Add from library")),
+        h("button", { onclick: fromLibrary }, "Add from library"),
+        h("button", { onclick: fromPlugins }, "Add plugin piece")),
       h("h3", {}, "Groups"),
       (pre.groups || []).length ? null : h("p", { class: "muted" }, "A group's switch turns all its rows on or off. Put a row in a group from its details."),
       ...(pre.groups || []).map((g) => h("div", { class: "plugin-row" },

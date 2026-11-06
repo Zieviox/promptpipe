@@ -63,6 +63,22 @@ them, to be made again when needed.
 Summaries from Memory 2.1 (`memory-summaries.json`) aren't used any more.
 They are made again as parts when needed.
 
+## In the pipeline
+
+Memory is one row of your preset (⋯ → Pipeline): its text goes where the row
+is. To place its parts apart, use **Add plugin piece**:
+
+- **Pinned facts**
+- **Your side (summaries)**: what you said, did and want
+- **AI side (summaries)**: what the AI said: its characters, the story, facts
+- **Recent messages**: the latest messages word for word
+
+Each summary asks the AI for a `### User` part and a `### AI` part in one
+request, so splitting costs no extra requests. Summaries made before (one
+part) go with your side. *Summaries › One summary of both sides* turns the
+split off. Turn the whole Memory row off when you use the parts, or the
+memory goes twice.
+
 ## Sub-chats
 
 - **A new site chat always gets the memory,** even when ⚙ *Send memory every
@@ -91,5 +107,6 @@ Sub-chats.
 | Over the max | Summaries in parts, or just clip (no extra chat). |
 | Messages per summary part | Size of a part at every level (default 10). |
 | Summary request | The instruction sent with each part. |
+| Summaries | Your side and the AI's side apart (default), or one summary of both. |
 | Run the profile's plugins on the summary request | For example Base64. |
 | Characters kept of each older turn | Used when clipping. |

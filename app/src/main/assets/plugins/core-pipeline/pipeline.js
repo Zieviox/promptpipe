@@ -15,12 +15,18 @@ const JOIN = "\n\n";
 // ---------- rows ----------
 const piece = (name, text, when = "every", extra = {}) => ({ type: "piece", id: newId("pc"), name, text, when, n: 5, group: "", on: true, ...extra });
 const step = (plugin, on = true, scope = "above") => ({ type: "step", plugin, on, scope, group: "" });
+// One of a plugin's pieces (def.pieces[part]), in a row of its own.
+const partRow = (plugin, part) => ({ type: "step", plugin, part, on: true, group: "" });
 const messageRow = () => ({ type: "message" });
 
 // A plugin is a pipeline step if it does something with messages.
 const HOOKS = ["beforeSend", "afterReply", "piece", "route", "renderTurn"];
 const isPipeStep = (p) => isStep(p) && !!p.def && HOOKS.some((k) => typeof p.def[k] === "function");
 const changesText = (p) => !!p?.def && (typeof p.def.piece === "function" || typeof p.def.beforeSend === "function");
+const partOf = (r) => (r.part && S.plugins.get(r.plugin)?.def?.pieces?.[r.part]) || null;
+// Every plugin piece there is: [{ plugin, part, name }].
+const pluginPieces = () =>
+  [...S.plugins.values()].filter((p) => isStep(p) && p.def?.pieces).flatMap((p) => Object.entries(p.def.pieces).map(([part, d]) => ({ plugin: p.id, part, name: `${pluginName(p.id)} · ${d.name || part}` })));
 
 // ---------- starter presets ----------
 const STARTERS = () => [
@@ -80,8 +86,9 @@ const presets = () => (S.config.presets = S.config.presets || []);
 const presetOf = (prof = profile()) => presets().find((p) => p.id === prof.preset) || presets()[0] || null;
 const groupOf = (pre, row) => (row.group ? (pre.groups || []).find((g) => g.id === row.group) : null);
 const rowLive = (pre, row) => row.on !== false && groupOf(pre, row)?.on !== false;
-const stepRowOf = (pre, id) => pre?.rows.find((r) => r.type === "step" && r.plugin === id) || null;
-const rowName = (r) => (r.type === "message" ? "Your message" : r.type === "step" ? pluginName(r.plugin) : r.name || (r.text || "").trim().split("\n")[0].slice(0, 40) || "(empty piece)");
+// A plugin's own row (not one of its pieces).
+const stepRowOf = (pre, id) => pre?.rows.find((r) => r.type === "step" && r.plugin === id && !r.part) || null;
+const rowName = (r) => (r.type === "message" ? "Your message" : r.type === "step" ? pluginName(r.plugin) + (r.part ? " · " + (partOf(r)?.name || r.part) : "") : r.name || (r.text || "").trim().split("\n")[0].slice(0, 40) || "(empty piece)");
 const whenLabel = (r) => (r.when === "everyN" ? `Every ${Math.max(1, +r.n || 1)} messages` : WHEN[r.when] || WHEN.every);
 
 // Does this piece go with this message? count = the message's number in the chat.
@@ -96,12 +103,13 @@ const pieceGoes = (r, ctx, count) => {
 activePlugins = (prof = profile()) => {
   const pre = presetOf(prof);
   if (!pre) return [];
-  return pre.rows.filter((r) => r.type === "step" && rowLive(pre, r) && S.plugins.get(r.plugin)?.def).map((r) => entryFor(r.plugin, prof));
+  // A plugin runs (afterReply, route ...) once, if any row of it is on.
+  const ids = [...new Set(pre.rows.filter((r) => r.type === "step" && rowLive(pre, r) && S.plugins.get(r.plugin)?.def).map((r) => r.plugin))];
+  return ids.map((id) => entryFor(id, prof));
 };
 stepOn = (id, prof = profile()) => {
   const pre = presetOf(prof);
-  const r = stepRowOf(pre, id);
-  return !!r && rowLive(pre, r);
+  return !!pre && pre.rows.some((r) => r.type === "step" && r.plugin === id && rowLive(pre, r));
 };
 setStepOn = (id, on, prof = profile()) => {
   const pre = presetOf(prof);
@@ -145,7 +153,13 @@ buildMessage = async (prompt, ctx, trace, prof = profile()) => {
     const notes = [];
     const hctx = hookCtx(r.plugin, ctx, prof, notes);
     let out = null;
-    if (typeof p.def.piece === "function") {
+    if (r.part) {
+      const d = partOf(r);
+      if (!d || typeof d.text !== "function") continue;
+      const text = await d.text({ ...hctx, message: msg });
+      if (typeof text === "string" && text.trim()) parts.push(text.trim());
+      out = text || "(nothing)";
+    } else if (typeof p.def.piece === "function") {
       const text = await p.def.piece({ ...hctx, message: msg });
       if (typeof text === "string" && text.trim()) parts.push(text.trim());
       out = text || "(nothing)";
@@ -179,6 +193,8 @@ const previewMessage = (prof = profile(), opts = {}) => {
     else if (!rowLive(pre, r)) continue;
     else if (r.type === "piece") {
       if ((r.text || "").trim() && pieceGoes(r, ctx, count)) out.push(r.text.trim());
+    } else if (r.part) {
+      if (partOf(r)) out.push(`⟨${rowName(r)} goes here⟩`);
     } else if (changesText(S.plugins.get(r.plugin))) {
       const p = S.plugins.get(r.plugin);
       out.push(typeof p.def.piece === "function" ? `⟨${pluginName(r.plugin)} adds its text here⟩` : `⟨${pluginName(r.plugin)} changes ${r.scope === "message" ? "your message" : "everything above"}⟩`);
@@ -290,4 +306,4 @@ const setUp = async () => {
 on("plugins", setUp, null);
 
 // Shared with the UI part and plugins.
-PP.pipeline = { WHEN, presets, presetOf, rowLive, rowName, whenLabel, previewMessage, piece, promptLibrary, usePreset, addPreset, removePreset, moveRow, addGroup, removeGroup };
+PP.pipeline = { partRow, pluginPieces, partOf, WHEN, presets, presetOf, rowLive, rowName, whenLabel, previewMessage, piece, promptLibrary, usePreset, addPreset, removePreset, moveRow, addGroup, removeGroup };

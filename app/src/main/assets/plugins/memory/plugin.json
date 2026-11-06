@@ -75,6 +75,16 @@
       "default": "Summarise this part of a conversation so it can continue in a new chat that only sees summaries. Keep every name, fact, decision and promise, what each character wants and knows, open threads, the situation at the end of this part and the user's preferences. Leave out small talk. Write plain text, as short as possible without losing any of that. Reply with the summary only.",
       "help": "Goes after the summary's system prompts, before the turns."
     },
+    "sides": {
+      "type": "select",
+      "label": "Summaries",
+      "options": {
+        "apart": "Your side and the AI's side apart (each can be its own piece)",
+        "together": "One summary of both sides"
+      },
+      "default": "apart",
+      "help": "Apart: each summary has a User part and an AI part, in one request. In the Pipeline, Add plugin piece puts Pinned facts, Your side, AI side and Recent messages in rows of their own."
+    },
     "summaryHooks": {
       "type": "bool",
       "label": "Run the profile's plugins on the summary request (e.g. Base64)",

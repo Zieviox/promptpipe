@@ -159,6 +159,19 @@ const loadStore = async (chat) => {
 const saveLevel = (chat, store, L, K, message) =>
   PP.api("/api/history/save", { files: [{ path: lodPath(chat, L), text: lodToMd(chat.meta && chat.meta.title, L, K ** L, store[L] || []) }], message: "memory: " + message });
 
+// ---------- pure: the two sides of a summary ----------
+// Summaries come in two parts, so your side and the AI's side can be separate
+// pieces in the pipeline. Older summaries (one part) stay whole.
+const SIDES_ASK = 'Write the summary in two parts, each starting with its heading line: "### User" (what the user said, did, decided and wants) and then "### AI" (what the AI said and did: its characters, the story and facts it gave).';
+const sidesOf = (text) => {
+  const t = String(text || "");
+  const u = /^#{2,4}\s*User\s*:?\s*$/im.exec(t);
+  const a = /^#{2,4}\s*AI\s*:?\s*$/im.exec(t);
+  if (!u || !a) return null;
+  const cut = (m, other) => t.slice(m.index + m[0].length, other.index > m.index ? other.index : t.length).trim();
+  return { user: cut(u, a), ai: cut(a, u) };
+};
+
 // ---------- making summaries ----------
 const summaryStack = async (s) => {
   const lib = await readJson(PROMPTS, { prompts: [] });
@@ -170,6 +183,7 @@ const summaryRequest = async (s, parts, ofSummaries) => {
   const out = [];
   if (stack.length) out.push("[System instructions]\n" + stack.join("\n\n") + "\n[End of system instructions]");
   out.push(s.summaryPrompt.trim());
+  if (s.sides !== "together") out.push(SIDES_ASK);
   out.push(ofSummaries ? "[Summaries of consecutive parts, oldest first]\n" + parts.join("\n\n---\n\n") + "\n[End of summaries]" : "[Conversation]\n" + parts.join("\n\n") + "\n[End of conversation]");
   return out.join("\n\n");
 };
@@ -210,15 +224,39 @@ const fill = async (ctx, turns, names, upTo, budget, fixed, sizes, limit) => {
 };
 
 // ---------- building the memory block ----------
+const wrapMemory = (body) => "[Memory: context from earlier in this conversation. Use it, don't repeat it back.]\n\n" + body + "\n\n[End of memory]";
 const block = (pinned, summaries, lines, note) => {
   if (!pinned && !summaries.length && !lines.length) return null;
-  const out = ["[Memory: context from earlier in this conversation. Use it, don't repeat it back.]"];
+  const out = [];
   if (pinned) out.push("Facts to remember:\n" + pinned);
   if (summaries.length) out.push("Summary of the earlier conversation, oldest first:\n" + summaries.join("\n\n"));
   if (lines.length) out.push((summaries.length ? "More recent messages" : "Earlier messages") + (note || "") + ":\n" + lines.join("\n\n"));
-  out.push("[End of memory]");
-  return out.join("\n\n");
+  return wrapMemory(out.join("\n\n"));
 };
+// The same memory as separate pieces (pinned facts, your side, the AI's side,
+// recent messages). A summary in one part (made before 2.3, or with "together")
+// goes with your side.
+const PIECES = {
+  pinned: "Pinned facts",
+  you: "Your side (summaries)",
+  ai: "AI side (summaries)",
+  recent: "Recent messages",
+};
+// A piece on its own: "[Title]\n...\n[End of name]".
+const labelled = (title, name, body) => `[${title}]\n${body}\n[End of ${name}]`;
+const pieceOf = (m, part) => {
+  if (part === "pinned") return m.pinned ? labelled("Facts to remember", "facts", m.pinned) : "";
+  if (part === "recent") return m.lines.length ? labelled((m.summaries.length ? "More recent messages" : "Earlier messages") + (m.linesNote || ""), "messages", m.lines.join("\n\n")) : "";
+  const sides = m.summaries.map((x) => sidesOf(x));
+  const mine = part === "you"
+    ? m.summaries.map((x, i) => (sides[i] ? sides[i].user : x)).filter(Boolean)
+    : sides.map((x) => x && x.ai).filter(Boolean);
+  if (!mine.length) return "";
+  return part === "you"
+    ? labelled("Earlier in this conversation, the user's side (summaries, oldest first)", "the user's side", mine.join("\n\n"))
+    : labelled("Earlier in this conversation, the AI's side (summaries, oldest first)", "the AI's side", mine.join("\n\n"));
+};
+const result = (pinned, summaries, lines, linesNote, note) => ({ text: block(pinned, summaries, lines, linesNote), pinned, summaries, lines, linesNote: linesNote || "", note });
 
 // Clip mode (and the fallback): older turns clipped, oldest dropped. `lines`
 // are { turn, keep } in order; `recent` from the end stay in full.
@@ -258,7 +296,7 @@ const build = async (text, ctx) => {
   const fixed = pinned.length;
   const total = fixed + sizes.reduce((a, b) => a + b, 0);
   // Under the max nothing is cut or summarised.
-  if (total <= budget) return { text: block(pinned, [], raw(0).map((x) => x.line)), note: `${turns.length - left} messages in full, ${total} chars${skipNote}` };
+  if (total <= budget) return result(pinned, [], raw(0).map((x) => x.line), "", `${turns.length - left} messages in full, ${total} chars${skipNote}`);
 
   const recent = Math.min(turns.length, Math.max(0, num(s.recent, 6)));
   const upTo = turns.length - recent;
@@ -286,13 +324,10 @@ const build = async (text, ctx) => {
       if (n) used.push(`${n} at level ${L}`);
     }
     const c = clipped(raw(p.b[1]), s, budget, fixed + summaries.reduce((a, x) => a + x.length + 2, 0));
-    return {
-      text: block(pinned, summaries, c.lines, c.dropped ? ` (${c.dropped} left out to fit)` : ""),
-      note: `messages 1-${p.b[1]} as summaries (${used.join(", ") || "none yet"}), ${c.lines.length} in full${skipNote}${note}`,
-    };
+    return result(pinned, summaries, c.lines, c.dropped ? ` (${c.dropped} left out to fit)` : "", `messages 1-${p.b[1]} as summaries (${used.join(", ") || "none yet"}), ${c.lines.length} in full${skipNote}${note}`);
   }
   const c = clipped(raw(0), s, budget, fixed);
-  return { text: block(pinned, [], c.lines, c.dropped ? ` (${c.dropped} oldest left out)` : ""), note: `over the max: older messages clipped${c.dropped ? `, ${c.dropped} dropped` : ""}${skipNote}` };
+  return result(pinned, [], c.lines, c.dropped ? ` (${c.dropped} oldest left out)` : "", `over the max: older messages clipped${c.dropped ? `, ${c.dropped} dropped` : ""}${skipNote}`);
 };
 
 // ---------- summarising ahead ----------
@@ -406,6 +441,36 @@ const openGuide = async () => {
   PP.sheet("Memory guide", () => [PP.h("div", { class: "md", html: PP.md(text) })]);
 };
 
+// One memory per message, however many of its pieces the pipeline has
+// (keyed by the message's notes list, which every piece of it shares).
+const memo = new WeakMap();
+const prepared = (ctx) => {
+  const key = ctx.notes || ctx.turn;
+  if (key && memo.has(key)) return memo.get(key);
+  const run = (async () => {
+    const text = ctx.message || "";
+    const every = Math.max(1, Math.round(num(ctx.settings.every, 1)));
+    const turns = turnsOf(ctx, text);
+    const count = turns.length;
+    // A site chat that has none of this chat yet (a new chat, a new sub-chat)
+    // always gets the memory.
+    const fresh = count > 0 && !seenBy(turns, ctx.url, ctx.chat && ctx.chat.meta && ctx.chat.meta.source).some(Boolean);
+    if (!ctx.firstMessage && !fresh && count % every !== 0) {
+      ctx.note("skipped (every " + every + ")");
+      return null;
+    }
+    const m = await build(text, ctx);
+    if (!m.text) {
+      ctx.note("nothing to send");
+      return null;
+    }
+    ctx.note(m.note + (fresh && count ? " (new site chat)" : ""));
+    return m;
+  })();
+  if (key) memo.set(key, run);
+  return run;
+};
+
 PP.plugin({
   afterReply(text, ctx) {
     // Note which site chat this message went to (for Sub-chats and "unseen").
@@ -419,25 +484,14 @@ PP.plugin({
   // In a pipeline, Memory is a piece: its text goes where its row is
   // (ctx.message is your message). Elsewhere it goes in front of the message.
   async piece(ctx) {
-    const text = ctx.message || "";
-    const every = Math.max(1, Math.round(num(ctx.settings.every, 1)));
-    const turns = turnsOf(ctx, text);
-    const count = turns.length;
-    // A site chat that has none of this chat yet (a new chat, a new sub-chat)
-    // always gets the memory.
-    const fresh = count > 0 && !seenBy(turns, ctx.url, ctx.chat && ctx.chat.meta && ctx.chat.meta.source).some(Boolean);
-    if (!ctx.firstMessage && !fresh && count % every !== 0) {
-      ctx.note("skipped (every " + every + ")");
-      return "";
-    }
-    const m = await build(text, ctx);
-    if (!m.text) {
-      ctx.note("nothing to send");
-      return "";
-    }
-    ctx.note(m.note + (fresh && count ? " (new site chat)" : ""));
-    return m.text;
+    const m = await prepared(ctx);
+    return m ? m.text || "" : "";
   },
+  // Or in parts, each its own row (Pipeline › Add plugin piece).
+  pieces: Object.fromEntries(Object.entries(PIECES).map(([part, name]) => [part, { name, text: async (ctx) => {
+    const m = await prepared(ctx);
+    return m ? pieceOf(m, part) : "";
+  } }])),
   async beforeSend(text, ctx) {
     const m = await this.piece({ ...ctx, message: text });
     return m ? m + "\n\n" + text : text;
@@ -450,4 +504,4 @@ PP.plugin({
 });
 
 // For tests and other plugins: the pure parts.
-PP.memory = { plan, lodToMd, lodFromMd, lodPath, seenBy, lineOf, manySites, siteName };
+PP.memory = { plan, lodToMd, lodFromMd, lodPath, seenBy, lineOf, manySites, siteName, sidesOf, pieceOf };
