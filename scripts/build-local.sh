@@ -51,5 +51,7 @@ step "4/4 building APK (Gradle prints each task)"
 
 APK=build/promptpipe-$VNAME.apk
 cp app/build/outputs/apk/debug/app-debug.apk "$APK"
-[ -d /sdcard/Download ] && cp "$APK" /sdcard/Download/promptpipe.apk && APK="$APK and /sdcard/Download/promptpipe.apk"
-echo; echo "DONE in $(( $(date +%s) - t0 ))s -> $APK ($(du -h "$APK" | cut -f1))"
+SIZE=$(du -h "$APK" | cut -f1)
+WHERE="$APK"
+if [ -d /sdcard/Download ]; then cp "$APK" /sdcard/Download/promptpipe.apk; WHERE="$WHERE and /sdcard/Download/promptpipe.apk"; fi
+echo; echo "DONE in $(( $(date +%s) - t0 ))s -> $WHERE ($SIZE)"
