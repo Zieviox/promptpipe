@@ -74,14 +74,14 @@ The chat info sheet (tap the title) shows a chat's history.
 While promptpipe runs, apps on this phone can use it like an OpenAI API:
 
 - Base URL `http://127.0.0.1:7790/v1`, model = a profile name,
-  API key = the token from Settings → Advanced (any key while none is set).
-- Each request is one new chat on the site, one at a time.
-- Simple form: `POST http://127.0.0.1:7790/api/v1/chat` with
-  `{"prompt": "...", "chat": "new" | "current" | "<file path>"}`.
+  API key = the token from Settings → Advanced (always required).
+- Each request is one new chat on the site. Add `"chat": "<path>.md"` to
+  continue a saved chat instead (only the last message is sent).
+- Every reply says under `"promptpipe"` which chat it went to and what was sent.
 
 Termux test:
 
-    curl -s http://127.0.0.1:7790/v1/chat/completions -H 'content-type: application/json' \
+    curl -s http://127.0.0.1:7790/v1/chat/completions -H "Authorization: Bearer $TOKEN" \
       -d '{"model":"Base64","messages":[{"role":"user","content":"hi"}]}'
 
 ### Share into promptpipe

@@ -55,7 +55,6 @@ android {
 
 dependencies {
     implementation("org.mozilla.geckoview:geckoview:$geckoviewVersion")
-    implementation("org.nanohttpd:nanohttpd:2.3.1")
     implementation("org.eclipse.jgit:org.eclipse.jgit:5.13.3.202401111512-r")
 }
 

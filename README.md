@@ -49,8 +49,10 @@ Both are also in the app (⋯ menu).
 
 ## Build it yourself
 
-Android Studio, or with the Android SDK installed:
+With the Android SDK and NDK and Odin installed, build the core first, then
+the app:
 
+    ANDROID_NDK_HOME=<ndk folder> sh scripts/build-core-android.sh
     gradle assembleDebug   # Gradle 9.8 or newer
 
 The APK lands in `app/build/outputs/apk/debug/`. Put a `debug.keystore` next to
@@ -59,10 +61,14 @@ over each other); without it Gradle's usual debug key is used.
 
 ## Code
 
-- `app/src/main/java/dev/zieviox/promptpipe/`: Kotlin. `Hub` (the two pages
-  and the bridge between them), `Server` (local HTTP on 127.0.0.1:7790),
-  `Store` (files, plugins), `GitStore` (JGit), `MainActivity`, `KeepAlive`
-  (foreground service).
+- `core/`: the portable core in Odin: local HTTP on 127.0.0.1:7790 with the
+  security key, files, plugin store, page bridge, OpenAI-style API. Every
+  platform's shell starts it (see `core/README.md`).
+- `app/src/main/java/dev/zieviox/promptpipe/`: the Android shell in Kotlin.
+  `Core` (starts the core, hands the key to the app screen), `Shell` (answers
+  the core's calls: site pages, app actions, fetch, git, clipboard, vibration,
+  share), `Hub` (the pages and the bridge to them), `Store` (folders),
+  `GitStore` (JGit), `MainActivity`, `KeepAlive` (foreground service).
 - `app/src/main/assets/ui/`: the core (`core.js`): state, plugin loader, app
   events, safe mode. Everything else is a plugin.
 - `app/src/main/assets/ppext/`: the built-in extension whose content script
@@ -71,7 +77,7 @@ over each other); without it Gradle's usual debug key is used.
   (`core-*`, `chat-ui`), Base64, System prompt, Memory, Page report, themes.
 - `scripts/plugin-bundle.sh`: makes the release's plugin bundle zip.
 
-Built on GeckoView (Firefox's engine), NanoHTTPD and JGit.
+Built on Odin, GeckoView (Firefox's engine) and JGit.
 
 ## License
 

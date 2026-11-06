@@ -1335,7 +1335,6 @@ const appPartsControls = () => {
 
 const openSettings = () =>
   openSheet("Settings", () => {
-    const tok = h("input", { type: "password", placeholder: S.app.apiToken ? "token set (type to replace, empty to clear)" : "optional" });
     return [
       ...lookControls(),
       h("h3", {}, "Site pages at once"),
@@ -1362,18 +1361,18 @@ const openSettings = () =>
         ? h("p", { class: "muted" }, "Plugins, config and history live here, so Termux and Neovim can reach them.")
         : h("p", { class: "warn" }, "The app can't use /sdcard yet, so files are in its own folder. ", h("button", { onclick: () => api("/api/app/action", { action: "grantFiles" }) }, "Allow all files access"), " then restart the app."),
       h("h3", {}, "Local API for other apps"),
-      h("p", { class: "muted" }, `POST http://127.0.0.1:${S.app.port}/api/v1/chat with {"prompt": "..."} returns the decoded reply. Optional: "profile", "chat" ("new", "current" or a file path), "folder".`),
-      h("pre", {}, `curl -s 127.0.0.1:${S.app.port}/api/v1/chat -d '{"prompt":"hi"}'`),
-      h("p", { class: "muted" }, "Apps that take an OpenAI API key: base URL below, model = a profile name, API key = the token (any key while no token is set). Each request becomes one new chat on the site. Requests at the same time run in parallel on the site pages (see Site pages at once), the rest wait their turn."),
+      h("p", { class: "muted" }, "Apps that take an OpenAI API key: base URL below, model = a profile name, API key = the token below (always required). Each request becomes one new chat on the site, unless it adds \"chat\": \"<path>.md\" to continue a saved chat (then only its last message is sent). Every reply also says, under \"promptpipe\", which chat it went to and what was sent. Requests at the same time run in parallel on the site pages (see Site pages at once), the rest wait their turn."),
       h("div", { class: "row" }, h("pre", { class: "grow" }, `http://127.0.0.1:${S.app.port}/v1`), h("button", { class: "small", onclick: () => navigator.clipboard.writeText(`http://127.0.0.1:${S.app.port}/v1`).then(() => toast("Copied")) }, "Copy")),
-      h("label", { class: "field" }, h("span", {}, "API token (then send: Authorization: Bearer <token>)"), h("div", { class: "row" }, tok, h("button", {
-        onclick: async () => {
-          await api("/api/secret", { key: "apiToken", value: tok.value });
-          S.app.apiToken = !!tok.value;
-          toast(tok.value ? "API token set" : "API token cleared");
-          tok.value = "";
-        },
-      }, "Save"))),
+      h("label", { class: "field" }, h("span", {}, "API token (send it as: Authorization: Bearer <token>)"), h("div", { class: "row" },
+        h("pre", { class: "grow" }, S.app.apiTokenValue || "?"),
+        h("button", { class: "small", onclick: () => navigator.clipboard.writeText(S.app.apiTokenValue || "").then(() => toast("Copied")) }, "Copy"),
+        h("button", { class: "small", onclick: async () => {
+          await api("/api/secret", { key: "apiToken", value: "" });
+          S.app = await api("/api/app");
+          toast("New API token made: apps using the old one need the new one");
+          rerenderSheet();
+        } }, "New token"))),
+      h("pre", {}, `curl -s 127.0.0.1:${S.app.port}/v1/chat/completions -H "Authorization: Bearer ${S.app.apiTokenValue || "TOKEN"}" -d '{"model":"${profile().name}","messages":[{"role":"user","content":"hi"}]}'`),
       h("label", { class: "field" }, h("span", {}, "Folder for chats made through the API"), h("input", { value: S.config.api.folder, oninput: (e) => ((S.config.api.folder = e.target.value), saveConfig()) })),
       h("h3", {}, "Background"),
       h("p", { class: "muted" }, "A notification keeps the AI page and the API alive while the app is in the background."),

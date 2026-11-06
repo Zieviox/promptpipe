@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Route checks for the core. Starts it on a free port in a temp folder.
 Usage: python3 core/test_core.py <path to ppcore binary>"""
-import json, os, socket, subprocess, sys, tempfile, threading, time, http.client
+import base64, io, zipfile, json, os, socket, subprocess, sys, tempfile, threading, time, http.client
 
 BIN = sys.argv[1]
 KEY = "k" * 48
@@ -83,22 +83,31 @@ st, js, _, _ = api("GET", "/api/history/all"); check("all", js["files"][0]["text
 print("plugins")
 st, js, _, _ = api("GET", "/api/plugins"); check("list", js["plugins"][0]["id"] == "demo" and js["plugins"][0]["source"] == "builtin", js)
 st, _, raw, _ = api("GET", "/plugins/demo/main.js"); check("plugin file", raw == "x()")
-st, js, _, _ = api("POST", "/api/plugins/write", {"target": "updates", "bundle": {"version": "1.1"}, "plugins": [{"id": "demo", "files": [{"path": "plugin.json", "text": '{"id":"demo","version":"1.1.0"}'}, {"path": "main.js", "text": "y()"}]}]})
-check("update bundle written", st == 200 and js["ids"] == ["demo"], js)
+def zipb(files):
+    b = io.BytesIO()
+    with zipfile.ZipFile(b, "w", zipfile.ZIP_DEFLATED) as z:
+        for n, t in files.items(): z.writestr(n, t)
+    return b.getvalue()
+bundle = zipb({"pp-0.7/bundle.json": '{"version":"1.1"}', "pp-0.7/demo/plugin.json": '{"id":"demo","version":"1.1.0"}', "pp-0.7/demo/main.js": "y()"})
+st, js, _, _ = api("POST", "/api/plugins/install", {"name": "b.zip", "base64": base64.b64encode(bundle).decode()})
+check("bundle zip installs as the update", st == 200 and js["id"] == "bundle:1.1", js)
 st, js, _, _ = api("GET", "/api/plugins"); check("newer update used", js["plugins"][0].get("updated") is True, js)
 st, _, raw, _ = api("GET", "/plugins/demo/main.js"); check("update file served", raw == "y()")
 st, _, raw, _ = api("GET", "/plugins/demo/main.js?builtin=1"); check("safe mode uses built-in", raw == "x()")
 st, js, _, _ = api("GET", "/api/plugins/bundle"); check("bundle info", js["version"] == "1.1")
 st, js, _, _ = api("POST", "/api/plugins/fork", {"id": "demo"}); check("fork", st == 200 and js["path"].endswith("plugins/demo"))
 st, js, _, _ = api("GET", "/api/plugins"); check("user copy wins", js["plugins"][0]["source"] == "user" and js["plugins"][0].get("overrides"), js)
-st, js, _, _ = api("POST", "/api/plugins/write", {"plugins": [{"id": "../bad", "files": []}]}); check("bad id refused", st == 400)
-st, js, _, _ = api("POST", "/api/plugins/install", {"url": "x"}); check("install by URL is the screen's job now", st == 410)
+one = zipb({"x/plugin.json": '{"id":"../bad"}'})
+st, js, _, _ = api("POST", "/api/plugins/install", {"name": "x.zip", "base64": base64.b64encode(one).decode()}); check("bad id refused", st == 400, js)
+one = zipb({"mine/plugin.json": '{"id":"mine","version":"1"}', "mine/main.js": "m()"})
+st, js, _, _ = api("POST", "/api/plugins/install", {"name": "m.zip", "base64": base64.b64encode(one).decode()}); check("plugin zip installs", js.get("id") == "mine" and os.path.exists(tmp + "/data/plugins/mine/main.js"), js)
+st, js, _, _ = api("POST", "/api/plugins/install", {"url": "https://example.com/p/plugin.json"}); check("install by link needs the shell's fetch", st == 400 and "shell" in js["error"], js)
 
 print("events")
 api("POST", "/shell/emit", {"event": {"type": "start"}})
 st, js, _, _ = api("GET", "/api/events?after=0", timeout=5)
 seq = js["seq"]
-check("poll returns waiting events at once", js["events"][0]["type"] == "start", js)
+check("poll returns waiting events at once", js["events"][-1]["type"] == "start", js)
 def later_emit():
     time.sleep(0.5); api("POST", "/shell/emit", {"event": {"type": "hello", "n": 1}})
 threading.Thread(target=later_emit).start()
@@ -109,16 +118,28 @@ print("shell bridge and modules")
 st, js, _, _ = api("POST", "/api/site", {"cmd": "info"}); check("site call without shell says so", st == 502 and "shell" in js["error"], js)
 api("POST", "/shell/hello", {"platform": "test", "modules": ["clipboard"], "missing": {"git": "no git here"}})
 def fake_shell():
-    for _ in range(3):
+    for _ in range(8):
         st, js, _, _ = api("GET", "/shell/next")
         for c in js["calls"]:
             if c["kind"] == "site": api("POST", "/shell/done", {"id": c["id"], "ok": True, "result": {"url": "https://chat.example", "echo": c["data"]["cmd"]}})
+            elif c["kind"] == "fetch":
+                body = WEB.get(c["data"]["url"])
+                api("POST", "/shell/done", {"id": c["id"], "ok": True, "result": {"status": 200 if body is not None else 404, "base64": base64.b64encode(body or b"").decode()}})
             elif c["kind"] == "module": api("POST", "/shell/done", {"id": c["id"], "ok": True, "result": {"copied": c["data"]["args"]["text"]}})
             else: api("POST", "/shell/done", {"id": c["id"], "ok": False, "error": "nope"})
+WEB = {
+    "https://raw.githubusercontent.com/o/r/main/web/plugin.json": b'{"id":"web","version":"2","main":"main.js"}',
+    "https://raw.githubusercontent.com/o/r/main/web/main.js": b"w()",
+    "https://api.github.com/repos/o/r/releases/latest": json.dumps({"tag_name": "v1.2", "assets": [{"name": "promptpipe-plugins-1.2.zip", "browser_download_url": "https://github.com/o/r/releases/download/v1.2/promptpipe-plugins-1.2.zip"}]}).encode(),
+    "https://github.com/o/r/releases/download/v1.2/promptpipe-plugins-1.2.zip": zipb({"bundle.json": '{"version":"1.2"}', "demo/plugin.json": '{"id":"demo","version":"1.2.0"}'}),
+}
 sh = threading.Thread(target=fake_shell); sh.start()
 time.sleep(0.2)
 st, js, _, _ = api("POST", "/api/site", {"cmd": "info"}); check("site call goes through the shell", st == 200 and js["echo"] == "info", js)
 st, js, _, _ = api("POST", "/api/module", {"module": "clipboard", "call": "copy", "args": {"text": "hey"}}); check("module call", st == 200 and js["result"]["copied"] == "hey", js)
+st, js, _, _ = api("POST", "/api/plugins/install", {"url": "https://github.com/o/r/tree/main/web"}); check("install from a GitHub folder link via shell fetch", js.get("id") == "web" and open(tmp + "/data/plugins/web/main.js").read() == "w()", js)
+st, js, _, _ = api("POST", "/api/plugins/update", {"repo": "o/r"}); check("update from latest release", js.get("updated") and js["version"] == "1.2", js)
+st, js, _, _ = api("POST", "/api/plugins/update", {"repo": "o/r"}); check("second update: up to date", js.get("upToDate") is True, js)
 st, js, _, _ = api("POST", "/api/module", {"module": "git", "call": "log"}); check("missing module: reported, with reason", st == 501 and "not supported on this platform (test): no git here" in js["error"], js)
 st, js, _, _ = api("GET", "/api/app"); check("app info lists modules and missing", js["modules"] == ["clipboard"] and js["missing"]["git"] == "no git here" and js["shell"] is True, js)
 sh.join(timeout=60)

@@ -2,6 +2,7 @@ package ppcore
 
 // Routes. Order: Host check, then the key (or the API token for /v1).
 
+import "core:encoding/base64"
 import "core:encoding/json"
 import "core:fmt"
 import "core:os"
@@ -69,6 +70,8 @@ shell_route :: proc(req: ^Request) -> Response {
 		for m in get_arr(body, "modules") do append(&S.modules, strings.clone(string(m.(json.String) or_else ""), heap()))
 		clear(&S.missing)
 		for k, v in get_obj(body, "missing") do S.missing[strings.clone(k, heap())] = strings.clone(string(v.(json.String) or_else ""), heap())
+		delete(S.app_json, heap())
+		S.app_json = strings.clone(to_json(body["app"] or_else nil), heap())
 		S.shell_poll = time.now()
 		return json_ok()
 	case "/shell/next":
@@ -118,11 +121,25 @@ api_route :: proc(req: ^Request) -> Response {
 		return json_res(200, poll_events(after, 25 * time.Second))
 	case "/api/plugins":
 		return json_res(200, fmt.tprintf(`{{"plugins":%s,"folder":%s}}`, list_plugins(q["builtin"] == "1"), quote(plugins_dir())))
-	case "/api/plugins/write":
-		ids, err := write_plugins(body)
-		return err == "" ? json_res(200, fmt.tprintf(`{{"ok":true,"ids":%s}}`, ids)) : json_error(400, err)
-	case "/api/plugins/install", "/api/plugins/update":
-		return json_error(410, "the app screen downloads plugin files itself and sends them to /api/plugins/write")
+	case "/api/plugins/install":
+		// {url} for a link, or {name, base64} for a picked file's bytes
+		id, err: string
+		if url := get_str(body, "url"); url != "" {
+			id, err = install_url(url)
+		} else {
+			data, derr := base64.decode(get_str(body, "base64"))
+			if derr != nil || len(data) == 0 do return json_error(400, "give a url, or a file as base64")
+			id, err = install_bytes(get_str(body, "name", "file"), data)
+		}
+		return err == "" ? json_res(200, fmt.tprintf(`{{"id":%s}}`, quote(id))) : json_error(400, err)
+	case "/api/plugins/update":
+		r, err := update_from_release(get_str(body, "repo", "Zieviox/promptpipe"), get_bool(body, "force"))
+		return err == "" ? json_res(200, r) : json_error(502, err)
+	case "/api/fetch":
+		// The shell's fetch, for plugins that need a file from the web.
+		url := get_str(body, "url")
+		if !strings.has_prefix(url, "https://") do return json_error(400, "only https links can be fetched")
+		return relay("fetch", to_json(body), 90 * time.Second)
 	case "/api/plugins/bundle": return json_res(200, bundle_info())
 	case "/api/plugins/fork":
 		path, err := fork_plugin(get_str(body, "id"))
@@ -178,7 +195,7 @@ app_info :: proc() -> string {
 	b := strings.builder_make()
 	strings.write_string(&b, `{"storage":`)
 	jstr(&b, S.data_dir)
-	strings.write_string(&b, `,"version":`)
+	strings.write_string(&b, `,"coreVersion":`)
 	jstr(&b, S.version)
 	fmt.sbprintf(&b, `,"port":%d`, S.port)
 	fmt.sbprintf(&b, `,"gitToken":%v`, secret_get("gitToken") != "")
@@ -202,7 +219,17 @@ app_info :: proc() -> string {
 		jstr(&b, v)
 		n += 1
 	}
-	strings.write_string(&b, `},"site":`)
+	strings.write_byte(&b, '}')
+	// What the shell knows about the app (version, file access...), as given in /shell/hello.
+	if o, ok := parse_obj(transmute([]byte)S.app_json); ok {
+		for k, v in o {
+			strings.write_byte(&b, ',')
+			jstr(&b, k)
+			strings.write_byte(&b, ':')
+			strings.write_string(&b, to_json(v))
+		}
+	}
+	strings.write_string(&b, `,"site":`)
 	strings.write_string(&b, S.site_json == "" ? "{}" : S.site_json)
 	strings.write_string(&b, `,"pages":`)
 	strings.write_string(&b, S.pages_json == "" ? "[]" : S.pages_json)

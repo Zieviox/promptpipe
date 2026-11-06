@@ -120,7 +120,7 @@ openai :: proc(req: ^Request) -> Response {
 	profile := ""
 	for n in names do if strings.equal_fold(n, model) do profile = n
 
-	job := fmt.tprintf(`{{"prompt":%s,"profile":%s,"chat":%s,"folder":"api"}}`, quote(prompt), quote(profile), quote(chat == "" ? "new" : chat))
+	job := fmt.tprintf(`{{"prompt":%s,"profile":%s,"chat":%s}}`, quote(prompt), quote(profile), quote(chat == "" ? "new" : chat))
 	raw, err := run_job(job, 7 * 24 * time.Hour)
 	if err != "" do return oa_error(err == "open the promptpipe app first" ? 503 : 502, err, "site_error")
 	done, _ := parse_obj(transmute([]byte)raw)

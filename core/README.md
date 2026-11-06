@@ -19,8 +19,8 @@ What it does:
   token is always on. An optional `"chat"` field continues a saved chat, and
   every reply reports the chat file, what was sent and the source site.
 
-The core never downloads anything. The app screen fetches plugin files itself
-and sends them to `/api/plugins/write`.
+The core has no TLS of its own. Downloads (plugin links, release updates) go
+through the shell's fetch, which is one more page-bridge call.
 
 ```sh
 odin build core -out:ppcore

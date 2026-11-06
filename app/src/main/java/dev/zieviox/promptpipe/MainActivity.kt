@@ -111,9 +111,10 @@ class MainActivity : Activity(), Hub.Screen {
         Thread {
             try {
                 val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: throw java.io.IOException("can't read the file")
-                val id = app.store.installFile(uri.lastPathSegment ?: "file", bytes) {}
-                if (id.startsWith("bundle:")) hub.emit(JSONObject().put("type", "pluginBundle").put("version", id.removePrefix("bundle:")))
-                else hub.emit(JSONObject().put("type", "pluginInstalled").put("id", id))
+                val body = JSONObject().put("name", uri.lastPathSegment ?: "file").put("base64", android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP))
+                val id = app.core.call("POST", "/api/plugins/install", body, 60_000).getString("id")
+                // A bundle announces itself (the core emits pluginBundle).
+                if (!id.startsWith("bundle:")) hub.emit(JSONObject().put("type", "pluginInstalled").put("id", id))
             } catch (e: Exception) {
                 hub.emit(JSONObject().put("type", "error").put("text", "Install failed: ${e.message}"))
             }

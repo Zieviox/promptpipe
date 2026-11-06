@@ -17,11 +17,11 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 // Owns the pages and connects them:
-// - uiSession shows the app's own chat UI (served by Server on 127.0.0.1).
+// - uiSession shows the app's own chat UI (served by the core on 127.0.0.1).
 // - pages are the AI site pages (1 by default, more for chats in parallel).
 //   The built-in extension's content script on each talks to us over its own
 //   native messaging port ("pp").
-// The UI reaches a page through Server -> request(cmd with "page") -> port -> content script.
+// The UI reaches a page through the core -> Shell -> request(cmd with "page") -> port -> content script.
 class Hub(private val app: App) {
     interface Screen {
         fun showSite(show: Boolean)
@@ -39,41 +39,20 @@ class Hub(private val app: App) {
 
     private val nextId = AtomicInteger(1)
 
-    // Events for the UI page, fetched by long polling /api/events.
-    private val lock = Object()
-    private val events = ArrayList<JSONObject>()
-    private var seq = 0
-    @Volatile var lastPoll = 0L
-
-    // Jobs from the local API, answered by the UI page.
-    val jobs = ConcurrentHashMap<String, CompletableFuture<JSONObject>>()
-
-    // ---------- events ----------
+    // Events for the app screen go through the core, which the screen long-polls.
     fun emit(e: JSONObject) {
-        synchronized(lock) {
-            seq++
-            events.add(e.put("seq", seq))
-            if (events.size > 200) events.removeAt(0)
-            lock.notifyAll()
-        }
+        app.core.emit(e)
+        if (e.optString("type") in listOf("site", "pages")) app.core.status()
     }
 
-    fun poll(after: Int, waitMs: Long): JSONObject {
-        lastPoll = System.currentTimeMillis()
-        synchronized(lock) {
-            val until = System.currentTimeMillis() + waitMs
-            while (seq <= after) {
-                val left = until - System.currentTimeMillis()
-                if (left <= 0) break
-                lock.wait(left)
-            }
-            val out = JSONArray()
-            for (e in events) if (e.getInt("seq") > after) out.put(e)
-            return JSONObject().put("seq", seq).put("events", out)
+    // The app screen, opened with the security key once the core answers.
+    fun openScreen() = kotlin.concurrent.thread(isDaemon = true) {
+        for (i in 0 until 100) {
+            if (app.core.ready()) break
+            Thread.sleep(200)
         }
+        main.post { uiSession.loadUri("${App.base}/open?key=${app.core.key}") }
     }
-
-    fun uiAlive() = System.currentTimeMillis() - lastPoll < 40_000
 
     // ---------- site pages ----------
     inner class SitePage(val index: Int) {
@@ -267,7 +246,7 @@ class Hub(private val app: App) {
         }
         s.setActive(true)
         screen?.reattach()
-        if (isUi) s.loadUri("${App.base}/")
+        if (isUi) openScreen()
         else {
             s.loadUri(pg!!.info.optString("url").ifEmpty { "about:blank" })
             emit(JSONObject().put("type", "error").put("text", "AI page ${if (pages.size > 1) "${pg.index + 1} " else ""}" + (if (crashed) "crashed" else "was stopped by Android") + " and was reloaded. Resend if a message was waiting."))
@@ -332,7 +311,7 @@ class Hub(private val app: App) {
                 Log.e(App.TAG, "extension failed", e)
                 emit(JSONObject().put("type", "error").put("text", "Built-in extension failed to load: $e"))
             })
-        uiSession.loadUri("${App.base}/")
+        openScreen()
     }
 
     companion object {

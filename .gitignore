@@ -3,3 +3,4 @@ build/
 local.properties
 debug.keystore
 *.jks
+app/src/main/jniLibs/

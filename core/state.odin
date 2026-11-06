@@ -43,6 +43,7 @@ State :: struct {
 	missing:     map[string]string, // module -> why it isn't on this platform
 	site_json:   string, // the shell's site info (JSON)
 	pages_json:  string, // the shell's site pages (JSON)
+	app_json:    string, // the shell's app info (JSON object)
 
 	// answers awaited by request threads (shell calls and API jobs)
 	waiters:     map[string]^Waiter,

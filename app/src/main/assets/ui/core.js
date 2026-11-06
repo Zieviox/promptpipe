@@ -1,6 +1,6 @@
 "use strict";
 // promptpipe core: the small part of the app that isn't a plugin. It talks to
-// the app over /api (see Server.kt), keeps the shared state, loads plugins and
+// the app over /api (served by the core, see core/), keeps the shared state, loads plugins and
 // the app parts ("kind": "core" / "ui" plugins), and passes app events on.
 // Everything else (sending, chat files, history, the screen) is a built-in
 // plugin you can replace. See /docs/PLUGINS.md ("App parts").

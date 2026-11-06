@@ -2,7 +2,6 @@ package ppcore
 
 // Settings, secrets, plugins and chat history on disk.
 
-import "core:encoding/base64"
 import "core:encoding/json"
 import "core:os"
 import "core:strconv"
@@ -152,55 +151,6 @@ fork_plugin :: proc(id: string) -> (string, string) {
 	return dest, ""
 }
 
-// Write plugin files the app screen fetched (the core itself never downloads).
-// target "user": into your plugins folder. target "updates": replaces the whole
-// downloaded plugin bundle, with `bundle` saved as bundle.json.
-write_plugins :: proc(body: json.Object) -> (string, string) {
-	target := get_str(body, "target", "user")
-	plugins := get_arr(body, "plugins")
-	if len(plugins) == 0 do return "", "no plugins given"
-	base := plugins_dir()
-	if target == "updates" {
-		base = strings.concatenate({updates_dir(), ".new"})
-		os.remove_all(base)
-	} else if target != "user" {
-		return "", "target is user or updates"
-	}
-	ids := strings.builder_make()
-	strings.write_byte(&ids, '[')
-	for p, i in plugins {
-		po, _ := p.(json.Object)
-		id := get_str(po, "id")
-		if !safe_name(id) do return "", strings.concatenate({"bad plugin id '", id, "'"})
-		has_json := false
-		for f in get_arr(po, "files") {
-			fo, _ := f.(json.Object)
-			rel := get_str(fo, "path")
-			if !safe_rel(rel) do return "", strings.concatenate({"bad file path '", rel, "'"})
-			data: []byte
-			if b64, ok := fo["base64"].(json.String); ok {
-				decoded, err := base64.decode(string(b64))
-				if err != nil do return "", strings.concatenate({rel, ": bad base64"})
-				data = decoded
-			} else {
-				data = transmute([]byte)get_str(fo, "text")
-			}
-			if rel == "plugin.json" do has_json = true
-			if !write_bytes(join(base, id, rel), data) do return "", strings.concatenate({"could not write ", id, "/", rel})
-		}
-		if !has_json && !has_manifest(join(base, id)) do return "", strings.concatenate({id, " has no plugin.json"})
-		if i > 0 do strings.write_byte(&ids, ',')
-		jstr(&ids, id)
-	}
-	strings.write_byte(&ids, ']')
-	if target == "updates" {
-		if !write_text(join(base, "bundle.json"), to_json(get_obj(body, "bundle"))) do return "", "could not write bundle.json"
-		os.remove_all(updates_dir())
-		if os.rename(base, updates_dir()) != nil do return "", "couldn't move the plugin update into place"
-	}
-	return strings.to_string(ids), ""
-}
-
 bundle_info :: proc() -> string {
 	return read_text(join(updates_dir(), "bundle.json")) or_else "{}"
 }
@@ -338,3 +288,6 @@ sort_strings :: proc(a: []string) {
 		for j := i; j > 0 && a[j] < a[j - 1]; j -= 1 do a[j], a[j - 1] = a[j - 1], a[j]
 	}
 }
+
+os_remove_all :: proc(path: string) {os.remove_all(path)}
+os_rename :: proc(a, b: string) -> bool {return os.rename(a, b) == nil}
