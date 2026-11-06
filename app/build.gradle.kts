@@ -14,7 +14,7 @@ android {
 
     defaultConfig {
         applicationId = "dev.zieviox.promptpipe"
-        minSdk = 26
+        minSdk = 29 // Android 10: the core needs native thread-locals
         targetSdk = 35
         versionCode = ((findProperty("versionCode") as String?) ?: "1").toInt()
         // -PversionName=0.6.0 -PversionCode=9 (the code only ever goes up).
