@@ -46,8 +46,7 @@ echo "$tls"
 case "$tls" in *0x40|*0x80|*0x100) ;; *) echo "TLS segment underaligned: Android would refuse to start the core."; exit 1;; esac
 
 step "4/4 building APK (Gradle prints each task)"
-"$GRADLE" assembleDebug --console=plain --no-daemon -Dorg.gradle.jvmargs=-Xmx2g \
-    -Pkotlin.compiler.execution.strategy=in-process -PgeckoviewVersion="$GV" -PversionName="$VNAME" -PversionCode="$VCODE"
+"$GRADLE" assembleDebug --console=plain -PgeckoviewVersion="$GV" -PversionName="$VNAME" -PversionCode="$VCODE"
 
 APK=build/promptpipe-$VNAME.apk
 cp app/build/outputs/apk/debug/app-debug.apk "$APK"
