@@ -7,9 +7,9 @@ sub-chat starts, and Memory sends the new site chat everything before it.
 
 ## Set up
 
-1. Plugins → turn **Sub-chats** on in every profile you'll use it with.
-2. Turn **Memory** on too (in those profiles), or the new site chat starts
-   with no idea what came before.
+1. Plugins → turn **Sub-chats** on in the profiles you pick at the top.
+2. Turn **Memory** on too, or the new site chat starts with no idea what
+   came before. In Plugins, keep Base64 below Memory and System prompt.
 
 ## Use it
 
@@ -33,25 +33,30 @@ Every message keeps a small note in the chat file (its `pp:turn` line):
 ```
 
 `seg` is the sub-chat, `url` the site chat it went to, `profile` the profile
-it went through, and `active` the profile that was picked at the top when you
+whose site and model it used, and `active` the profile that was picked at the top when you
 sent it. Nothing else is stored; the dividers and the list are worked out from
 these notes. Chats from before Sub-chats count as one sub-chat.
 
 ## Good to know
 
-- Sub-chats only steers messages while it's on in the profile picked at the
-  top. A message sent through a profile where it's off still lands in the
-  current sub-chat.
-- System prompt's "only with the first message" means the first message of
-  the whole chat, not of each sub-chat. Use Memory's pinned facts for things
-  every site chat must know.
+- **Your plugins come along.** A sub-chat on another profile only borrows
+  that profile's site and model. The plugins (Base64, System prompt, Memory
+  ...) and their settings are the ones of the profile picked at the top.
+  Needs app 0.6.1 or newer (Sending 1.0.1); older apps use the other
+  profile's plugins.
+- **Order matters.** Put Base64 last in Plugins (with the arrows), after
+  Memory and System prompt, so the memory gets encoded with your message.
+  A fresh sub-chat's first message carries the whole memory, and plain text
+  in front of the base64 can make the AI answer in plain text.
+- System prompt's "only with the first message" also covers the first
+  message of each sub-chat.
 - With Memory set to *Only what this site chat hasn't seen*, a sub-chat gets
   the messages from the other sub-chats, not its own (the site already has
   those).
 
 ## For plugin writers
 
-Sub-chats uses the app's `route`, `afterReply` (`ctx.url`, `ctx.setTurnData`)
+Sub-chats uses the app's `route` (with `plugins: "active"`), `afterReply` (`ctx.url`, `ctx.setTurnData`)
 and `renderTurn` hooks; see the plugin guide. It also sets
 `PP.subChats = { segments, segIndex, siteLabel, sameUrl }`:
 `PP.subChats.segments(chat)` returns

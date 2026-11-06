@@ -4,7 +4,9 @@
 // file alone says which sub-chat it belongs to. Everything is worked out from
 // chat.turns by the pure functions below; the hooks only read and write that.
 //
-//   route       picks the site chat: a new one, an older one, or the current one
+//   route       picks the site chat: a new one, an older one, or the current one.
+//               The other profile only lends its site and model (plugins: "active"),
+//               so the plugins of the profile picked at the top keep running.
 //   afterReply  saves which sub-chat the message ended up in
 //   renderTurn  draws the dividers and the "next message" note
 const ID = "sub-chats";
@@ -131,12 +133,12 @@ PP.plugin({
     const w = want.get(chat);
     if (w && w.mode === "new") {
       sending.set(chat, { active, mode: "new" });
-      return { profile: w.profile || active, url: "new" };
+      return { profile: w.profile || active, url: "new", plugins: "active" };
     }
     const go = w && w.mode === "go" && segs.find((s) => s.seg === w.seg && s.url);
     if (go) {
       sending.set(chat, { active, mode: "go" });
-      return { profile: go.profile || active, url: go.url };
+      return { profile: go.profile || active, url: go.url, plugins: "active" };
     }
     sending.set(chat, { active });
     // Stay in the current sub-chat (with its profile) until you pick another
@@ -148,7 +150,7 @@ PP.plugin({
     const cur = segs.find((s) => s.seg === d.seg);
     if (!cur || !cur.url) return null;
     if (cur.profile === active && sameUrl(cur.url, (chat.meta && chat.meta.source) || "")) return null; // already there
-    return { profile: cur.profile || active, url: cur.url };
+    return { profile: cur.profile || active, url: cur.url, plugins: "active" };
   },
 
   afterReply(text, ctx) {
@@ -165,7 +167,10 @@ PP.plugin({
       seg = hit ? hit.seg : nextSeg(segs); // a site chat we haven't had: the app started fresh
     }
     if (st.mode) want.delete(chat);
-    ctx.setTurnData({ seg, url: ctx.url || "", profile: ctx.profile.name, active: st.active || ctx.profile.name });
+    // ctx.siteProfile: the profile the site and model came from (app 0.6.1+);
+    // ctx.profile: the one whose plugins ran (the profile picked at the top).
+    const site = ctx.siteProfile || ctx.profile;
+    ctx.setTurnData({ seg, url: ctx.url || "", profile: site.name, active: st.active || ctx.profile.name });
     if (segs.length && !segs.some((s) => s.seg === seg)) ctx.note(`sub-chat ${segs.length + 1} started (${siteLabel(ctx.url)})`);
     return text;
   },
