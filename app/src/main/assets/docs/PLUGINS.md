@@ -78,7 +78,8 @@ PP.plugin({
   menu: [{ label: "Shout the last reply", run: () => PP.toast(PP.chat.turns.at(-1)?.reply.toUpperCase() || "nothing yet") }],
   // Before a message goes out: pick the profile and the site chat for it.
   // Return { profile: "name or id", url: "https://..." | "new" }, or nothing to
-  // leave it. The first plugin (in order) that answers wins. Not run for
+  // leave it. Add plugins: "active" to keep the steps of the profile you're on
+  // (the routed profile then only gives the site and model). The first plugin (in order) that answers wins. Not run for
   // PP.ask or when taking a reply from the page.
   route(ctx) {
     return ctx.chat.turns.length > 40 ? { url: "new" } : null;
@@ -102,7 +103,8 @@ Plugins that are on run in the order shown in the Plugins screen (move them with
 `ctx` has:
 
 - `settings`: this plugin's settings for the current profile
-- `firstMessage`: true for the first message of a chat
+- `firstMessage`: true for the first message of a chat, and for the first
+  message in a new site chat (a new sub-chat); `freshSite` is just the latter
 - `chat`: the chat (`chat.meta.title`, `chat.meta.tags`, `chat.turns`)
 - `profile`: the profile the message goes through
 - `note(text)`: adds a note to the message's trace

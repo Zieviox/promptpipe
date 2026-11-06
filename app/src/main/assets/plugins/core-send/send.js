@@ -123,6 +123,9 @@ const runChat = (chat, prompt, prof = profile(), follow = false, onPage = null) 
     }
     // A plugin may choose the profile and the site chat for this message.
     const route = follow ? null : await runRoute({ chat, prompt, profile: prof }, prof).catch((e) => (toast("route: " + e.message, "error"), null));
+    // plugins: "active" keeps the steps (Base64 ...) of the profile you're on;
+    // the routed profile then only gives the site and model.
+    const hookProf = prof;
     if (route && route.profile) prof = S.config.profiles.find((p) => p.id === route.profile || p.name.toLowerCase() === String(route.profile).toLowerCase()) || prof;
     const site = siteFor(prof);
     if (!site) throw new Error("this profile has no AI site plugin (Profiles sheet)");
@@ -148,8 +151,12 @@ const runChat = (chat, prompt, prof = profile(), follow = false, onPage = null) 
       if (follow) {
       } else if (!sameUrl(here, target)) await openSite(target, page, turn);
       if (!follow) await applySiteChoices(site, prof, page, turn);
-      const ctx = { chat, turn, page, url: pg(page).url, profile: prof, firstMessage: chat.turns.length === 1, notes: turn.notes };
-      turn.sent = prompt ? await inHooks(() => runHooks("beforeSend", prompt, ctx, trace, prof)) : "";
+      const steps = route && route.plugins === "active" ? hookProf : prof;
+      // A brand-new site chat (new chat or new sub-chat) hasn't seen any
+      // first-message setup yet (system prompt "first message only" ...).
+      const freshSite = !follow && sameUrl(target, site.url);
+      const ctx = { chat, turn, page, url: pg(page).url, profile: steps, siteProfile: prof, firstMessage: chat.turns.length === 1 || freshSite, freshSite, notes: turn.notes };
+      turn.sent = prompt ? await inHooks(() => runHooks("beforeSend", prompt, ctx, trace, steps)) : "";
       turn.progress = (follow ? "Reading the reply on " : "Sending to ") + site.name + (pageCount() > 1 ? ` (page ${page + 1})` : "") + "…";
       render();
       const started = Date.now();
@@ -161,7 +168,7 @@ const runChat = (chat, prompt, prof = profile(), follow = false, onPage = null) 
       if (follow && !prompt) {
         // Added from the page: your side is whatever the page shows, decoded like a reply.
         turn.sent = r.you || "";
-        turn.you = r.you ? await inHooks(() => runHooks("afterReply", r.you, { ...ctx, notes: [] }, [], prof)).catch(() => r.you) : "(from the page)";
+        turn.you = r.you ? await inHooks(() => runHooks("afterReply", r.you, { ...ctx, notes: [] }, [], steps)).catch(() => r.you) : "(from the page)";
         turn.notes.push("added from the page");
       }
       ctx.url = r.url; // afterReply sees the site chat the reply came from
@@ -170,7 +177,7 @@ const runChat = (chat, prompt, prof = profile(), follow = false, onPage = null) 
       if (r.thinking) turn.thinking = r.thinking;
       trace.push({ label: "Raw reply", text: r.raw, notes: [] });
       try {
-        turn.reply = await inHooks(() => runHooks("afterReply", r.raw, ctx, trace, prof));
+        turn.reply = await inHooks(() => runHooks("afterReply", r.raw, ctx, trace, steps));
       } catch (e) {
         turn.reply = r.raw;
         turn.error = e.message;
