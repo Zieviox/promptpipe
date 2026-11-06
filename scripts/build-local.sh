@@ -23,8 +23,13 @@ GRADLE=$(command -v gradle || ls -d /root/gradle-*/bin/gradle 2>/dev/null | sort
 [ -x "$GRADLE" ] || { echo "Gradle not found."; exit 1; }
 command -v ld.lld >/dev/null || { echo "Installing lld..."; pacman -S --noconfirm lld; }
 [ -f debug.keystore ] || echo "Note: no debug.keystore here, so this APK won't install over earlier ones."
-# Newest GeckoView release, as the cloud builds use; GECKOVIEW=<v> pins one.
-GV="${GECKOVIEW:-$(curl -fsSL https://maven.mozilla.org/maven2/org/mozilla/geckoview/geckoview/maven-metadata.xml | sed -n 's:.*<release>\(.*\)</release>.*:\1:p')}"
+# GeckoView: reuse the newest one Gradle already downloaded (it's ~100 MB), so a
+# new Mozilla release doesn't force a fresh download. GECKOVIEW=<v> pins one,
+# GECKOVIEW=latest fetches the newest release.
+GVCACHE="${GRADLE_USER_HOME:-$HOME/.gradle}/caches/modules-2/files-2.1/org.mozilla.geckoview/geckoview"
+GV="$GECKOVIEW"
+[ -z "$GV" ] && [ -d "$GVCACHE" ] && GV=$(ls "$GVCACHE" | sort -V | tail -1) && echo "geckoview: using the cached $GV (GECKOVIEW=latest to update)"
+[ -z "$GV" ] || [ "$GV" = latest ] && GV=$(curl -fsSL https://maven.mozilla.org/maven2/org/mozilla/geckoview/geckoview/maven-metadata.xml | sed -n 's:.*<release>\(.*\)</release>.*:\1:p')
 [ -n "$GV" ] || { echo "Couldn't read the GeckoView version; set GECKOVIEW=<version>."; exit 1; }
 echo "sdk $SDK"; echo "ndk $NDK"; echo "gradle $GRADLE"; echo "geckoview $GV"; echo "version $VNAME ($VCODE)"
 
