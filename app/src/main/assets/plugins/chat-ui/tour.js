@@ -199,6 +199,7 @@ const tourLayer = () => {
   const G = GUIDES[S.tour.name];
   const i = S.tour.i;
   const d = G.steps[i];
+  if (G.full && d.login && S.sv) return null; // its card sits under the page (siteViewFoot)
   if (G.full) return h("div", { class: "layer tourl full" }, h("div", {}, ...(d.login && tourSite.login >= 1 && siteFor() ? loginCard(G, i) : tourBody(G, i))));
   return h("div", { class: "layer tourl pass" }, h("section", { class: "sheet", role: "dialog", "aria-label": "Quick start: " + d.t }, ...tourBody(G, i)));
 };
@@ -273,3 +274,9 @@ const openQuickStartList = () =>
       } })),
     item({ id: "qs.qsall", label: "Show every guide again", sub: "They open the first time you visit each place.", onclick: () => (resetSeen(), (S.config.welcomed = true), (seen().setup = false), closeSheet()) }),
   ], { back: () => openSettingsGroup("Help", settingsBody("Help")) });
+
+// On the site view, while you log in: the card under the page says whether it sees you in.
+siteViewFoot.push(() => {
+  const d = curStep();
+  return d && d.login && S.tour.name === "setup" && tourSite.login >= 1 && siteFor() ? h("section", { class: "svfoot" }, ...loginCard(GUIDES.setup, S.tour.i)) : null;
+});

@@ -10,77 +10,42 @@ import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.provider.Settings
-import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowInsets
-import android.widget.Button
 import android.widget.FrameLayout
-import android.widget.LinearLayout
-import android.widget.TextView
 import org.json.JSONObject
 import org.mozilla.geckoview.GeckoSession
 import org.mozilla.geckoview.GeckoView
 
-// Two stacked views: the chat UI, and the AI site (for logging in or checking
-// what the page does). Alt+S or the Site button switches; Back returns to chat.
+// A thin host: the chat UI fills the screen and draws everything you see,
+// including the site view (its header, tabs and address bar). When the UI shows
+// the site view it says where the page goes (the "hole", as fractions of the
+// screen) and the site page is placed there, over the UI. Back, Alt+S and login
+// popups tell the UI (event "siteView"), so it stays the one place that decides.
 class MainActivity : Activity(), Hub.Screen {
     private val app get() = application as App
     private lateinit var uiView: GeckoView
-    private lateinit var siteBox: LinearLayout
-    // What shows behind and around the pages; colours follow the app's theme ("theme" action).
+    // What shows behind the pages; its colour follows the app's theme ("theme" action).
     private lateinit var rootView: FrameLayout
-    private lateinit var siteBar: LinearLayout
     // One view per site page, stacked; the shown one is on top.
     private lateinit var siteStack: FrameLayout
     private val siteViews = ArrayList<GeckoView>()
     private var shown = 0
-    private lateinit var siteLabel: TextView
-    private lateinit var pageButton: Button
     private var siteShown = false
+    // Where the UI leaves room for the page: left, top, right, bottom as fractions.
+    private var hole = doubleArrayOf(0.0, 0.0, 1.0, 1.0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val root = FrameLayout(this)
         rootView = root
         uiView = GeckoView(this)
-        siteStack = FrameLayout(this)
-        siteLabel = TextView(this).apply {
-            setTextColor(Color.LTGRAY)
-            setPadding(16, 0, 16, 0)
-            gravity = Gravity.CENTER_VERTICAL
-            isSingleLine = true
-        }
-        val back = Button(this).apply {
-            text = "← Chat  (Alt+S)"
-            setOnClickListener { showSite(false) }
-        }
-        val reload = Button(this).apply {
-            text = "Reload"
-            setOnClickListener { app.hub.reloadAll(shown) }
-        }
-        // With several site pages: tap to look at the next one.
-        pageButton = Button(this).apply {
-            setOnClickListener { showPage((shown + 1) % app.hub.pages.size) }
-            visibility = View.GONE
-        }
-        val bar = LinearLayout(this).apply {
-            siteBar = this
-            orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(Color.rgb(18, 22, 31))
-            addView(back)
-            addView(siteLabel, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f))
-            addView(pageButton)
-            addView(reload)
-        }
-        siteBox = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            addView(bar)
-            addView(siteStack, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
-            visibility = View.GONE
-        }
+        siteStack = FrameLayout(this).apply { visibility = View.GONE }
         root.addView(uiView)
-        root.addView(siteBox)
+        root.addView(siteStack, FrameLayout.LayoutParams(-1, -1))
+        // The keyboard or a turn of the phone changes the size: keep the page in its hole.
+        root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> placeSite() }
         root.setBackgroundColor(Color.rgb(11, 12, 15))
         // Android draws apps edge to edge: keep both pages clear of the status
         // bar, the navigation bar and the keyboard.
@@ -167,27 +132,45 @@ class MainActivity : Activity(), Hub.Screen {
     }
 
     override fun showSite(show: Boolean) {
+        val changed = siteShown != show
         siteShown = show
-        siteBox.visibility = if (show) View.VISIBLE else View.GONE
-        updateBar()
+        siteStack.visibility = if (show) View.VISIBLE else View.GONE
+        if (changed) app.hub.emit(JSONObject().put("type", "siteView").put("show", show))
         // Keep every page running even when hidden.
         app.hub.pages.forEach { it.session.setActive(true) }
         app.hub.uiSession.setActive(true)
         (if (show) siteViews.getOrNull(shown) ?: uiView else uiView).requestFocus()
     }
 
-    private fun updateBar() {
-        val n = app.hub.pages.size
-        siteLabel.text = (app.hub.pages.getOrNull(shown) ?: app.hub.pages[0]).info.optString("url")
-        pageButton.text = "Page ${shown + 1}/$n"
-        pageButton.visibility = if (n > 1) View.VISIBLE else View.GONE
+    // Put the page stack in the hole the UI left for it.
+    private fun placeSite() {
+        val w = rootView.width - rootView.paddingLeft - rootView.paddingRight
+        val h = rootView.height - rootView.paddingTop - rootView.paddingBottom
+        if (w <= 0 || h <= 0) return
+        val lp = siteStack.layoutParams as FrameLayout.LayoutParams
+        val l = (hole[0] * w).toInt()
+        val t = (hole[1] * h).toInt()
+        val nw = ((hole[2] - hole[0]) * w).toInt().coerceAtLeast(1)
+        val nh = ((hole[3] - hole[1]) * h).toInt().coerceAtLeast(1)
+        if (lp.leftMargin == l && lp.topMargin == t && lp.width == nw && lp.height == nh) return
+        lp.leftMargin = l
+        lp.topMargin = t
+        lp.width = nw
+        lp.height = nh
+        siteStack.post { siteStack.layoutParams = lp }
+    }
+
+    // {"hole": {"l":…, "t":…, "r":…, "b":…}} from the UI, fractions of its screen.
+    private fun takeHole(data: JSONObject) {
+        val o = data.optJSONObject("hole") ?: return
+        hole = doubleArrayOf(o.optDouble("l", 0.0), o.optDouble("t", 0.0), o.optDouble("r", 1.0), o.optDouble("b", 1.0))
+        placeSite()
     }
 
     // Bring site page i to the front (the others keep running under it).
     private fun showPage(i: Int) {
         shown = i.coerceIn(0, siteViews.size - 1)
         siteViews[shown].bringToFront()
-        updateBar()
         if (siteShown) siteViews[shown].requestFocus()
         app.hub.emit(JSONObject().put("type", "shown").put("page", shown))
     }
@@ -233,10 +216,13 @@ class MainActivity : Activity(), Hub.Screen {
     override fun runAction(action: String, data: JSONObject) {
         when (action) {
             "site" -> {
+                takeHole(data)
                 if (data.has("page")) showPage(data.optInt("page"))
                 showSite(true)
             }
+            "siteHole" -> takeHole(data)
             "chat" -> showSite(false)
+            "reload" -> app.hub.reloadPage(data.optInt("page", shown))
             "openUrl" -> try {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(data.getString("url"))))
             } catch (e: Exception) {}
@@ -257,8 +243,6 @@ class MainActivity : Activity(), Hub.Screen {
                 val bg = Color.parseColor(data.optString("bg", "#1b1a1f"))
                 val dark = data.optBoolean("dark", true)
                 rootView.setBackgroundColor(bg)
-                siteBar.setBackgroundColor(bg)
-                siteLabel.setTextColor(if (dark) Color.LTGRAY else Color.DKGRAY)
                 if (Build.VERSION.SDK_INT >= 30) {
                     val light = android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
                         android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
@@ -276,7 +260,8 @@ class MainActivity : Activity(), Hub.Screen {
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN && event.isAltPressed && event.keyCode == KeyEvent.KEYCODE_S) {
-            showSite(!siteShown)
+            // Hiding is done here; showing is the UI's (it draws the site view first).
+            if (siteShown) showSite(false) else app.hub.emit(JSONObject().put("type", "siteKey"))
             return true
         }
         return super.dispatchKeyEvent(event)

@@ -280,11 +280,10 @@ class Hub(private val app: App) {
         }
     }
 
-    // The Reload button over the AI page: the chat UI and the page on screen.
-    fun reloadAll(shown: Int = 0) {
+    // Reload one site page (the site view's reload button).
+    fun reloadPage(i: Int) {
         main.post {
-            if (!uiSession.isOpen) restore(uiSession, true) else uiSession.reload()
-            val s = (pages.getOrNull(shown) ?: pages[0]).session
+            val s = (pages.getOrNull(i) ?: pages[0]).session
             if (!s.isOpen) restore(s, true) else s.reload()
         }
     }

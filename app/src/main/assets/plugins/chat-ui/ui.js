@@ -271,11 +271,13 @@ render = () => {
   // A layer slides in only when it opens, never again on a redraw (that read as it
   // tucking away and reopening on every tap).
   const enter = (was) => (was ? "" : " enter");
+  if (S.sv) app.append(svLayer());
   if (S.drawer) app.append(h("div", { class: "drawer-scrim", onclick: closeDrawer }), withClass(renderDrawer(), enter(hadDrawer)));
   if (S.siteMenu) app.append(siteMenu());
   if (S.sheet) app.append(withClass(renderSheet(), enter(hadSheet)));
   maybeTour();
-  if (S.tour) app.append(tourLayer());
+  const tl = S.tour && tourLayer();
+  if (tl) app.append(tl);
   if (S.help || S.helpCard) app.append(helpLayer());
   restoreView(view, hadSheet);
   if (S.tour) tourSpot();
@@ -283,6 +285,7 @@ render = () => {
   // above it, your place is never moved (new replies show on the jump button).
   if (view.pinned && followOn()) scrollDown();
   if (keepFocus) document.querySelector(`[data-keep="${keepFocus}"]`)?.focus({ preventScroll: true });
+  syncSiteView();
 };
 
 const safeBanner = () =>
@@ -510,7 +513,7 @@ const openSiteSheet = () =>
       profileDropdown({ id: "site", current: prof, pick: (p) => (switchProfile(p.id), rerenderSheet()) }),
       site ? h("div", { class: "lbl" }, "AI site (for this chat)") : null,
       site ? item({ id: "site.sitesw", label: site.name, sub: sites.length > 1 ? "Switch site" : "The only site plugin installed", onclick: sites.length > 1 ? () => ((S.sheet = null), (S.siteMenu = true), syncLayer(), render()) : openGetSites }) : null,
-      site ? pageItem("Show the page", `${site.name} · ${st.words}${S.site.url ? " · " + S.site.url : ""}`, showSite, "show") : null,
+      site ? pageItem("Show the page", `${site.name} · ${st.words}${S.site.url ? " · " + S.site.url : ""}`, () => showSite(), "show") : null,
       site ? item({ id: "site.model", label: S.site.model || want || "Choose a model", sub: "Model and switches" + (want && S.site.model && !S.site.model.toLowerCase().includes(want.toLowerCase()) ? " · you picked " + want : ""), key: "Ctrl+M", onclick: openModels }) : null,
       h("div", { class: "lbl" }, "This chat and the page"),
       pageItem("Link this chat to the open page", null, linkToSite, "link"),

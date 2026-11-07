@@ -1,6 +1,6 @@
 {
   "name": "Chat screen",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "kind": "ui",
   "order": 50,
   "description": "App part: the whole chat UI. Copy it to change anything you see.",
@@ -10,6 +10,7 @@
     "quick.js",
     "profiles.js",
     "chat-sheet.js",
+    "siteview.js",
     "find.js",
     "plugins-screen.js",
     "settings.js",

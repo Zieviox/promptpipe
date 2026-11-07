@@ -69,12 +69,15 @@ const warmSite = () => {
     })
     .catch(() => {});
 };
-const showSite = () => {
-  if (!siteFor()) return toast("Install an AI site plugin first (⋯ → Plugins)", "error");
-  // Show the page the open chat is being answered on, if any.
+// Open the site view (the chat UI draws it and places the page): on the page
+// the open chat is being answered on, if any, else the one in front.
+const showSite = (page) => {
+  if (!siteFor()) return toast("Get an AI site plugin first: tap the site pill at the top", "error");
   const t = Object.values(S.pageTurns).find((x) => S.chat?.turns.includes(x));
   if (!t) warmSite();
-  return api("/api/app/action", t ? { action: "site", page: t.page } : { action: "site" }).catch((e) => toast(e.message, "error"));
+  S.svPage = page ?? (t ? t.page : S.page);
+  S.sv = true;
+  render();
 };
 
 // Model and switches chosen in the app (saved per site) are set on the page

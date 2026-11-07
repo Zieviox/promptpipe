@@ -13,7 +13,7 @@ const commands = () => [
   { name: "New folder", path: "Chats", key: "", run: () => ((S.newFolderBox = true), openDrawer()) },
   { name: "Previous chat", path: "Chats", key: "Alt+↑", run: () => stepChat(-1) },
   { name: "Next chat", path: "Chats", key: "Alt+↓", run: () => stepChat(1) },
-  { name: "Show AI page", path: "Chats", key: "Alt+S", run: showSite },
+  { name: "Show AI page", path: "Chats", key: "Alt+S", run: () => showSite() },
   { name: "Choose model", path: "Profile and site", key: "Ctrl+M", run: openModels },
   { name: "Link this chat to the open AI page", path: "Profile and site", key: "", run: linkToSite },
   { name: "Import messages from the linked site chat", path: "Profile and site", key: "", run: importHistory },
