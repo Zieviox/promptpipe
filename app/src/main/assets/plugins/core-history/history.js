@@ -22,7 +22,7 @@ const tagsFile = () => ({ path: "tags.json", text: JSON.stringify(S.tags, null, 
 const newChat = (folder = S.folder) => ({
   path: null,
   folder,
-  meta: { title: "New chat", source: "", site: "", ai: "", model: "", profile: profile().name, tags: [], created: iso(), updated: iso() },
+  meta: { title: "New chat", source: "", site: "", ai: "", model: "", profile: profile().name, switches: {}, tags: [], created: iso(), updated: iso() },
   turns: [],
 });
 

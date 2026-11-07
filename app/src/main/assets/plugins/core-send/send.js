@@ -139,7 +139,7 @@ const runChat = (chat, prompt, prof = profile(), follow = false, onPage = null) 
       chat.queued.splice(k, 1);
     }
     // A plugin may choose the profile and the site chat for this message.
-    const route = follow ? null : await runRoute({ chat, prompt, profile: prof }, prof).catch((e) => (toast("route: " + e.message, "error"), null));
+    const route = follow ? null : await runRoute({ chat, prompt, profile: prof }, forChat(prof, chat)).catch((e) => (toast("route: " + e.message, "error"), null));
     // plugins: "active" keeps the steps (Base64 ...) of the profile you're on;
     // the routed profile then only gives the site and model.
     const hookProf = prof;
@@ -170,7 +170,8 @@ const runChat = (chat, prompt, prof = profile(), follow = false, onPage = null) 
       if (follow) {
       } else if (!sameUrl(here, target)) await openSite(target, page, turn);
       if (!follow) await applySiteChoices(site, page, turn);
-      const steps = route && route.plugins === "active" ? hookProf : prof;
+      // The chat's own switches, as they are now (a message that waited uses the latest).
+      const steps = forChat(route && route.plugins === "active" ? hookProf : prof, chat);
       // A brand-new site chat (new chat or new sub-chat) hasn't seen any
       // first-message setup yet (system prompt "first message only" ...).
       const freshSite = !follow && sameUrl(target, site.url);

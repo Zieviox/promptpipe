@@ -358,6 +358,8 @@ const runRoute = async (ctx, prof) => {
 // replaces these with its presets; without it, the profile's switches decide.
 let activePlugins = (prof = profile()) => prof.plugins.filter((e) => e.on && S.plugins.get(e.id)?.def);
 let stepOn = (id, prof = profile()) => !!entryFor(id, prof).on;
+// The profile as a chat uses it (its own switches); without the pipeline part, the profile.
+let forChat = (prof) => prof;
 let setStepOn = (id, on, prof = profile()) => {
   entryFor(id, prof).on = on;
   saveConfig();

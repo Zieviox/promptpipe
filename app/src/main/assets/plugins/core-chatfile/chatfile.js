@@ -19,7 +19,10 @@
 // <!-- pp:turn {"at":"...","profile":"Base64","notes":[...]} -->
 // ### You / ### <AI name> / <details> with what was sent and the raw reply
 (function () {
-  const FIELDS = ["title", "source", "site", "ai", "model", "profile", "tags", "created", "updated"];
+  const FIELDS = ["title", "source", "site", "ai", "model", "profile", "switches", "tags", "created", "updated"];
+  // The chat's own plugin switches (see core-pipeline): "memory=off pc1x2=on".
+  const switchesStr = (sw) => Object.entries(sw || {}).map(([k, v]) => `${k}=${v ? "on" : "off"}`).join(" ");
+  const switchesOf = (v) => Object.fromEntries(String(v || "").split(/\s+/).map((x) => /^(.+)=(on|off)$/.exec(x)).filter(Boolean).map((m) => [m[1], m[2] === "on"]));
 
   const yamlStr = (s) => {
     s = String(s ?? "");
@@ -38,7 +41,7 @@
   };
 
   const parseFront = (text) => {
-    const meta = { title: "", source: "", site: "", ai: "", model: "", profile: "", tags: [], created: "", updated: "" };
+    const meta = { title: "", source: "", site: "", ai: "", model: "", profile: "", switches: {}, tags: [], created: "", updated: "" };
     const m = /^---\n([\s\S]*?)\n---/.exec(text);
     if (!m) return meta;
     for (const line of m[1].split("\n")) {
@@ -47,7 +50,8 @@
       if (kv[1] === "tags") {
         const inner = kv[2].trim().replace(/^\[|\]$/g, "");
         meta.tags = (inner.match(/"(?:[^"\\]|\\.)*"|[^,]+/g) || []).map(yamlVal).filter(Boolean);
-      } else meta[kv[1]] = yamlVal(kv[2]);
+      } else if (kv[1] === "switches") meta.switches = switchesOf(yamlVal(kv[2]));
+      else meta[kv[1]] = yamlVal(kv[2]);
     }
     return meta;
   };
@@ -74,6 +78,7 @@
     const out = ["---"];
     for (const k of FIELDS) {
       if (k === "tags") out.push(`tags: [${(m.tags || []).map(yamlStr).join(", ")}]`);
+      else if (k === "switches") out.push(`switches: ${switchesStr(m.switches) ? yamlStr(switchesStr(m.switches)) : ""}`.trimEnd());
       else out.push(`${k}: ${m[k] ? yamlStr(m[k]) : ""}`.trimEnd());
     }
     out.push("---", "", `# ${m.title || "Untitled chat"}`, "");

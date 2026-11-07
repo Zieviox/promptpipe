@@ -1,6 +1,6 @@
 {
   "name": "Sending",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "kind": "core",
   "order": 20,
   "description": "App part: the send pipeline, page pool, queue and PP.ask.",

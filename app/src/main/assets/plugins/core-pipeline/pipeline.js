@@ -95,6 +95,38 @@ const clonePipe = (src) => {
 const presetOf = (prof = profile()) => prof.pipe || null;
 const groupOf = (pre, row) => (row.group ? (pre.groups || []).find((g) => g.id === row.group) : null);
 const rowLive = (pre, row) => row.on !== false && groupOf(pre, row)?.on !== false;
+// ---------- a chat's own switches ----------
+// Each chat keeps its own on/off for its profile's rows and groups, in its file:
+// chat.meta.switches = { key: true | false }, only where it differs from the profile
+// (the profile is the default a chat starts from). Every message of the chat uses them,
+// including one that waits in the queue: they are read when the message is built.
+const rowKey = (r) => (r.type === "piece" ? r.id : r.type === "step" ? r.plugin + (r.part ? "/" + r.part : "") : "");
+const groupKey = (g) => "group/" + g.id;
+const chatSwitches = (chat) => chat?.meta?.switches || {};
+// The profile as this chat uses it: the same rows, with the chat's switches applied.
+forChat = (prof, chat) => {
+  const sw = chatSwitches(chat);
+  const pre = prof?.pipe;
+  if (!pre || !Object.keys(sw).length) return prof;
+  const on = (k, def) => (k in sw ? sw[k] : def);
+  return {
+    ...prof,
+    pipe: {
+      ...pre,
+      groups: (pre.groups || []).map((g) => ({ ...g, on: on(groupKey(g), g.on !== false) })),
+      rows: pre.rows.map((r) => (r.type === "message" ? r : { ...r, on: on(rowKey(r), r.on !== false) })),
+    },
+  };
+};
+// Set one of a chat's switches (key from rowKey / groupKey; def: the profile's value).
+// Back to the profile's value means the chat has no switch of its own for it.
+const setChatSwitch = (chat, key, on, def) => {
+  const sw = { ...chatSwitches(chat) };
+  if (on === def) delete sw[key];
+  else sw[key] = on;
+  chat.meta.switches = sw;
+};
+const clearChatSwitches = (chat) => (chat.meta.switches = {});
 // A plugin's own row (not one of its pieces).
 const stepRowOf = (pre, id) => pre?.rows.find((r) => r.type === "step" && r.plugin === id && !r.part) || null;
 const rowName = (r) => (r.type === "message" ? "Your message" : r.type === "step" ? pluginName(r.plugin) + (r.part ? " · " + (partOf(r)?.name || r.part) : "") : r.name || (r.text || "").trim().split("\n")[0].slice(0, 40) || "(empty piece)");
@@ -359,4 +391,4 @@ const setUp = async () => {
 on("plugins", setUp, null);
 
 // Shared with the UI part and plugins.
-PP.pipeline = { step, pipeSteps, partRow, pluginPieces, partOf, WHEN, presets, presetOf, rowLive, rowName, whenLabel, previewMessage, piece, promptLibrary, applyStarter, makeProfile, copyProfile, clonePipe, syncRows, moveRow, moveRowTo, addGroup, removeGroup };
+PP.pipeline = { rowKey, groupKey, chatSwitches, forChat, setChatSwitch, clearChatSwitches, step, pipeSteps, partRow, pluginPieces, partOf, WHEN, presets, presetOf, rowLive, rowName, whenLabel, previewMessage, piece, promptLibrary, applyStarter, makeProfile, copyProfile, clonePipe, syncRows, moveRow, moveRowTo, addGroup, removeGroup };

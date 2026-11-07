@@ -70,30 +70,39 @@ const pickTextFiles = (many) => {
   input.click();
 };
 
-// The message bar's Quick edit: the active profile's rows (on or off, reorder) and text files.
+// A chat's own switches are saved in its file; a new chat keeps them until its first message.
+const saveSwitches = (chat = S.chat) => chat.path && saveChat(chat, `switches: ${chat.meta.title || "chat"}`).catch((e) => toast(e.message, "error"));
+
+// The message bar's Quick edit: the active profile's rows, switched on or off for this chat
+// (the profile's switches are where a chat starts), reordered for the profile, and text files.
 const openQuick = () => {
   const prof = profile();
   openSheet(prof.name, () => {
     const pre = presetOf(prof);
     const P = PP.pipeline;
+    const mine = forChat(prof, S.chat).pipe; // the same rows, with this chat's switches
+    const own = Object.keys(P.chatSwitches(S.chat)).length;
+    const flip = (r, i, v) => (P.setChatSwitch(S.chat, P.rowKey(r), v, r.on !== false), saveSwitches(), rerenderSheet(), render());
     const rowEls = () => [...document.querySelectorAll("[data-qp]")];
     const row = (r, i) => {
-      const live = r.type === "message" || P.rowLive(pre, r);
-      const g = r.group && (pre.groups || []).find((x) => x.id === r.group);
+      const m = mine.rows[i];
+      const live = r.type === "message" || P.rowLive(mine, m);
+      const g = r.group && (mine.groups || []).find((x) => x.id === r.group);
       return h(
         "div",
         { class: "it" + (live ? "" : " off"), "data-qp": i, "data-row": "plus." + rowName(r) },
         h("button", { class: "grip", "aria-label": "Drag to reorder", title: "Drag to reorder", onpointerdown: (e) => reorderDrag(e, rowEls, i, (from, to) => (P.moveRowTo(pre, from, to), rerenderSheet())), onclick: (e) => e.stopPropagation() }, svgIcon("grip")),
         h("div", { class: "g" }, rowName(r).replace(/^System prompt: /, ""), h("small", {}, plainKind(r, true) + (g && g.on === false ? " · its group is off" : ""))),
         moveBtns(i, pre.rows.length, (d) => (P.moveRow(pre, i, d), rerenderSheet())),
-        r.type === "message" ? null : switchBtn(r.on !== false, rowName(r) + " on or off", (v) => ((r.on = v), saveConfig(), rerenderSheet())),
+        r.type === "message" ? null : switchBtn(m.on !== false, rowName(r) + " on or off in this chat", (v) => flip(r, i, v)),
       );
     };
     const fileRow = (many) =>
       item({ icon: many ? "copy" : "quote", label: many ? "Several text files" : "Text file", sub: many ? "One after another, in the box" : "Put its text in the box", onclick: () => pickTextFiles(many) });
     return [
-      h("div", { class: "sub2" }, "Switch on or off, drag to reorder."),
+      h("div", { class: "sub2" }, "Switches are this chat's own; a new chat starts with the profile's. Drag to reorder the profile."),
       ...(pre ? pre.rows.map(row) : [h("p", { class: "sub2" }, "This profile has no rows yet.")]),
+      own ? item({ id: "plus.reset", icon: "retry", label: "Use the profile's switches", sub: (own === 1 ? "1 switch differs" : own + " switches differ") + " in this chat", onclick: () => (P.clearChatSwitches(S.chat), saveSwitches(), rerenderSheet(), render()) }) : null,
       h("div", { class: "lbl" }, "Add to your message"),
       fileRow(false),
       fileRow(true),

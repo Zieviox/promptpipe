@@ -679,7 +679,7 @@ const renderMessages = () => {
 const pluginTurnParts = (c, t, i) => {
   const out = { before: [], after: [] };
   const list = (x) => [].concat(x || []).filter((n) => n instanceof Node);
-  for (const e of activePlugins()) {
+  for (const e of activePlugins(forChat(profile(), c))) {
     const p = S.plugins.get(e.id);
     if (typeof p.def.renderTurn !== "function") continue;
     try {
@@ -757,8 +757,8 @@ const openMessageMenu = (c, t, i) => {
 const qaMode = () => S.config.quickActions || "newest";
 const qaOpen = (t, newest) => (S.qaSet.has(t) ? S.qaSet.get(t) : qaMode() === "every" || (qaMode() === "newest" && newest));
 // What went out with a reply: the profile's rows that were on, then your message.
-const sentWith = (t) => {
-  const prof = S.config.profiles.find((p) => p.name === t.profile);
+const sentWith = (t, c = S.chat) => {
+  const prof = forChat(S.config.profiles.find((p) => p.name === t.profile), c);
   const rows = prof ? prof.pipe.rows.filter((r) => r.type !== "message" && r.on !== false && PP.pipeline.rowLive(prof.pipe, r)).map((r) => PP.pipeline.rowName(r)) : [];
   return { prof, rows };
 };
@@ -794,7 +794,7 @@ const renderTurn = (c, t, i) => {
     h("div", { class: "you", title: ChatFile.stamp(t.at) }, t.you),
     h("div", { class: "acts right" }, act("copy", "Copy your message", () => copyText(t.you, "Copied")), act("edit", "Edit and send again", () => fillComposer(t.you))));
   // "Thought for N s · sent with N": folded; opened it shows the thinking, what was sent with it, and the full trace.
-  const sw = sentWith(t);
+  const sw = sentWith(t, c);
   const sentOpen = S.openSent.has(t);
   const thin = t.pending ? null : h("button", { class: "thin", "aria-expanded": String(sentOpen), onclick: () => (S.openSent.has(t) ? S.openSent.delete(t) : S.openSent.add(t), render()) },
     svgIcon(sentOpen ? "up" : "down"), t.thinking ? (t.secs != null ? `Thought for ${t.secs} s` : "Thought") : "Sent with", h("span", { class: "dim2" }, (t.thinking ? " · sent with " : " ") + (sw.rows.length + 1)));
@@ -878,9 +878,13 @@ const codeCopy = (root) => {
 const blockFor = (e, n) => {
   const p = S.plugins.get(e.id);
   const label = p.manifest.block?.label || p.manifest.name || p.id;
-  const on = stepOn(e.id);
+  // The switch is this chat's own (the profile's is the default it starts from).
+  const on = stepOn(e.id, forChat(profile(), S.chat));
   const toggle = () => {
-    setStepOn(e.id, !on);
+    const P = PP.pipeline;
+    if (P) P.setChatSwitch(S.chat, e.id, !on, stepOn(e.id));
+    else setStepOn(e.id, !on);
+    saveSwitches();
     render();
   };
   const pill = (text) =>
