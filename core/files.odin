@@ -3,6 +3,7 @@ package ppcore
 // The files primitive: paths are always relative to a base folder and can't
 // leave it. Small pure helpers plus thin wrappers over core:os.
 
+import "core:fmt"
 import "core:os"
 import "core:slice"
 import "core:strings"
@@ -48,8 +49,15 @@ write_text :: proc(path: string, s: string, private := false) -> bool {
 }
 
 write_bytes :: proc(path: string, data: []byte) -> bool {
-	os.make_directory_all(parent(path))
-	return os.write_entire_file(path, data) == nil
+	return write_bytes_why(path, data) == ""
+}
+
+// Like write_bytes; on failure returns the OS's reason, so errors can say why.
+write_bytes_why :: proc(path: string, data: []byte) -> string {
+	mk := os.make_directory_all(parent(path))
+	err := os.write_entire_file(path, data)
+	if err == nil do return ""
+	return fmt.tprintf("%v, folder: %v", err, mk)
 }
 
 Entry :: struct {

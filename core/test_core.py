@@ -100,6 +100,12 @@ st, _, raw, _ = api("GET", "/plugins/demo/main.js"); check("update file served",
 st, _, raw, _ = api("GET", "/plugins/demo/main.js?builtin=1"); check("safe mode uses built-in", raw == "x()")
 st, js, _, _ = api("GET", "/api/plugins/bundle"); check("bundle info", js["version"] == "1.1")
 st, js, _, _ = api("POST", "/api/plugins/fork", {"id": "demo"}); check("fork", st == 200 and js["path"].endswith("plugins/demo"))
+st, js, _, _ = api("GET", "/api/plugins"); mine = {p["id"]: p for p in js["plugins"]}
+check("a copy of yours says which version it hides", mine["demo"].get("overrides") and mine["demo"].get("shadows") == "1.1.0", mine["demo"])
+st, js, _, _ = api("POST", "/api/plugins/remove", {"id": "demo"}); check("remove deletes your copy", st == 200 and not os.path.exists(tmp + "/data/plugins/demo"), js)
+st, js, _, _ = api("POST", "/api/plugins/remove", {"id": "demo"}); check("remove refuses when there is no copy", st == 400, js)
+st, js, _, _ = api("POST", "/api/plugins/remove", {"id": "../x"}); check("remove refuses a bad id", st == 400, js)
+st, js, _, _ = api("POST", "/api/plugins/fork", {"id": "demo"}); check("fork again", st == 200)
 st, js, _, _ = api("GET", "/api/plugins"); check("user copy wins", js["plugins"][0]["source"] == "user" and js["plugins"][0].get("overrides"), js)
 one = zipb({"x/plugin.json": '{"id":"../bad"}'})
 st, js, _, _ = api("POST", "/api/plugins/install", {"name": "x.zip", "base64": base64.b64encode(one).decode()}); check("bad id refused", st == 400, js)

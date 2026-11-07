@@ -1,6 +1,6 @@
 {
   "name": "History",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "kind": "core",
   "order": 30,
   "description": "App part: chat files, folders, git and tags.",

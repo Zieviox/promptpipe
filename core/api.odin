@@ -144,6 +144,13 @@ api_route :: proc(req: ^Request) -> Response {
 	case "/api/plugins/fork":
 		path, err := fork_plugin(get_str(body, "id"))
 		return err == "" ? json_res(200, fmt.tprintf(`{{"path":%s}}`, quote(path))) : json_error(400, err)
+	case "/api/plugins/remove":
+		// Delete a plugin of yours from your plugins folder (the built-in one shows again).
+		id := get_str(body, "id")
+		dir := join(plugins_dir(), id)
+		if !safe_name(id) || !has_manifest(dir) do return json_error(400, "no plugin of yours with that id")
+		os_remove_all(dir)
+		return json_res(200, `{"ok":true}`)
 	case "/api/site":
 		timeout := time.Duration(get_int(body, "timeout", 31 * 60_000)) * time.Millisecond
 		return relay("site", to_json(body), timeout)

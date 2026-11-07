@@ -111,7 +111,9 @@ install_plugins :: proc(plugins: []Plugin_Files, target: string, bundle_json := 
 	for p in plugins {
 		dir := join(base, p.id)
 		if target == "user" do os_remove_all(dir)
-		for f in p.files do if !write_bytes(join(dir, f.path), f.data) do return nil, fmt.tprintf("could not write %s/%s", p.id, f.path)
+		for f in p.files {
+			if why := write_bytes_why(join(dir, f.path), f.data); why != "" do return nil, fmt.tprintf("could not write %s/%s (%s)", p.id, f.path, why)
+		}
 		append(&out, p.id)
 	}
 	if target == "updates" {

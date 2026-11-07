@@ -266,7 +266,8 @@ Each list holds CSS selectors, tried in order. `input` is the message box,
 the AI is still writing, `reply` matches one reply (the newest is used),
 `user` matches one of your own messages (used to import a chat's history),
 `chatLinks` the chats in the site's sidebar, `model` where the model name shows,
-`thinking` the model's reasoning box (kept as a foldable "Thinking" part).
+`thinking` the model's reasoning box (kept as a foldable "Thinking" part),
+`strip` parts inside a reply that are not its text (e.g. source numbers like "-18").
 If no `send` selector matches, the last button after the message box is pressed.
 
 To find them: on the phone, open a chat on the site with a reply on screen, then

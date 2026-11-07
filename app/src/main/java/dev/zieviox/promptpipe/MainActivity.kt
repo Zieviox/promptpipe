@@ -28,6 +28,9 @@ class MainActivity : Activity(), Hub.Screen {
     private val app get() = application as App
     private lateinit var uiView: GeckoView
     private lateinit var siteBox: LinearLayout
+    // What shows behind and around the pages; colours follow the app's theme ("theme" action).
+    private lateinit var rootView: FrameLayout
+    private lateinit var siteBar: LinearLayout
     // One view per site page, stacked; the shown one is on top.
     private lateinit var siteStack: FrameLayout
     private val siteViews = ArrayList<GeckoView>()
@@ -39,6 +42,7 @@ class MainActivity : Activity(), Hub.Screen {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val root = FrameLayout(this)
+        rootView = root
         uiView = GeckoView(this)
         siteStack = FrameLayout(this)
         siteLabel = TextView(this).apply {
@@ -61,6 +65,7 @@ class MainActivity : Activity(), Hub.Screen {
             visibility = View.GONE
         }
         val bar = LinearLayout(this).apply {
+            siteBar = this
             orientation = LinearLayout.HORIZONTAL
             setBackgroundColor(Color.rgb(18, 22, 31))
             addView(back)
@@ -218,6 +223,13 @@ class MainActivity : Activity(), Hub.Screen {
         if (session != null) showSite(true)
     }
 
+    // Dark or light system bar icons on Android 10 (newer ones use insetsController).
+    @Suppress("DEPRECATION")
+    private fun legacyBars(dark: Boolean) {
+        window.decorView.systemUiVisibility =
+            if (dark) 0 else (View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR)
+    }
+
     override fun runAction(action: String, data: JSONObject) {
         when (action) {
             "site" -> {
@@ -240,6 +252,21 @@ class MainActivity : Activity(), Hub.Screen {
             "background" -> moveTaskToBack(true)
             "stopService" -> startService(Intent(this, KeepAlive::class.java).setAction(KeepAlive.ACTION_STOP))
             "haptic" -> haptic()
+            "theme" -> try {
+                // The page's background colour and whether it is dark, from the chat UI.
+                val bg = Color.parseColor(data.optString("bg", "#1b1a1f"))
+                val dark = data.optBoolean("dark", true)
+                rootView.setBackgroundColor(bg)
+                siteBar.setBackgroundColor(bg)
+                siteLabel.setTextColor(if (dark) Color.LTGRAY else Color.DKGRAY)
+                if (Build.VERSION.SDK_INT >= 30) {
+                    val light = android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
+                        android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+                    window.insetsController?.setSystemBarsAppearance(if (dark) 0 else light, light)
+                } else {
+                    legacyBars(dark)
+                }
+            } catch (e: Exception) {}
             "pickPlugin" -> startActivityForResult(
                 Intent(Intent.ACTION_GET_CONTENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE),
                 PICK_PLUGIN,

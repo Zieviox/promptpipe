@@ -98,13 +98,24 @@ const deleteChat = async (path) => {
   render();
 };
 
+// Makes the folder (a .gitkeep keeps it in git). Resolves true once it exists;
+// says why in a toast and resolves false when the name won't do.
 const makeFolder = async (name) => {
-  name = name.trim().replace(/^\/+|\/+$/g, "");
-  if (!name || name.split("/").some((p) => p === ".." || p.startsWith("."))) return toast("Not a valid folder name", "error");
-  await api("/api/history/save", { files: [{ path: name + "/.gitkeep", text: "" }], message: "folder: " + name });
-  S.openFolders.add(name);
+  const parts = name.replace(/\\/g, "/").split("/").map((p) => p.trim()).filter(Boolean);
+  if (!parts.length || parts.some((p) => p === ".." || p.startsWith("."))) {
+    toast("Not a valid folder name (no empty parts, no dots at the start)", "error");
+    return false;
+  }
+  name = parts.join("/");
+  const r = await api("/api/history/save", { files: [{ path: name + "/.gitkeep", text: "" }], message: "folder: " + name });
+  // Open it and every folder around it, or a subfolder would stay out of sight.
+  parts.forEach((_, i) => S.openFolders.add(parts.slice(0, i + 1).join("/")));
+  local("openFolders", [...S.openFolders]);
   await loadTree();
   render();
+  toast(`Folder "${name}" created`);
+  if (r.gitError) toast("Not saved to git: " + r.gitError, "error");
+  return true;
 };
 
 // ---------- tags ----------

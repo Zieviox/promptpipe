@@ -116,6 +116,15 @@ list_plugins :: proc(builtin_only: bool) -> string {
 		strings.write_string(&b, is_user ? `,"source":"user"` : `,"source":"builtin"`)
 		if is_user && (has_manifest(builtin) || os.is_dir(join(updates_dir(), id))) do strings.write_string(&b, `,"overrides":true`)
 		if is_upd do strings.write_string(&b, `,"updated":true`)
+		if is_user {
+			// The version a plugin of yours hides: the app's own, or its newer downloaded one.
+			shadow := builtin
+			if u, ok := update_dir(id); ok do shadow = u
+			if v, ok := manifest_version(shadow); ok {
+				strings.write_string(&b, `,"shadows":`)
+				jstr(&b, v)
+			}
+		}
 		text, _ := read_text(join(dir, "plugin.json"))
 		if m, ok := parse_obj(transmute([]byte)text); ok && m != nil {
 			strings.write_string(&b, `,"manifest":`)

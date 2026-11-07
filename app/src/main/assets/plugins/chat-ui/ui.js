@@ -25,10 +25,33 @@ const applyLook = () => {
   else delete root.dataset.theme;
   if (ui.accent && ACCENTS[ui.accent]) root.dataset.accent = ui.accent;
   else delete root.dataset.accent;
-  if (!href) return link && link.remove();
+  if (!href) {
+    link && link.remove();
+    return syncNativeColors();
+  }
   if (!link) document.head.append((link = h("link", { id: "theme-css", rel: "stylesheet" })));
   if (!link.href.startsWith(location.origin + href.split("?")[0])) link.href = href;
+  link.onload = syncNativeColors;
+  syncNativeColors();
 };
+// The Android shell draws behind and around the web page (system bars, the site bar,
+// the first moment before the page loads). It takes the page's background and
+// light/dark from here, so they follow the theme instead of staying dark. Harmless
+// where the shell doesn't know the action.
+let nativeColors = "";
+const syncNativeColors = () => {
+  setTimeout(() => {
+    const cs = getComputedStyle(document.documentElement);
+    const bg = cs.getPropertyValue("--bg").trim();
+    if (!/^#[0-9a-f]{6}$/i.test(bg)) return;
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(bg.slice(i, i + 2), 16));
+    const dark = 0.299 * r + 0.587 * g + 0.114 * b < 140;
+    if (nativeColors === bg + dark) return;
+    nativeColors = bg + dark;
+    api("/api/app/action", { action: "theme", bg, dark }).catch(() => {});
+  }, 60);
+};
+if (window.matchMedia) matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => syncNativeColors());
 const setScale = (v) => {
   S.config.ui.scale = Math.round(Math.min(2, Math.max(0.6, v)) * 100) / 100;
   saveConfig();
@@ -139,18 +162,75 @@ const tagInput = (placeholder, onAdd, keep) =>
 
 // ---------- rendering ----------
 
+// Everything is rebuilt on a redraw, so what the person is doing has to be carried
+// over by hand: where each list is scrolled, and what they have typed into a
+// sheet's fields. Without this, lists jumped back to the top and sheets lost
+// their text whenever anything in the background redrew.
+const SCROLLERS = ".messages, .drawer, .chat-list, .sheet, .sheet-body, .pipe-preview, .core-log, .models, .tag-filter, .blocks";
+const snapshotView = () => {
+  const spots = [];
+  const seen = {};
+  for (const el of app.querySelectorAll(SCROLLERS)) {
+    const k = el.className;
+    const i = (seen[k] = (seen[k] ?? -1) + 1);
+    if (el.scrollTop || el.scrollLeft) spots.push({ k, i, top: el.scrollTop, left: el.scrollLeft });
+  }
+  const fields = [...app.querySelectorAll(".sheet input, .sheet textarea, .sheet select")];
+  const textLike = (f) => f.tagName === "TEXTAREA" || (f.tagName === "INPUT" && /^(text|search|url|password|email|number|)$/.test(f.type));
+  const typed = fields.map((f, n) => ({ n, f })).filter(({ f }) => f.dataset.edited && textLike(f)).map(({ n, f }) => ({ n, value: f.value }));
+  const at = fields.indexOf(document.activeElement);
+  return {
+    spots,
+    typed,
+    count: fields.length,
+    focus: at,
+    sel: at >= 0 && document.activeElement.selectionStart != null ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null,
+    sheet: S.sheet?.title,
+    pinned: nearBottom(),
+  };
+};
+const restoreView = (v, hadSheet) => {
+  const seen = {};
+  for (const el of app.querySelectorAll(SCROLLERS)) {
+    const k = el.className;
+    const i = (seen[k] = (seen[k] ?? -1) + 1);
+    const spot = v.spots.find((x) => x.k === k && x.i === i);
+    if (spot) (el.scrollTop = spot.top), (el.scrollLeft = spot.left);
+  }
+  // The same sheet redrawn: put back the fields' text (new ones start fresh).
+  if (hadSheet && S.sheet?.title === v.sheet) {
+    const fields = [...app.querySelectorAll(".sheet input, .sheet textarea, .sheet select")];
+    if (fields.length === v.count) {
+      for (const t of v.typed) (fields[t.n].value = t.value), (fields[t.n].dataset.edited = "1");
+      const f = fields[v.focus];
+      if (f) {
+        f.focus({ preventScroll: true });
+        if (v.sel) try { f.setSelectionRange(v.sel[0], v.sel[1]); } catch (e) {}
+      }
+    }
+  }
+};
+// A field counts as typed into once the person changed it.
+document.addEventListener("input", (e) => {
+  if (e.target?.closest?.(".sheet")) e.target.dataset.edited = "1";
+}, true);
+
 render = () => {
   const keepFocus = document.activeElement?.dataset?.keep;
   const draft = document.querySelector(".composer textarea")?.value;
-  const listScroll = document.querySelector(".messages")?.scrollTop;
+  const view = snapshotView();
+  const hadSheet = !!document.querySelector(".sheet");
   const composer = renderComposer(draft);
   // Floats just above the composer; shows once you scroll up.
   composer.prepend(jumpButton());
   app.replaceChildren(...[safeBanner(), renderTop(), renderTagsRow(), renderMessages(), composer].filter(Boolean));
   if (S.drawer) app.append(h("div", { class: "scrim", onclick: closeDrawer }), renderDrawer());
   if (S.sheet) app.append(h("div", { class: "scrim", onclick: closeSheet }), renderSheet());
-  if (listScroll != null) document.querySelector(".messages").scrollTop = listScroll;
-  if (keepFocus) document.querySelector(`[data-keep="${keepFocus}"]`)?.focus();
+  restoreView(view, hadSheet);
+  // Reading at the very bottom, you stay at the bottom as the chat grows; anywhere
+  // above it, your place is never moved (new replies show on the jump button).
+  if (view.pinned && followOn()) scrollDown();
+  if (keepFocus) document.querySelector(`[data-keep="${keepFocus}"]`)?.focus({ preventScroll: true });
 };
 
 const safeBanner = () =>
@@ -164,6 +244,7 @@ const nearBottom = () => {
   const m = document.querySelector(".messages");
   return !m || m.scrollHeight - m.scrollTop - m.clientHeight < 80;
 };
+const followOn = () => S.config?.ui?.follow !== false;
 
 // Replies never move the chat: you scroll. A new reply shows on the jump
 // button ("1 new reply"); tapping it goes to the start of that reply.
@@ -240,6 +321,7 @@ const liveParts = (t) => {
 };
 const renderLive = () => {
   if (!S.chat) return;
+  const pinned = nearBottom() && followOn();
   document.querySelectorAll(".live-box").forEach((box) => {
     const t = S.chat.turns[+box.dataset.turn];
     if (!t || !t.pending) return;
@@ -248,6 +330,7 @@ const renderLive = () => {
     const d = box.querySelector("details.live");
     if (d && wasOpen === false) d.open = false;
   });
+  if (pinned) scrollDown();
 };
 
 // The site's state in plain words (one vocabulary for the dot, the header and the site sheet).
@@ -1006,14 +1089,14 @@ const editLast = () => {
 // ---------- chat list (drawer) ----------
 const openDrawer = () => {
   S.drawer = true;
-  history.pushState({ layer: "drawer" }, "");
+  syncLayer();
   render();
   setTimeout(() => document.querySelector(".drawer input")?.focus(), 0);
 };
 closeDrawer = () => {
   if (!S.drawer) return;
   S.drawer = false;
-  if (history.state?.layer === "drawer") history.back();
+  syncLayer();
   render();
 };
 
@@ -1182,7 +1265,18 @@ const refreshSiteChats = async () => {
 const promptFolder = () => {
   openSheet("New folder", () => {
     const input = h("input", { placeholder: "Folder name (use / for subfolders)", value: S.folder ? S.folder + "/" : "" });
-    const go = () => makeFolder(input.value).then(closeSheet);
+    let busy = false;
+    const go = async () => {
+      if (busy) return;
+      busy = true;
+      try {
+        if (await makeFolder(input.value)) closeSheet();
+      } catch (e) {
+        toast("Couldn't create the folder: " + e.message, "error");
+      } finally {
+        busy = false;
+      }
+    };
     input.onkeydown = (e) => e.key === "Enter" && go();
     autofocus(input);
     return [input, h("div", { class: "row" }, h("button", { class: "primary", onclick: go }, "Create"))];
@@ -1286,23 +1380,51 @@ PP.askText = askText;
 
 // ---------- sheets ----------
 openSheet = (title, renderFn) => {
-  if (history.state?.layer !== "sheet") history.pushState({ layer: "sheet" }, "");
   S.sheet = { title, render: renderFn };
+  syncLayer();
   render();
 };
 const closeSheet = () => {
   if (!S.sheet) return;
   S.sheet = null;
-  if (history.state?.layer === "sheet") history.back();
+  syncLayer();
   render();
 };
+
 // Back (phone button or browser) closes the top layer: sheet, then drawer.
+// The sheet and the drawer share ONE history entry, which exists exactly while
+// either is open. Closing is never a history.back() that can land after the
+// next sheet has opened (that closed new menus at random): the entry is given
+// back one tick later, and only if nothing is open by then.
+let layerEntry = false; // our history entry exists
+let layerBack = false; // a history.back() of ours is on its way
+const syncLayer = () => {
+  if (layerBack) return; // the popstate of that back calls this again
+  const need = !!(S.sheet || S.drawer);
+  if (need && !layerEntry) {
+    history.pushState({ layer: true }, "");
+    layerEntry = true;
+  } else if (!need && layerEntry) {
+    setTimeout(() => {
+      if (layerBack || S.sheet || S.drawer || !layerEntry) return;
+      layerEntry = false;
+      layerBack = true;
+      history.back();
+    }, 0);
+  }
+};
 window.addEventListener("popstate", () => {
-  const layer = history.state?.layer;
-  const before = !!S.sheet + 2 * S.drawer;
-  if (layer !== "sheet") S.sheet = null;
-  if (layer !== "sheet" && layer !== "drawer") S.drawer = false;
-  if (before !== !!S.sheet + 2 * S.drawer) render();
+  if (layerBack) {
+    layerBack = false;
+    syncLayer(); // something opened while we were going back: give it an entry
+    return;
+  }
+  // The Back button took our entry: close the top layer.
+  layerEntry = false;
+  if (S.sheet) S.sheet = null;
+  else S.drawer = false;
+  syncLayer(); // a layer still open under it gets a fresh entry
+  render();
 });
 
 const renderSheet = () =>
@@ -1326,7 +1448,7 @@ const autofocus = (input, select) => {
 const runFromSheet = (c) => {
   S.sheet = null;
   c.run();
-  if (!S.sheet && history.state?.layer === "sheet") history.back();
+  syncLayer();
   render();
 };
 
@@ -1524,7 +1646,7 @@ const openPlugins = () =>
       h("div", { class: "row" }, h("button", { class: "primary", onclick: reloadPlugins, title: "Ctrl+Shift+R" }, "Reload plugins"), h("button", { onclick: openGuide }, "How to write one")),
       h("p", { class: "muted" }, "Your plugin folder: ", h("code", {}, S.pluginFolder || "?")),
       h("div", { class: "row" }, url, h("button", { onclick: install }, "Install")),
-      h("div", { class: "row" }, h("button", { class: "primary", onclick: () => api("/api/app/action", { action: "pickPlugin" }) }, "Install from a file (.zip or plugin.json)")),
+      h("div", { class: "row" }, h("button", { class: "primary", onclick: openGetSites }, "Get site plugins"), h("button", { class: "primary", onclick: () => api("/api/app/action", { action: "pickPlugin" }) }, "Install from a file (.zip or plugin.json)")),
       h("h3", {}, `Plugins · switches of the preset “${presetOf(prof)?.name || "?"}”`),
       h("div", { class: "row" }, h("p", { class: "muted grow" }, "The order they run in, and your pieces of text, are in the pipeline."), h("button", { class: "small primary", onclick: openPipeline }, "Pipeline")),
       ...prof.plugins.map((e, i) => {
@@ -1542,6 +1664,7 @@ const openPlugins = () =>
             " ",
             h("small", { class: "muted" }, `v${p.manifest?.version || "?"} · ${badge(p)}${p.manifest?.advanced ? " · advanced" : ""}`),
             p.error ? h("div", { class: "error" }, "✕ " + p.error) : null,
+            staleNote(p),
           ),
           h("button", { class: "small", onclick: () => openPluginSettings(e.id), "aria-label": "Settings" }, "⚙"),
           p.source === "builtin" ? h("button", { class: "small", title: "Copy into your plugin folder to edit it", onclick: () => forkPlugin(p.id) }, "Copy") : null,
@@ -1572,6 +1695,31 @@ const openPlugins = () =>
       ...appPartsControls(),
     ];
   });
+
+// A copy of yours with the same id replaces the app's plugin. When the app's own
+// (or downloaded) one is newer, say so and offer to switch back to it.
+const verNewer = (a, b) => {
+  const n = (v) => String(v || "0").split(/[.-]/).map((x) => parseInt(x, 10) || 0);
+  const [x, y] = [n(a), n(b)];
+  for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+  return false;
+};
+const isStale = (p) => p.source === "user" && p.overrides && p.shadows && verNewer(p.shadows, p.manifest?.version);
+const useBuiltin = async (p) => {
+  if (!(await askConfirm(`Remove your copy of ${p.manifest?.name || p.id} (v${p.manifest?.version || "?"}) and use the app's v${p.shadows}? Your copy's files are deleted.`, "Use the app's"))) return;
+  try {
+    await api("/api/plugins/remove", { id: p.id });
+    toast(`Now using ${p.manifest?.name || p.id} v${p.shadows}`);
+    await reloadPlugins();
+    rerenderSheet();
+  } catch (e) {
+    toast(e.message, "error");
+  }
+};
+const staleNote = (p) =>
+  isStale(p)
+    ? h("div", { class: "warn" }, `Your copy is v${p.manifest?.version || "?"}; the app's is v${p.shadows}, and yours is hiding it. `, h("button", { class: "small primary", onclick: () => useBuiltin(p) }, "Use the app's"))
+    : null;
 
 const forkPlugin = async (id) => {
   try {
@@ -1767,6 +1915,7 @@ const appPartsControls = () => {
           " ",
           h("small", { class: "muted" }, `${p.id} · v${p.manifest.version || "?"} · ${p.source === "builtin" ? (p.updated ? "updated" : "built-in") : p.overrides ? "your copy" : "yours"}${isDriver(p) ? " · site driver" : isPart(p) && !loaded.has(p.id) ? " · not loaded" : ""}`),
           p.error ? h("div", { class: "error" }, "✕ " + p.error) : null,
+          staleNote(p),
         ),
         p.source === "builtin" && !SAFE ? h("button", { class: "small", title: "Copy into your plugin folder to edit it", onclick: () => forkPlugin(p.id) }, "Copy") : null,
       ),
@@ -1829,6 +1978,8 @@ const settingsPage = (title, body) =>
 const SETTINGS = [
   ["Look", "Light or dark, accent, text size, UI scale, theme, Enter sends", () => [
     ...lookControls(),
+    h("h3", {}, "Chat"),
+    h("label", { class: "field inline" }, h("span", {}, "Stay at the bottom while a reply comes in (only if you were already there; scrolled up, your place never moves)"), h("input", { type: "checkbox", checked: followOn(), onchange: (e) => ((S.config.ui.follow = e.target.checked), saveConfig()) })),
     h("h3", {}, "Keyboard"),
     h("label", { class: "field inline" }, h("span", {}, "Enter sends (Shift+Enter for a new line)"), h("input", { type: "checkbox", checked: !!S.config.ui.enterSends, onchange: (e) => ((S.config.ui.enterSends = e.target.checked), saveConfig()) })),
   ]],
@@ -1988,7 +2139,7 @@ const openSearch = () =>
     };
     const goTo = async (e) => {
       S.sheet = null;
-      if (history.state?.layer === "sheet") history.back();
+      syncLayer();
       await openChat(e.path);
       if (e.n >= 0) {
         S.highlight = e.n;

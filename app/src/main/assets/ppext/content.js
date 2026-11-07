@@ -195,10 +195,12 @@
   // The reply as Markdown, without any thinking block inside it.
   const answerText = (site, el) => {
     if (!el) return "";
-    if (!(site.thinking || []).some((s) => { try { return el.querySelector(s); } catch (e) { return false; } })) return mdOf(el);
+    // "thinking" boxes and "strip" parts (e.g. source numbers like "-18") never belong in the reply text.
+    const drop = [...(site.thinking || []), ...(site.strip || [])];
+    if (!drop.some((s) => { try { return el.querySelector(s); } catch (e) { return false; } })) return mdOf(el);
     // Hidden parts are judged on the live page; mark them before cloning.
     const clone = el.cloneNode(true);
-    for (const s of site.thinking) try { clone.querySelectorAll(s).forEach((n) => n.remove()); } catch (e) {}
+    for (const s of drop) try { clone.querySelectorAll(s).forEach((n) => n.remove()); } catch (e) {}
     const host = document.createElement("div");
     host.style.cssText = "position:fixed;left:-99999px;top:0;width:800px";
     host.append(clone);
