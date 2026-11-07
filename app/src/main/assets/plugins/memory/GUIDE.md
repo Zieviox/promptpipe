@@ -73,10 +73,12 @@ is. To place its parts apart, use **Add plugin piece**:
 - **AI side (summaries)**: what the AI said: its characters, the story, facts
 - **Recent messages**: the latest messages word for word
 
-Each summary asks the AI for a `### User` part and a `### AI` part in one
-request, so splitting costs no extra requests. Summaries made before (one
-part) go with your side. *Summaries › One summary of both sides* turns the
-split off. Turn the whole Memory row off when you use the parts, or the
+Each part is summarised twice: one request sees only your messages, the
+other only the AI's, so the AI can't take its own words for yours (that costs
+two requests per part). Each side is kept and sent under its own label.
+Summaries made before 2.5 that can't be split (one blob) go first under
+*Your side*, labelled "both sides together". *Summaries › One summary of both
+sides* makes one request per part, labelled the same way. Turn the whole Memory row off when you use the parts, or the
 memory goes twice.
 
 ## Sub-chats

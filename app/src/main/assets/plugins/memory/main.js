@@ -71,6 +71,46 @@ const lineOf = (turn, max, names) => {
 const seenBy = (turns, url, source) => turns.map((t) => !!url && (t.url ? sameUrl(t.url, url) : sameUrl(source || "", url)));
 
 // ---------- pure: LOD files ----------
+// A summary item covers one part. It is either two summaries, `user` and `ai`,
+// each made from only that side's messages (so the sides can't be mixed up),
+// or `both`: one summary of the whole part (the "together" setting, or a file
+// from before 2.5 where the sides couldn't be told apart). `text` is what is
+// sent, with the side named in front of each summary.
+const SIDE = { user: "The user's side", ai: "The AI's side" };
+const textOf = (it) => it.both || ["user", "ai"].filter((k) => it[k]).map((k) => SIDE[k] + ":\n" + it[k]).join("\n\n");
+const mkItem = (from, to, at, body) => {
+  const it = { from, to, at: at || "", user: (body.user || "").trim(), ai: (body.ai || "").trim(), both: (body.both || "").trim() };
+  it.text = textOf(it);
+  return it;
+};
+// What the AI wrote must never pose as structure: marker comments and
+// "### User" / "### AI" heading lines are dropped.
+const clean = (t) =>
+  String(t || "")
+    .split("\n")
+    .filter((l) => !/^\s*<!--.*-->\s*$/.test(l) && !/^\s*#{1,4}\s*(user|ai)\s*:?\s*$/i.test(l))
+    .join("\n")
+    .trim();
+const SIDE_MARK = /^<!-- pp:side (user|ai) -->[ \t]*$/m;
+// Summaries made before 2.3 are in two parts by headings, if the AI wrote them.
+const sidesOf = (text) => {
+  const t = String(text || "");
+  const u = /^#{2,4}\s*User\s*:?\s*$/im.exec(t);
+  const a = /^#{2,4}\s*AI\s*:?\s*$/im.exec(t);
+  if (!u || !a) return null;
+  const cut = (m, other) => t.slice(m.index + m[0].length, other.index > m.index ? other.index : t.length).trim();
+  return { user: cut(u, a), ai: cut(a, u) };
+};
+const bodyFromMd = (body) => {
+  const parts = body.split(new RegExp(SIDE_MARK.source, "m"));
+  if (parts.length > 1) {
+    const o = { user: "", ai: "" };
+    for (let i = 1; i < parts.length; i += 2) o[parts[i]] = (parts[i + 1] || "").trim();
+    return o;
+  }
+  return sidesOf(body) || { both: body };
+};
+const bodyToMd = (it) => (it.both ? it.both : `<!-- pp:side user -->\n${it.user}\n<!-- pp:side ai -->\n${it.ai}`);
 const lodDir = (chat) => (chat && chat.path ? ".memory/" + chat.path.replace(/\.md$/, "") + "/" : "");
 const lodPath = (chat, L) => lodDir(chat) + `lod${L}.md`;
 const lodToMd = (title, L, size, items) =>
@@ -79,7 +119,7 @@ const lodToMd = (title, L, size, items) =>
     "",
     `Summaries of ${size} messages each, made by the Memory plugin. You can edit the text; keep the marker lines.`,
     "",
-    ...items.flatMap((it) => [`<!-- pp:lod ${JSON.stringify({ from: it.from, to: it.to, at: it.at })} -->`, `## Messages ${it.from + 1}-${it.to}`, "", it.text.trim(), ""]),
+    ...items.flatMap((it) => [`<!-- pp:lod ${JSON.stringify({ from: it.from, to: it.to, at: it.at })} -->`, `## Messages ${it.from + 1}-${it.to}`, "", bodyToMd(it), ""]),
   ].join("\n");
 const lodFromMd = (text) => {
   const parts = String(text || "").split(/^<!-- pp:lod (.*?) -->[ \t]*$/m);
@@ -88,7 +128,7 @@ const lodFromMd = (text) => {
     try {
       const info = JSON.parse(parts[i]);
       const body = (parts[i + 1] || "").replace(/^\s*##[^\n]*\n/, "").trim();
-      if (body && Number.isInteger(info.from) && Number.isInteger(info.to)) items.push({ from: info.from, to: info.to, at: info.at || "", text: body });
+      if (body && Number.isInteger(info.from) && Number.isInteger(info.to)) items.push(mkItem(info.from, info.to, info.at, bodyFromMd(body)));
     } catch (e) {}
   }
   return items.sort((a, b) => a.from - b.from);
@@ -159,45 +199,56 @@ const loadStore = async (chat) => {
 const saveLevel = (chat, store, L, K, message) =>
   PP.api("/api/history/save", { files: [{ path: lodPath(chat, L), text: lodToMd(chat.meta && chat.meta.title, L, K ** L, store[L] || []) }], message: "memory: " + message });
 
-// ---------- pure: the two sides of a summary ----------
-// Summaries come in two parts, so your side and the AI's side can be separate
-// pieces in the pipeline. Older summaries (one part) stay whole.
-const SIDES_ASK = 'Write the summary in two parts, each starting with its heading line: "### User" (what the user said, did, decided and wants) and then "### AI" (what the AI said and did: its characters, the story and facts it gave).';
-const sidesOf = (text) => {
-  const t = String(text || "");
-  const u = /^#{2,4}\s*User\s*:?\s*$/im.exec(t);
-  const a = /^#{2,4}\s*AI\s*:?\s*$/im.exec(t);
-  if (!u || !a) return null;
-  const cut = (m, other) => t.slice(m.index + m[0].length, other.index > m.index ? other.index : t.length).trim();
-  return { user: cut(u, a), ai: cut(a, u) };
-};
-
 // ---------- making summaries ----------
 const summaryStack = async (s) => {
   const lib = await readJson(PROMPTS, { prompts: [] });
   const ids = s.stackMode === "own" ? s.stack || [] : s.stackMode === "none" ? [] : (PP.settings ? PP.settings("system-prompt").stack : []) || [];
   return ids.map((id) => lib.prompts.find((p) => p.id === id)).filter(Boolean);
 };
-const summaryRequest = async (s, parts, ofSummaries) => {
+// Each side is summarised on its own, from a request that holds only that
+// side's messages, so the AI can't take its own words for the user's (or the
+// other way round). The request says so, too.
+const SIDE_ASK = {
+  user: "Below are only the user's messages. The AI's replies are not included: do not guess or add them. Summarise what the user said, did, decided and wants. Write nothing the user did not say.",
+  ai: "Below are only the AI's messages. The user's messages are not included. Summarise what the AI said and did: its characters, the story and the facts it gave. Do not credit any of it to the user.",
+};
+const WHAT = { user: "The user's messages", ai: "The AI's messages" };
+const summaryRequest = async (s, parts, ofSummaries, side) => {
   const stack = (await summaryStack(s)).map((p) => p.text.trim()).filter(Boolean);
   const out = [];
   if (stack.length) out.push("[System instructions]\n" + stack.join("\n\n") + "\n[End of system instructions]");
   out.push(s.summaryPrompt.trim());
-  if (s.sides !== "together") out.push(SIDES_ASK);
-  out.push(ofSummaries ? "[Summaries of consecutive parts, oldest first]\n" + parts.join("\n\n---\n\n") + "\n[End of summaries]" : "[Conversation]\n" + parts.join("\n\n") + "\n[End of conversation]");
+  if (side) out.push(SIDE_ASK[side]);
+  const what = side ? WHAT[side] : "Conversation";
+  out.push(ofSummaries ? `[Summaries of consecutive parts${side ? ", " + SIDE[side].toLowerCase() : ""}, oldest first]\n` + parts.join("\n\n---\n\n") + "\n[End of summaries]" : `[${what}]\n` + parts.join("\n\n") + `\n[End of ${what.toLowerCase()}]`);
   return out.join("\n\n");
+};
+// One side of a turn, as a line.
+const sideLine = (t, side, names) => (side === "user" ? (t.user ? "User: " + t.user : "") : t.ai ? ((names && siteName(t.url)) || "AI") + ": " + t.ai : "");
+const ask = async (ctx, request) => {
+  const r = await PP.ask(request, { profile: ctx.profile && ctx.profile.name, hooks: !!ctx.settings.summaryHooks });
+  const text = clean(r.reply);
+  if (!text) throw new Error("the summary came back empty");
+  return text;
 };
 const makeItem = async (ctx, store, turns, names, m, K) => {
   const s = ctx.settings;
-  const parts =
-    m.L === 1
-      ? turns.slice(m.from, m.to).map((t) => lineOf(t, 0, names))
-      : Array.from({ length: K }, (_, k) => itemAt(store, m.L - 1, m.from + k * K ** (m.L - 1), m.from + (k + 1) * K ** (m.L - 1)).text);
   if (!PP.ask) throw new Error("this app version has no PP.ask (update the app)");
-  const r = await PP.ask(await summaryRequest(s, parts, m.L > 1), { profile: ctx.profile && ctx.profile.name, hooks: !!s.summaryHooks });
-  const text = (r.reply || "").trim();
-  if (!text) throw new Error("the summary came back empty");
-  store[m.L] = [...(store[m.L] || []).filter((it) => it.from !== m.from), { from: m.from, to: m.to, at: new Date().toISOString(), text }].sort((a, b) => a.from - b.from);
+  // A part above level 1 is made from the level below it.
+  const subs = m.L > 1 ? Array.from({ length: K }, (_, k) => itemAt(store, m.L - 1, m.from + k * K ** (m.L - 1), m.from + (k + 1) * K ** (m.L - 1))) : null;
+  const mine = subs ? null : turns.slice(m.from, m.to);
+  let body;
+  // One summary of both sides: asked for, or the parts below can't be split.
+  if (s.sides === "together" || (subs && subs.some((x) => x.both))) {
+    body = { both: await ask(ctx, await summaryRequest(s, subs ? subs.map((x) => x.text) : mine.map((t) => lineOf(t, 0, names)), !!subs)) };
+  } else {
+    body = {};
+    for (const side of ["user", "ai"]) {
+      const parts = subs ? subs.map((x) => x[side]).filter(Boolean) : mine.map((t) => sideLine(t, side, names)).filter(Boolean);
+      body[side] = parts.length ? await ask(ctx, await summaryRequest(s, parts, !!subs, side)) : "";
+    }
+  }
+  store[m.L] = [...(store[m.L] || []).filter((it) => it.from !== m.from), mkItem(m.from, m.to, new Date().toISOString(), body)].sort((a, b) => a.from - b.from);
   await saveLevel(ctx.chat, store, m.L, K, `level ${m.L}, messages ${m.from + 1}-${m.to} (${(ctx.chat.meta && ctx.chat.meta.title) || ctx.chat.path})`);
 };
 // Make the summaries the plan is missing, one at a time, at most `limit`.
@@ -229,13 +280,13 @@ const block = (pinned, summaries, lines, note) => {
   if (!pinned && !summaries.length && !lines.length) return null;
   const out = [];
   if (pinned) out.push("Facts to remember:\n" + pinned);
-  if (summaries.length) out.push("Summary of the earlier conversation, oldest first:\n" + summaries.join("\n\n"));
+  if (summaries.length) out.push("Summary of the earlier conversation, oldest first (each part says whose side it tells, the user's or the AI's):\n" + summaries.map((x) => x.text).join("\n\n"));
   if (lines.length) out.push((summaries.length ? "More recent messages" : "Earlier messages") + (note || "") + ":\n" + lines.join("\n\n"));
   return wrapMemory(out.join("\n\n"));
 };
 // The same memory as separate pieces (pinned facts, your side, the AI's side,
-// recent messages). A summary in one part (made before 2.3, or with "together")
-// goes with your side.
+// recent messages). A summary of both sides in one ("together", or from before
+// 2.5) goes with the first of the two, under a label that says so.
 const PIECES = {
   pinned: "Pinned facts",
   you: "Your side (summaries)",
@@ -247,14 +298,14 @@ const labelled = (title, name, body) => `[${title}]\n${body}\n[End of ${name}]`;
 const pieceOf = (m, part) => {
   if (part === "pinned") return m.pinned ? labelled("Facts to remember", "facts", m.pinned) : "";
   if (part === "recent") return m.lines.length ? labelled((m.summaries.length ? "More recent messages" : "Earlier messages") + (m.linesNote || ""), "messages", m.lines.join("\n\n")) : "";
-  const sides = m.summaries.map((x) => sidesOf(x));
-  const mine = part === "you"
-    ? m.summaries.map((x, i) => (sides[i] ? sides[i].user : x)).filter(Boolean)
-    : sides.map((x) => x && x.ai).filter(Boolean);
-  if (!mine.length) return "";
-  return part === "you"
-    ? labelled("Earlier in this conversation, the user's side (summaries, oldest first)", "the user's side", mine.join("\n\n"))
-    : labelled("Earlier in this conversation, the AI's side (summaries, oldest first)", "the AI's side", mine.join("\n\n"));
+  // Summaries that could not be split (together, or made before 2.5) say so
+  // and go first, being the oldest; they never pose as one side.
+  const both = m.summaries.filter((x) => x.both).map((x) => x.both);
+  const one = m.summaries.filter((x) => !x.both).map((x) => x[part === "you" ? "user" : "ai"]).filter(Boolean);
+  const out = [];
+  if (both.length && part === "you") out.push(labelled("Earlier in this conversation, both sides together (summaries, oldest first)", "both sides", both.join("\n\n")));
+  if (one.length) out.push(labelled(part === "you" ? "Earlier in this conversation, the user's side (summaries, oldest first)" : "Earlier in this conversation, the AI's side (summaries, oldest first)", part === "you" ? "the user's side" : "the AI's side", one.join("\n\n")));
+  return out.join("\n\n");
 };
 const result = (pinned, summaries, lines, linesNote, note) => ({ text: block(pinned, summaries, lines, linesNote), pinned, summaries, lines, linesNote: linesNote || "", note });
 // The pipeline's "at depth N" pieces: each goes N messages up from the end of
@@ -329,10 +380,10 @@ const build = async (text, ctx) => {
     const used = [];
     for (let L = p.maxL; L >= 1; L--) {
       let n = 0;
-      for (let f = p.b[L + 1]; f < p.b[L]; f += K ** L) summaries.push(itemAt(store, L, f, f + K ** L).text), n++;
+      for (let f = p.b[L + 1]; f < p.b[L]; f += K ** L) summaries.push(itemAt(store, L, f, f + K ** L)), n++;
       if (n) used.push(`${n} at level ${L}`);
     }
-    const c = clipped(raw(p.b[1]), s, budget, fixed + summaries.reduce((a, x) => a + x.length + 2, 0));
+    const c = clipped(raw(p.b[1]), s, budget, fixed + summaries.reduce((a, x) => a + x.text.length + 2, 0));
     return result(pinned, summaries, c.lines, c.dropped ? ` (${c.dropped} left out to fit)` : "", `messages 1-${p.b[1]} as summaries (${used.join(", ") || "none yet"}), ${c.lines.length} in full${skipNote}${note}`);
   }
   const c = clipped(raw(0), s, budget, fixed);
@@ -513,4 +564,4 @@ PP.plugin({
 });
 
 // For tests and other plugins: the pure parts.
-PP.memory = { plan, lodToMd, lodFromMd, lodPath, seenBy, lineOf, manySites, siteName, sidesOf, pieceOf };
+PP.memory = { plan, lodToMd, lodFromMd, lodPath, seenBy, lineOf, manySites, siteName, sidesOf, pieceOf, mkItem, clean, sideLine, summaryRequest };
