@@ -645,6 +645,7 @@ const item = (o) => {
   );
 };
 
+PP.item = (o) => item(o); // for plugins that draw sheets (same rows as the app)
 const tagChip = (t, { onRemove, onBump, dim } = {}) =>
   h(
     "span",
@@ -1386,30 +1387,30 @@ const openGit = () =>
     ];
   });
 
+// A switch between a few options, shown at the end of a row.
+const seg = (opts, cur, pick, aria = "", disabled = false) =>
+  h("div", { class: "seg" }, opts.map(([v, l]) => h("button", { class: v === cur ? "on" : "", "aria-pressed": String(v === cur), "aria-label": (aria ? aria + " " : "") + l, disabled, onclick: () => pick(v) }, l)));
+const segRow = (id, label, sub, control) => h("div", { class: "it", "data-row": id }, h("div", { class: "g" }, label, sub ? h("small", {}, sub) : null), control);
 const lookControls = () => {
   const themes = [...S.plugins.values()].filter(isTheme);
+  const scale = Math.round(S.config.ui.scale * 100);
+  const text = +S.config.ui.text || 16;
+  const themeName = (themes.find((t) => t.id === S.config.ui.theme)?.manifest.name) || "Default";
   return [
-    h("h3", {}, "Look"),
-    h("div", { class: "field" }, h("span", {}, "UI scale (Ctrl+= / Ctrl+- / Ctrl+0 on a keyboard)"),
-      h("div", { class: "chips" },
-        [90, 100, 115, 130].map((v) => h("button", { class: "chip" + (Math.round(S.config.ui.scale * 100) === v ? " current" : ""), "aria-pressed": String(Math.round(S.config.ui.scale * 100) === v), onclick: () => (setScale(v / 100), rerenderSheet()) }, v + "%")),
-        [90, 100, 115, 130].includes(Math.round(S.config.ui.scale * 100)) ? null : h("span", { class: "muted" }, "now " + Math.round(S.config.ui.scale * 100) + "%"))),
-    h("div", { class: "field" }, h("span", {}, "Light or dark"),
-      h("div", { class: "themes" }, [["", "Like the system"], ["dark", "Dark"], ["light", "Light"]].map(([v, l]) =>
-        h("button", { class: "theme-pick" + ((S.config.ui.mode || "") === v ? " current" : ""), "aria-pressed": String((S.config.ui.mode || "") === v), disabled: !!S.config.ui.theme, onclick: () => setLook("mode", v) }, l)))),
-    h("div", { class: "field" }, h("span", {}, "Accent"),
-      h("div", { class: "themes" }, Object.entries(ACCENTS).map(([v, l]) =>
-        h("button", { class: "theme-pick accent-pick" + ((S.config.ui.accent || "") === v ? " current" : ""), "data-swatch": v || "orange", "aria-pressed": String((S.config.ui.accent || "") === v), onclick: () => setLook("accent", v) }, h("span", { class: "swatch", "aria-hidden": "true" }), l)))),
-    h("div", { class: "field" }, h("span", {}, "Text size"),
-      h("div", { class: "row stepper" },
-        h("button", { class: "small", "aria-label": "Smaller text", disabled: (+S.config.ui.text || 16) <= 13, onclick: () => setLook("text", (+S.config.ui.text || 16) - 1) }, "A−"),
-        h("strong", {}, `${+S.config.ui.text || 16} px`),
-        h("button", { class: "small", "aria-label": "Bigger text", disabled: (+S.config.ui.text || 16) >= 22, onclick: () => setLook("text", (+S.config.ui.text || 16) + 1) }, "A+"))),
-    h("div", { class: "field" }, h("span", {}, "Theme (install more like plugins; a theme brings its own colours)"),
-      h("div", { class: "themes" }, [{ id: "", manifest: { name: "Default", description: "Follows Light or dark and Accent above" } }, ...themes].map((t) =>
-        h("button", { class: "theme-pick" + ((S.config.ui.theme || "") === t.id ? " current" : ""), title: t.manifest.description || "", onclick: () => setTheme(t.id) }, t.manifest.name)))),
+    segRow("look.mode", "Light or dark", S.config.ui.theme ? "A theme sets its own colours" : "", seg([["", "System"], ["dark", "Dark"], ["light", "Light"]], S.config.ui.mode || "", (v) => setLook("mode", v), "", !!S.config.ui.theme)),
+    item({ id: "look.accent", label: "Accent", sub: ACCENTS[S.config.ui.accent || ""], right: svgIcon(S.dd.accent ? "up" : "down"), onclick: () => ddToggle("accent") }),
+    S.dd.accent ? h("div", { class: "themes" }, Object.entries(ACCENTS).map(([v, l]) =>
+      h("button", { class: "theme-pick accent-pick" + ((S.config.ui.accent || "") === v ? " current" : ""), "data-swatch": v || "orange", "aria-pressed": String((S.config.ui.accent || "") === v), onclick: () => setLook("accent", v) }, h("span", { class: "swatch", "aria-hidden": "true" }), l))) : null,
+    segRow("look.scale", "UI scale", "Text and controls. Applies at once." + ([90, 100, 115, 130].includes(scale) ? "" : " Now " + scale + "%."), seg([[90, "90%"], [100, "100%"], [115, "115%"], [130, "130%"]], scale, (v) => (setScale(v / 100), rerenderSheet()), "UI scale")),
+    segRow("look.text", "Text size", `${text} px`, h("div", { class: "seg" },
+      h("button", { "aria-label": "Smaller text", disabled: text <= 13, onclick: () => setLook("text", text - 1) }, "A−"),
+      h("button", { "aria-label": "Bigger text", disabled: text >= 22, onclick: () => setLook("text", text + 1) }, "A+"))),
+    item({ id: "look.theme", label: "Theme", sub: themeName + " · install more as plugins", right: svgIcon(S.dd.theme ? "up" : "down"), onclick: () => ddToggle("theme") }),
+    S.dd.theme ? h("div", { class: "themes" }, [{ id: "", manifest: { name: "Default", description: "Follows Light or dark and Accent above" } }, ...themes].map((t) =>
+      h("button", { class: "theme-pick" + ((S.config.ui.theme || "") === t.id ? " current" : ""), title: t.manifest.description || "", onclick: () => setTheme(t.id) }, t.manifest.name))) : null,
   ];
 };
+
 
 // App parts: the core/ui plugins the app is made of, which ones are yours, and
 // a way out (safe mode) if one of yours breaks.

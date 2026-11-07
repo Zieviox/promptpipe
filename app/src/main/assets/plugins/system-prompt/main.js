@@ -75,11 +75,13 @@ const importPrompts = (files) =>
   })().catch((e) => PP.toast(e.message, "error"));
 const pickAndImport = () => PP.pickFiles(importPrompts, { multiple: true, accept: ".md,.markdown,.txt,.json,text/*" });
 
+// The library as the wireframe has it: the prompts as rows, a page for each one, and Manage.
 const openLibrary = (ctx) => {
+  let view = null; // id of the prompt on show, or "new"
+  let editing = false;
   let query = "";
-  let editing = null;
-  let draft = { name: "", text: "" };
   const h = PP.h;
+  const item = (o) => PP.item(o);
   const stack = () => stackOf(ctx.settings);
   const setStack = (ids) => {
     ctx.set("stack", ids);
@@ -94,92 +96,77 @@ const openLibrary = (ctx) => {
     [s[i], s[j]] = [s[j], s[i]];
     setStack(s);
   };
+  const snippet = (p) => p.text.replace(/\s+/g, " ").slice(0, 90) + (p.text.length > 90 ? "…" : "");
+  const back = h("button", { class: "ghost back", onclick: () => ((view = null), (editing = false), PP.render()) }, "‹ System prompts");
+
   const editor = (p) => {
-    const name = h("input", { placeholder: "Name (optional)", value: p.name || "" });
-    const text = h("textarea", { rows: 6, placeholder: "The prompt" }, p.text || "");
-    return h("div", { class: "sp-edit", "data-editing": p.id ? "1" : null }, name, text, h("div", { class: "row" },
+    const name = h("input", { placeholder: "Name (optional)", value: p.name || "", "aria-label": "Name" });
+    const text = h("textarea", { rows: 8, placeholder: "The prompt", "aria-label": "The prompt" }, p.text || "");
+    return h("div", { class: "sp-edit" }, name, text, h("div", { class: "row" },
       h("button", { class: "primary", onclick: async () => {
         const t = text.value.trim();
         if (!t) return PP.toast("Write something first", "error");
-        if (p.id) Object.assign(byId(p.id), { name: name.value.trim(), text: t, edited: new Date().toISOString() });
-        else {
+        if (p.id) {
+          Object.assign(byId(p.id), { name: name.value.trim(), text: t, edited: new Date().toISOString() });
+          await save("edited " + nameOf(byId(p.id)));
+        } else {
           const n = { id: newId(), name: name.value.trim(), text: t, pinned: false, created: new Date().toISOString() };
           lib.prompts.unshift(n);
-          setStack([...stack(), n.id]);
-          draft = { name: "", text: "" };
-          newOpen = false;
+          view = n.id;
+          await save("added " + nameOf(n));
         }
-        editing = null;
-        await save(p.id ? "edited " + nameOf(byId(p.id)) : "added " + nameOf(lib.prompts[0]));
+        editing = false;
         PP.render();
-      } }, p.id ? "Save" : "Save and stack it"),
-      p.id ? h("button", { onclick: () => ((editing = null), PP.render()) }, "Cancel") : null));
+      } }, "Save"),
+      h("button", { onclick: () => ((editing = false), p.id || (view = null), PP.render()) }, "Cancel")));
   };
-  PP.sheet("System prompts", () => {
-    const s = stack();
-    const q = query.toLowerCase();
-    const shown = lib.prompts
-      .filter((p) => !q || (p.name + " " + p.text).toLowerCase().includes(q))
-      .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+
+  const promptPage = () => {
+    if (view === "new") return [back, editor({ name: "", text: "" })];
+    const p = byId(view);
+    if (!p) return ((view = null), listPage());
+    if (editing) return [back, editor(p)];
     return [
-      h("h3", {}, "Stack · sent in this order"),
-      s.length
-        ? h("div", { class: "sp-stack" }, s.map((id, i) => {
-            const p = byId(id);
-            return h("div", { class: "sp-row" },
-              h("span", { class: "sp-num" }, String(i + 1)),
-              h("span", { class: "sp-name grow" }, nameOf(p)),
-              h("button", { class: "small", "aria-label": "Move up", disabled: i === 0, onclick: () => move(id, -1) }, "↑"),
-              h("button", { class: "small", "aria-label": "Move down", disabled: i === s.length - 1, onclick: () => move(id, 1) }, "↓"),
-              h("button", { class: "small", title: "Take it off the stack (stays in the library)", onclick: () => setStack(s.filter((x) => x !== id)) }, "Remove"));
-          }))
-        : h("p", { class: "muted" }, "Nothing stacked: messages go without a system prompt. Tap Use on a prompt below."),
-      ctx.on ? null : h("p", { class: "warn" }, "The System prompt switch is off, so the stack isn't sent."),
-      h("h3", {}, "New prompt"),
-      newOpen || !lib.prompts.length ? editor(draft) : h("div", { class: "row" }, h("button", { class: "small primary", onclick: () => ((newOpen = true), PP.render()) }, "+ New prompt")),
-      h("div", { class: "row" },
-        h("h3", { class: "grow" }, `Library · ${lib.prompts.length}`),
-        lib.prompts.length ? h("button", { class: "small", onclick: () => (unfolded.size ? unfolded.clear() : lib.prompts.forEach((p) => unfolded.add(p.id)), PP.render()) }, unfolded.size ? "Fold all" : "Unfold all") : null),
-      h("div", { class: "row" },
-        h("button", { class: "small", onclick: pickAndImport }, "Import…"),
-        lib.prompts.length ? h("button", { class: "small", onclick: exportAll }, "Export all") : null),
-      lib.prompts.length > 4 ? h("input", { type: "search", placeholder: "Search prompts", value: query, oninput: (e) => ((query = e.target.value), PP.render()), "data-keep": "sp-search" }) : null,
-      ...shown.map((p) => editing === p.id
-        ? editor(p)
-        : h("div", { class: "sp-item" + (p.pinned ? " pinned" : "") },
-            h("div", { class: "sp-head" },
-              h("button", { class: "ghost grow sp-fold", "aria-expanded": String(unfolded.has(p.id)), title: unfolded.has(p.id) ? "Fold" : "Unfold", onclick: () => (unfolded.has(p.id) ? unfolded.delete(p.id) : unfolded.add(p.id), PP.render()) },
-                (unfolded.has(p.id) ? "▾ " : "▸ ") + (p.pinned ? "📌 " : "") + nameOf(p)),
-              s.includes(p.id) ? h("span", { class: "muted" }, "in stack") : h("button", { class: "small primary", onclick: () => setStack([...s, p.id]) }, "Use")),
-            unfolded.has(p.id)
-              ? [
-                  h("div", { class: "sp-text muted" }, p.text),
-                  h("div", { class: "row" },
-                    h("button", { class: "small", onclick: async () => ((p.pinned = !p.pinned), await save((p.pinned ? "pinned " : "unpinned ") + nameOf(p)), PP.render()) }, p.pinned ? "Unpin" : "Pin"),
-                    h("button", { class: "small", onclick: () => {
-                      editing = p.id;
-                      PP.render();
-                      // Bring the editor into view and put the cursor in it.
-                      setTimeout(() => {
-                        const ta = document.querySelector(".sheet .sp-edit[data-editing] textarea");
-                        ta?.focus();
-                        ta?.scrollIntoView({ block: "center" });
-                      }, 0);
-                    } }, "Edit"),
-                    h("button", { class: "small", onclick: () => PP.copy(p.text) }, "Copy"),
-                    h("button", { class: "small", onclick: () => exportOne(p) }, "Export"),
-                    h("button", { class: "small danger", onclick: async () => {
-                      if (!(await PP.confirm(`Delete "${nameOf(p)}" from the library?`))) return;
-                      lib.prompts = lib.prompts.filter((x) => x !== p);
-                      unfolded.delete(p.id);
-                      setStack(s.filter((x) => x !== p.id));
-                      await save("deleted " + nameOf(p));
-                    } }, "Delete")),
-                ]
-              : h("div", { class: "sp-text muted sp-one" }, p.text.replace(/\s+/g, " ").slice(0, 90) + (p.text.length > 90 ? "…" : "")))),
-      h("p", { class: "muted" }, "Saved in your history folder as " + FILE + " (git keeps every version). The stack is per profile; Send it / wrapper are under the ⚙."),
+      back,
+      item({ id: "sp.edit", label: nameOf(p), sub: snippet(p), chev: true, onclick: () => ((editing = true), PP.render()) }),
+      h("h3", {}, "Use"),
+      item({ id: "sp.add", label: "Add to this profile", sub: "A copy goes in as a row you can move anywhere", onclick: () => PP.addPromptRow(p.name || nameOf(p), p.text) }),
+      item({ id: "sp.pin", label: p.pinned ? "Unpin" : "Pin to the top", onclick: async () => ((p.pinned = !p.pinned), await save((p.pinned ? "pinned " : "unpinned ") + nameOf(p)), PP.render()) }),
+      item({ id: "sp.copy", label: "Copy the text", onclick: () => PP.copy(p.text) }),
+      item({ id: "sp.exp", label: "Export as Markdown", onclick: () => exportOne(p) }),
+      item({ id: "sp.del", label: "Delete", cls: "danger", onclick: async () => {
+        if (!(await PP.confirm(`Delete "${nameOf(p)}" from the library? Profiles that use it keep their own copy.`))) return;
+        lib.prompts = lib.prompts.filter((x) => x !== p);
+        setStack(stack().filter((x) => x !== p.id));
+        view = null;
+        await save("deleted " + nameOf(p));
+        PP.render();
+      } }),
     ];
-  });
+  };
+
+  const listPage = () => {
+    const q = query.toLowerCase();
+    const shown = lib.prompts.filter((p) => !q || (p.name + " " + p.text).toLowerCase().includes(q)).sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+    const s = stack();
+    return [
+      PP.openSettings ? h("button", { class: "ghost back", onclick: () => PP.openSettings() }, "‹ Settings") : null,
+      lib.prompts.length > 4 ? h("input", { type: "search", placeholder: "Search prompts", value: query, oninput: (e) => ((query = e.target.value), PP.render()), "data-keep": "sp-search" }) : null,
+      ...shown.map((p) => item({ id: "sp." + p.id, label: (p.pinned ? "📌 " : "") + nameOf(p), sub: snippet(p), chev: true, onclick: () => ((view = p.id), PP.render()) })),
+      lib.prompts.length ? null : h("p", { class: "muted" }, "No prompts yet. Write one below."),
+      s.length ? h("h3", {}, "Stacked the older way (still sent, in this order)") : null,
+      ...s.map((id, i) => h("div", { class: "it" },
+        h("div", { class: "g" }, `${i + 1} · ${nameOf(byId(id))}`),
+        h("button", { class: "small", "aria-label": "Move up", disabled: i === 0, onclick: () => move(id, -1) }, "↑"),
+        h("button", { class: "small", "aria-label": "Move down", disabled: i === s.length - 1, onclick: () => move(id, 1) }, "↓"),
+        h("button", { class: "small", title: "Take it off the stack (stays in the library)", onclick: () => setStack(s.filter((x) => x !== id)) }, "Remove"))),
+      h("h3", {}, "Manage"),
+      item({ id: "sp.new", label: "New system prompt", onclick: () => ((view = "new"), (editing = true), PP.render()) }),
+      item({ id: "sp.imp", label: "Import system prompts…", onclick: pickAndImport }),
+      lib.prompts.length ? item({ id: "sp.expall", label: "Export all system prompts", onclick: exportAll }) : null,
+    ];
+  };
+  PP.sheet("System prompts", () => (view ? promptPage() : listPage()));
 };
 
 // What the library sheet needs when opened from Settings or Find (not from a profile row).

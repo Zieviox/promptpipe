@@ -202,6 +202,15 @@ const PP = (window.PP = {
   // A sheet of the plugin's own: render() returns its elements and runs again on PP.render().
   sheet: (title, renderFn) => openSheet(title, renderFn),
   render: () => render(),
+  // Add a system prompt row (a copy of the text) to the active profile, before "Your message".
+  addPromptRow: (name, text) => {
+    const prof = profile();
+    const at = prof.pipe.rows.findIndex((r) => r.type === "message");
+    prof.pipe.rows.splice(Math.max(0, at), 0, PP.pipeline.piece(name || "", text));
+    saveConfig();
+    render();
+    toast("Added to " + prof.name);
+  },
   // Another plugin's settings for the active profile (read only), e.g. PP.settings("system-prompt").stack.
   settings: (id) => settingsFor(id),
   // The site plugin of the active profile ({ name, url, ... }).
