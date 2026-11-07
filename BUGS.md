@@ -86,6 +86,7 @@ Build the current batch: `cd /root/promptpipe && git pull origin claude/project-
 | 60 | Turning plugins on and off resets the sheet's place; you scroll again | fixed (batch 1 + 2) | Same cause as #2. Tested: toggling keeps the place. A different sheet opening now starts at its top; the same sheet redrawn keeps its place. |
 | 61 | Editing a system prompt scrolls too far from it | fixed (batch 2) | Edit now brings the editor into view and puts the cursor in it. |
 | 62 | System prompts need a collapse | fixed (batch 2, System prompt 2.1.0) | Library entries are folded to one line; tap to unfold; Fold all / Unfold all; "+ New prompt" is folded until you want it. |
+| 64 | Hold (long-press) no longer selects text; thinking glitches while a reply comes in (2026-11-07) | fixed (batch 3) | Causes, both reproduced: the long-press opened the message menu (fixed in batch 2); and every chunk of a streaming reply rebuilt the live box, so an unfolded Thinking closed again within 0.1 s and any selection was torn out. The live box is now built once and updated in place (an unfolded fold stays open, even through a full redraw), and while you select text in it the box waits and then catches up. |
 | 63 | The UI needs a massive cleanup | open | Gtex, 2026-11-07. Plan is a separate redesign pass before any rebuild. |
 
 ## 5. Sub-chats, Memory, pipeline
@@ -119,6 +120,7 @@ Build the current batch: `cd /root/promptpipe && git pull origin claude/project-
 
 Every fixed bug above came from one of these. Build them in from the start.
 
+0. **Fix causes, not symptoms.** Bugs 1-3 and 64 were all one disease: a screen that is thrown away and rebuilt, then patched to remember. In this branch the remembering (`snapshotView` / `restoreView` in chat-ui) is a stopgap and the live reply box is the model to copy: build nodes once, update them in place, never rebuild what a person is touching. No guard layers on top of a design that needs them.
 1. **A redraw never resets anything.** Scroll place of every list, focus, text selection, typed text and folded/unfolded state must survive. Best: update in place and never rebuild what the person is using; if a screen is rebuilt, carry all of it over. (Bugs 2, 3, 27, 57, 60.)
 2. **Layers are a stack, not a pile of history calls.** Sheets, menus and the chats list are one stack with one back-button entry. Closing and opening in the same moment must be safe. (Bug 1.)
 3. **Never swallow an error.** Every action that can fail says so on screen, with the reason, and leaves the person where they were. A button that does nothing is the worst bug. (Bugs 3, 5.)

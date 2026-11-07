@@ -162,8 +162,10 @@ const tagInput = (placeholder, onAdd, keep) =>
 
 // ---------- rendering ----------
 
-// Everything is rebuilt on a redraw, so what the person is doing has to be carried
-// over by hand: where each list is scrolled, and what they have typed into a
+// STOPGAP, not the design: render() rebuilds the whole screen, so what the person
+// is doing has to be carried over by hand. The real fix is a UI that updates in
+// place (the live reply box already does, see syncLive); when the screens are
+// reworked this whole block should go. What is carried over: where each list is scrolled, and what they have typed into a
 // sheet's fields. Without this, lists jumped back to the top and sheets lost
 // their text whenever anything in the background redrew.
 const SCROLLERS = ".messages, .drawer, .chat-list, .sheet, .sheet-body, .pipe-preview, .core-log, .models, .tag-filter, .blocks";
@@ -352,22 +354,54 @@ const composerProgress = () => {
 // The last line of the thinking so far, for the one-line "Thinking · …".
 const lastLine = (text) => (String(text).trim().split("\n").filter((l) => l.trim()).pop() || "").replace(/[*_#`>]/g, "").slice(-120);
 // The waiting message: thinking (one line, tap to unfold) and the reply so far, as the page shows them.
-const liveParts = (t) => {
+// A live box is built once and then UPDATED IN PLACE as the page's text grows: the
+// nodes stay, so a fold you opened stays open, a scroll stays, and text you are
+// selecting is not torn out from under your finger. (Rebuilding the box on every
+// chunk collapsed the thinking and cleared selections within a tenth of a second.)
+const setHtml = (el, html) => {
+  if (el._html === html) return;
+  el._html = html;
+  el.innerHTML = html;
+};
+const syncLive = (box, t) => {
   const L = t.live || {};
-  return [
-    L.thinking
-      ? h("details", { class: "thinking live", open: !!S.thinkingOpen },
-          h("summary", {}, L.reply ? "Thought" : h("span", { class: "think-line" }, h("span", { class: "think-mark", "aria-hidden": "true" }), "Thinking", h("span", { class: "think-last" }, " · " + lastLine(L.thinking)))),
-          h("div", { class: "md", html: mdToHtml(L.thinking) }))
-      : null,
-    L.reply ? h("div", { class: "text md" }, h("div", { html: mdToHtml(L.reply) })) : null,
-    h(
-      "div",
-      { class: "text muted progress-line" },
-      t.progress || "…",
-      t.page != null ? h("button", { class: "ghost small", title: "Stop waiting for this reply", onclick: () => api("/api/site", { cmd: "cancel", page: t.page }).catch((e) => toast(e.message, "error")) }, "Stop waiting") : null,
-    ),
-  ];
+  let det = box.querySelector(":scope > details.live");
+  let body = box.querySelector(":scope > .live-reply");
+  let line = box.querySelector(":scope > .progress-line");
+  if (!line) {
+    line = h("div", { class: "text muted progress-line" }, h("span", { class: "live-progress-text" }));
+    box.append(line);
+  }
+  if (L.thinking) {
+    if (!det) {
+      det = h("details", { class: "thinking live", open: t.liveOpen ?? !!S.thinkingOpen, ontoggle: (e) => (t.liveOpen = e.target.open) }, h("summary", {}), h("div", { class: "md" }));
+      box.prepend(det);
+    }
+    const sum = det.firstChild;
+    const key = L.reply ? "Thought" : "Thinking · " + lastLine(L.thinking);
+    if (sum._key !== key) {
+      sum._key = key;
+      sum.replaceChildren(L.reply ? "Thought" : h("span", { class: "think-line" }, h("span", { class: "think-mark", "aria-hidden": "true" }), "Thinking", h("span", { class: "think-last" }, " · " + lastLine(L.thinking))));
+    }
+    setHtml(det.lastChild, mdToHtml(L.thinking));
+  } else det?.remove();
+  if (L.reply) {
+    if (!body) {
+      body = h("div", { class: "text md live-reply" }, h("div"));
+      line.before(body);
+    }
+    setHtml(body.firstChild, mdToHtml(L.reply));
+  } else body?.remove();
+  line.firstChild.textContent = t.progress || "…";
+  const stop = line.querySelector("button");
+  if (t.page != null && !stop) line.append(h("button", { class: "ghost small", title: "Stop waiting for this reply", onclick: () => api("/api/site", { cmd: "cancel", page: t.page }).catch((e) => toast(e.message, "error")) }, "Stop waiting"));
+  else if (t.page == null && stop) stop.remove();
+};
+// Text being selected inside a live box is left alone until the selection ends,
+// then the box catches up.
+const selectingIn = (box) => {
+  const sel = window.getSelection();
+  return !!sel && !sel.isCollapsed && !!sel.anchorNode && box.contains(sel.anchorNode);
 };
 const renderLive = () => {
   if (!S.chat) return;
@@ -375,13 +409,15 @@ const renderLive = () => {
   document.querySelectorAll(".live-box").forEach((box) => {
     const t = S.chat.turns[+box.dataset.turn];
     if (!t || !t.pending) return;
-    const wasOpen = box.querySelector("details.live")?.open;
-    box.replaceChildren(...liveParts(t).filter(Boolean));
-    const d = box.querySelector("details.live");
-    if (d && wasOpen === false) d.open = false;
+    if (selectingIn(box)) return void (box.dataset.stale = "1");
+    delete box.dataset.stale;
+    syncLive(box, t);
   });
   if (pinned) scrollDown();
 };
+document.addEventListener("selectionchange", () => {
+  if (document.querySelector(".live-box[data-stale]")) renderLive();
+});
 
 // The site's state in plain words (one vocabulary for the dot, the header and the site sheet).
 const siteState = () => {
@@ -859,7 +895,7 @@ const renderTurn = (c, t, i) => {
         ? h("details", { class: "thinking", open: S.thinkingOpen }, h("summary", { title: "Tap to fold or unfold · Ctrl+/ for all" }, t.secs != null ? `Thought for ${t.secs} s` : "Thought"), h("div", { class: "md", html: mdToHtml(t.thinking) }))
         : null,
       t.pending
-        ? h("div", { class: "live-box", "data-turn": i }, ...liveParts(t).filter(Boolean))
+        ? (() => { const box = h("div", { class: "live-box", "data-turn": i }); syncLive(box, t); return box; })()
         : h("div", { class: "text md", html: mdToHtml(t.reply) }),
       t.error ? h("div", { class: "error" }, "✕ " + t.error) : null,
       foot,
