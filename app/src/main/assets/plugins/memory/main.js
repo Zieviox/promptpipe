@@ -257,6 +257,15 @@ const pieceOf = (m, part) => {
     : labelled("Earlier in this conversation, the AI's side (summaries, oldest first)", "the AI's side", mine.join("\n\n"));
 };
 const result = (pinned, summaries, lines, linesNote, note) => ({ text: block(pinned, summaries, lines, linesNote), pinned, summaries, lines, linesNote: linesNote || "", note });
+// The pipeline's "at depth N" pieces: each goes N messages up from the end of
+// the recent messages (0 = after the last one). Marks them used.
+const withDepth = (m, depth) => {
+  if (!depth || !depth.length || !m.lines.length) return m;
+  const lines = [...m.lines];
+  for (const d of [...depth].sort((a, b) => a.n - b.n)) lines.splice(Math.max(0, lines.length - d.n), 0, d.text);
+  depth.used = true;
+  return { ...m, lines, text: block(m.pinned, m.summaries, lines, m.linesNote) };
+};
 
 // Clip mode (and the fallback): older turns clipped, oldest dropped. `lines`
 // are { turn, keep } in order; `recent` from the end stay in full.
@@ -465,7 +474,7 @@ const prepared = (ctx) => {
       return null;
     }
     ctx.note(m.note + (fresh && count ? " (new site chat)" : ""));
-    return m;
+    return withDepth(m, ctx.depth);
   })();
   if (key) memo.set(key, run);
   return run;

@@ -1,6 +1,6 @@
 {
   "name": "Pipeline",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "kind": "core",
   "order": 15,
   "description": "App part: what goes to the site. Presets of pieces (your text), steps (plugins) and your message, in order, with groups and switches.",

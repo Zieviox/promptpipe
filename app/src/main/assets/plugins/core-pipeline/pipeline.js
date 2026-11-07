@@ -8,7 +8,7 @@
 // Presets are shared by profiles: S.config.presets, prof.preset = a preset id.
 // Plugin settings stay per profile (settingsFor); which steps run is the preset's.
 
-const WHEN = { every: "Every message", first: "First message of a site chat", everyN: "Every N messages", off: "Off" };
+const WHEN = { every: "Every message", first: "First message of a site chat", everyN: "Every N messages", depth: "At depth N (N messages up in the earlier chat)", off: "Off" };
 const newId = (p) => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const JOIN = "\n\n";
 
@@ -89,14 +89,14 @@ const rowLive = (pre, row) => row.on !== false && groupOf(pre, row)?.on !== fals
 // A plugin's own row (not one of its pieces).
 const stepRowOf = (pre, id) => pre?.rows.find((r) => r.type === "step" && r.plugin === id && !r.part) || null;
 const rowName = (r) => (r.type === "message" ? "Your message" : r.type === "step" ? pluginName(r.plugin) + (r.part ? " · " + (partOf(r)?.name || r.part) : "") : r.name || (r.text || "").trim().split("\n")[0].slice(0, 40) || "(empty piece)");
-const whenLabel = (r) => (r.when === "everyN" ? `Every ${Math.max(1, +r.n || 1)} messages` : WHEN[r.when] || WHEN.every);
+const whenLabel = (r) => (r.when === "everyN" ? `Every ${Math.max(1, +r.n || 1)} messages` : r.when === "depth" ? `At depth ${Math.max(0, +r.n || 0)}` : WHEN[r.when] || WHEN.every);
 
 // Does this piece go with this message? count = the message's number in the chat.
 const pieceGoes = (r, ctx, count) => {
   if (r.when === "off") return false;
   if (r.when === "first") return !!ctx.firstMessage;
   if (r.when === "everyN") return !!ctx.firstMessage || count % Math.max(1, Math.round(+r.n || 1)) === 0;
-  return true;
+  return true; // every, depth
 };
 
 // ---------- the parts the rest of the app calls ----------
@@ -113,7 +113,7 @@ stepOn = (id, prof = profile()) => {
 };
 setStepOn = (id, on, prof = profile()) => {
   const pre = presetOf(prof);
-  if (!pre) return;
+  if (!pre || !isStep(S.plugins.get(id))) return; // sites and themes aren't rows
   let r = stepRowOf(pre, id);
   if (!r) pre.rows.push((r = step(id, on)));
   r.on = on;
@@ -134,6 +134,11 @@ buildMessage = async (prompt, ctx, trace, prof = profile()) => {
   const MSG = {};
   const joined = () => parts.map((x) => (x === MSG ? msg : x)).filter((x) => x.trim()).join(JOIN);
   const sent = [];
+  // "At depth N" pieces go N messages up inside the earlier chat a plugin sends
+  // (Memory's recent messages), which marks them used; else just before your message.
+  const depth = pre.rows.filter((r) => r.type === "piece" && r.when === "depth" && rowLive(pre, r) && (r.text || "").trim()).map((r) => ({ text: r.text.trim(), n: Math.max(0, Math.round(+r.n || 0)), name: rowName(r) }));
+  depth.used = false;
+  ctx = { ...ctx, depth };
   for (const r of pre.rows) {
     if (r.type === "message") {
       parts.push(MSG);
@@ -141,6 +146,7 @@ buildMessage = async (prompt, ctx, trace, prof = profile()) => {
     }
     if (!rowLive(pre, r)) continue;
     if (r.type === "piece") {
+      if (r.when === "depth") continue;
       const text = (r.text || "").trim();
       if (!text || !pieceGoes(r, ctx, count)) continue;
       parts.push(text);
@@ -177,6 +183,11 @@ buildMessage = async (prompt, ctx, trace, prof = profile()) => {
     trace.push({ label: `${pluginName(r.plugin)} · before`, text: out, notes });
     ctx.notes.push(...notes.map((n) => `${pluginName(r.plugin)}: ${n}`));
   }
+  if (depth.length && !depth.used) {
+    const at = parts.indexOf(MSG);
+    parts.splice(at < 0 ? parts.length : at, 0, ...depth.map((d) => d.text));
+  }
+  if (depth.length) sent.push(...depth.map((d) => `${d.name} (depth ${d.n}${depth.used ? "" : ", before your message"})`));
   if (sent.length) ctx.notes.push(`${pre.name}: ${sent.join(", ")}`);
   return joined() || msg;
 };
@@ -192,6 +203,7 @@ const previewMessage = (prof = profile(), opts = {}) => {
     if (r.type === "message") out.push("⟨your message⟩");
     else if (!rowLive(pre, r)) continue;
     else if (r.type === "piece") {
+      if (r.when === "depth") continue;
       if ((r.text || "").trim() && pieceGoes(r, ctx, count)) out.push(r.text.trim());
     } else if (r.part) {
       if (partOf(r)) out.push(`⟨${rowName(r)} goes here⟩`);
@@ -200,6 +212,8 @@ const previewMessage = (prof = profile(), opts = {}) => {
       out.push(typeof p.def.piece === "function" ? `⟨${pluginName(r.plugin)} adds its text here⟩` : `⟨${pluginName(r.plugin)} changes ${r.scope === "message" ? "your message" : "everything above"}⟩`);
     }
   }
+  const depth = pre.rows.filter((r) => r.type === "piece" && r.when === "depth" && rowLive(pre, r) && (r.text || "").trim());
+  if (depth.length) out.push("⟨at depth: " + depth.map((r) => `${rowName(r)} ${Math.max(0, +r.n || 0)} up in the earlier chat`).join(", ") + "⟩");
   return out.join(JOIN);
 };
 

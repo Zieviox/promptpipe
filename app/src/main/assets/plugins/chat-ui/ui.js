@@ -8,13 +8,23 @@
 
 // ---------- look: UI scale and theme ----------
 // Themes are plugins too ("kind": "theme" with a CSS file of colour variables).
+// ui.mode: "" follows the system, "dark", "light". ui.accent: "" (warm orange)
+// or one of ACCENTS. ui.text: body text size in px. A theme plugin sets its own colours.
+const ACCENTS = { "": "Warm orange", blue: "Blue", green: "Green", rose: "Rose", violet: "Violet" };
 const applyLook = () => {
   const ui = S.config.ui;
+  const root = document.documentElement;
   document.body.style.zoom = String(ui.scale);
-  document.documentElement.style.setProperty("--scale", String(ui.scale));
+  root.style.setProperty("--scale", String(ui.scale));
+  root.style.setProperty("--fs", (+ui.text || 16) + "px");
   let link = document.getElementById("theme-css");
   const p = S.plugins.get(ui.theme);
   const href = isTheme(p) && p.manifest.css ? pluginUrl(p.id, p.manifest.css) + "?t=" + Date.now() : "";
+  const mode = href ? "plugin" : ui.mode === "dark" || ui.mode === "light" ? ui.mode : "";
+  if (mode) root.dataset.theme = mode;
+  else delete root.dataset.theme;
+  if (ui.accent && ACCENTS[ui.accent]) root.dataset.accent = ui.accent;
+  else delete root.dataset.accent;
   if (!href) return link && link.remove();
   if (!link) document.head.append((link = h("link", { id: "theme-css", rel: "stylesheet" })));
   if (!link.href.startsWith(location.origin + href.split("?")[0])) link.href = href;
@@ -26,12 +36,13 @@ const setScale = (v) => {
   rerenderSheet();
   toast("UI scale " + Math.round(S.config.ui.scale * 100) + "%");
 };
-const setTheme = (id) => {
-  S.config.ui.theme = id;
+const setLook = (key, value) => {
+  S.config.ui[key] = value;
   saveConfig();
   applyLook();
   render();
 };
+const setTheme = (id) => setLook("theme", id);
 
 const openModels = () =>
   openSheet("Model", () => {
@@ -195,8 +206,8 @@ const checkSeen = (box) => {
 };
 
 renderStatus = () => {
-  const el = document.querySelector(".site-dot");
-  if (el) el.replaceWith(siteDot());
+  const el = document.querySelector(".top .site-btn");
+  if (el) el.replaceWith(siteButton());
   const pr = document.querySelector(".composer .progress-text");
   if (pr) pr.textContent = composerProgress();
   renderLive();
@@ -233,19 +244,228 @@ const renderLive = () => {
   });
 };
 
-const siteDot = () =>
-  h(
-    "button",
-    { class: "site-dot " + (S.site.connected ? "on" : "off"), title: (S.site.url || "AI page") + " · Alt+S shows it", onclick: showSite },
-    h("span", { class: "dot" }),
-    siteFor()?.name || "No site",
-  );
+// The site's state in plain words (one vocabulary for the dot, the header and the site sheet).
+const siteState = () => {
+  if (!siteFor()) return { key: "none", words: "No site plugin" };
+  if ([...Array(pageCount()).keys()].some((i) => pg(i).busy)) return { key: "busy", words: "Busy" };
+  if (!S.site.connected) return { key: "off", words: "Page not open" };
+  return { key: "ready", words: "Ready" };
+};
+
+// "● site · model" in the header: the site, the model read from the page (or
+// the one you picked, marked "wanted" until the page shows it) and the state.
+const siteButton = (prof = profile()) => {
+  const st = siteState();
+  const want = choicesFor(prof).model;
+  const onPage = S.site.model || "";
+  const model = onPage || want;
+  const mismatch = want && onPage && !onPage.toLowerCase().includes(want.toLowerCase());
+  return h("button", { class: "site-btn " + st.key + (mismatch ? " mismatch" : ""), title: `${st.words}${mismatch ? ` · the page shows ${onPage}, you picked ${want}` : ""} · site, model and profile`, "aria-label": `Site: ${siteFor()?.name || "none"}, ${st.words}`, onclick: openSiteSheet },
+    h("span", { class: "dot", "aria-hidden": "true" }),
+    h("span", { class: "site-name" }, siteFor()?.name || "No site"),
+    model ? h("span", { class: "site-model" }, " · " + model + (mismatch ? " ⚠" : "")) : null,
+    st.key === "off" ? h("span", { class: "site-words" }, " · not open") : null);
+};
+
+// ---------- getting site plugins ----------
+// The catalogue (index.json) of the public site plugins repo: { plugins: [{ id,
+// name, path, version, default, note }] }. Default ones come ticked; the others
+// are listed to opt in. Each installs from its folder (plugin.json + files).
+const sitesRepo = () => S.config.sites?.repo || "Zieviox/promptpipe-plugins";
+const sitesBranch = () => S.config.sites?.branch || "main";
+const rawUrl = (path) => `https://raw.githubusercontent.com/${sitesRepo()}/${sitesBranch()}/${path}`;
+const fetchText = async (url) => {
+  const r = await api("/api/fetch", { url });
+  if (r.status && (r.status < 200 || r.status > 299)) throw new Error(`HTTP ${r.status} for ${url}`);
+  const bin = atob(r.base64 || "");
+  return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+};
+const SAFETY = "Use a separate account on the AI site (a throwaway Gmail works), not an important one: promptpipe drives the site for you and isn't built for account security. You can also sign in by hand on the site.";
+let catalogue = null; // { plugins, error, busy, ticked: Set, done: {id: "ok"|error} }
+const loadCatalogue = async () => {
+  catalogue = { plugins: [], error: "", busy: true, ticked: new Set(), done: {} };
+  rerenderSheet();
+  try {
+    const j = JSON.parse(await fetchText(rawUrl("index.json")));
+    catalogue.plugins = (j.plugins || []).filter((p) => p && p.id && p.path);
+    for (const p of catalogue.plugins) if (p.default) catalogue.ticked.add(p.id);
+  } catch (e) {
+    catalogue.error = e.message;
+  }
+  catalogue.busy = false;
+  rerenderSheet();
+};
+const installTicked = async () => {
+  const list = catalogue.plugins.filter((p) => catalogue.ticked.has(p.id));
+  catalogue.busy = true;
+  for (const p of list) {
+    catalogue.done[p.id] = "…";
+    rerenderSheet();
+    try {
+      await api("/api/plugins/install", { url: rawUrl(p.path.replace(/\/$/, "") + "/plugin.json") });
+      catalogue.done[p.id] = "ok";
+    } catch (e) {
+      catalogue.done[p.id] = e.message;
+    }
+    rerenderSheet();
+  }
+  await loadPlugins();
+  syncProfiles();
+  saveConfig();
+  catalogue.busy = false;
+  const ok = list.filter((p) => catalogue.done[p.id] === "ok").length;
+  toast(ok === list.length ? `Installed ${ok} site plugin${ok === 1 ? "" : "s"}` : `Installed ${ok} of ${list.length}; the others say why`, ok === list.length ? "info" : "error");
+  render();
+  rerenderSheet();
+  warmSite();
+  return ok;
+};
+const installed = (id) => S.plugins.get(id);
+const catalogueView = () => {
+  if (!catalogue) return [h("p", { class: "muted" }, "Loading the list…")];
+  if (catalogue.busy && !catalogue.plugins.length) return [h("p", { class: "muted" }, "Loading the list of site plugins…")];
+  if (catalogue.error)
+    return [
+      h("p", { class: "error" }, "Couldn't load the list: " + catalogue.error),
+      h("p", { class: "muted" }, `From ${sitesRepo()}. Without a connection, download a site plugin's zip and use Install from a file.`),
+      h("div", { class: "row" }, h("button", { class: "small primary", onclick: loadCatalogue }, "Try again"), h("button", { class: "small", onclick: () => api("/api/app/action", { action: "pickPlugin" }) }, "Install from a file")),
+    ];
+  const any = catalogue.ticked.size > 0;
+  return [
+    ...catalogue.plugins.map((p) => {
+      const have = installed(p.id);
+      const done = catalogue.done[p.id];
+      return h("label", { class: "plugin-row" },
+        h("input", { type: "checkbox", checked: catalogue.ticked.has(p.id), disabled: catalogue.busy, onchange: (e) => (e.target.checked ? catalogue.ticked.add(p.id) : catalogue.ticked.delete(p.id), rerenderSheet()) }),
+        h("div", { class: "grow" },
+          h("b", {}, p.name || p.id), " ", h("small", { class: "muted" }, (p.version ? "v" + p.version : "") + (p.default ? "" : " · opt in") + (have ? ` · installed v${have.manifest?.version || "?"}` : "")),
+          p.note ? h("div", { class: "muted" }, p.note) : null,
+          done && done !== "ok" && done !== "…" ? h("div", { class: "error" }, done) : null),
+        done === "ok" ? h("span", { class: "ok-mark" }, "✓") : done === "…" ? h("span", { class: "muted" }, "…") : null);
+    }),
+    h("div", { class: "row" }, h("button", { class: "primary", disabled: !any || catalogue.busy, onclick: installTicked }, catalogue.busy ? "Installing…" : "Get the ticked ones")),
+  ];
+};
+const openGetSites = () => {
+  if (!catalogue || catalogue.error) loadCatalogue();
+  openSheet("Get site plugins", () => [
+    h("p", { class: "warn" }, SAFETY),
+    ...catalogueView(),
+    h("details", { class: "advanced-settings" }, h("summary", {}, "Where they come from"),
+      h("label", { class: "field" }, h("span", {}, "GitHub repo (owner/name)"), h("input", { value: sitesRepo(), onchange: (e) => ((S.config.sites = { ...(S.config.sites || {}), repo: e.target.value.trim() }), saveConfig(), loadCatalogue()) })),
+      h("label", { class: "field" }, h("span", {}, "Branch"), h("input", { value: sitesBranch(), onchange: (e) => ((S.config.sites = { ...(S.config.sites || {}), branch: e.target.value.trim() }), saveConfig(), loadCatalogue()) }))),
+  ]);
+};
+
+// ---------- first run ----------
+// Welcome, the account warning, where chats go, site plugins, log in. Each
+// step can be skipped; it never comes back once done (Settings has it all).
+const openWelcome = () => {
+  let stepNo = 0;
+  const next = () => ((stepNo += 1), rerenderSheet());
+  const finish = () => {
+    S.config.welcomed = true;
+    saveConfig();
+    closeSheet();
+  };
+  const steps = [
+    () => [
+      h("p", {}, "promptpipe sends your messages to the free AI chat sites you log in to, puts your own pieces of text with them, and keeps every chat as a file of yours."),
+      h("p", { class: "warn" }, SAFETY),
+      h("div", { class: "row" }, h("button", { class: "primary grow", onclick: next }, "Continue")),
+    ],
+    () => [
+      h("h3", {}, "Where chats are saved"),
+      h("p", {}, h("code", {}, S.app.storage || "?")),
+      S.app.allFiles
+        ? h("p", { class: "muted" }, "Other apps (a file manager, Termux) can reach them there.")
+        : h("p", { class: "muted" }, "They're in the app's own folder now. Allow all files access to keep them where other apps (a file manager, Termux) can reach them; restart the app after."),
+      h("div", { class: "row" },
+        S.app.allFiles ? null : h("button", { onclick: () => api("/api/app/action", { action: "grantFiles" }).catch((e) => toast(e.message, "error")) }, "Allow all files access"),
+        h("button", { class: "primary grow", onclick: () => (next(), loadCatalogue()) }, "Continue")),
+    ],
+    () => [
+      h("h3", {}, "AI sites"),
+      h("p", { class: "muted" }, "Each AI site comes as a site plugin. The ticked ones are the tested ones."),
+      ...catalogueView(),
+      h("div", { class: "row" }, h("button", { class: "grow", onclick: next }, [...S.plugins.values()].some(isSite) ? "Continue" : "Skip for now")),
+    ],
+    () => {
+      const site = siteFor();
+      return [
+        h("h3", {}, "Log in"),
+        site
+          ? h("p", {}, `Open ${site.name} and log in once; promptpipe uses that login from then on. Come back with the back button.`)
+          : h("p", { class: "muted" }, "No site plugin yet: get one from the site button at the top (● No site) whenever you like."),
+        h("div", { class: "row" },
+          site ? h("button", { class: "primary", onclick: () => (showSite(), finish()) }, "Open " + site.name) : null,
+          h("button", { class: site ? "" : "primary", onclick: finish }, site ? "Later" : "Start")),
+        h("p", { class: "muted" }, "Then pick a preset under the message box (RP, Story writing, Writing feedback or Plain) and send a message."),
+      ];
+    },
+  ];
+  openSheet("Welcome to promptpipe", () => [h("p", { class: "faint" }, `Step ${stepNo + 1} of ${steps.length}`), ...steps[stepNo]()]);
+};
+
+// Starter presets as chips in an empty chat: tap to use one.
+const presetPicker = () => {
+  const list = PP.pipeline?.presets() || [];
+  if (list.length < 2) return null;
+  const cur = presetOf();
+  return h("div", { class: "preset-picker" },
+    h("p", { class: "faint" }, "Preset for this profile (what goes with your message)"),
+    h("div", { class: "row" }, list.map((p) => h("button", { class: "chip" + (p === cur ? " current" : ""), "aria-pressed": String(p === cur), onclick: () => (PP.pipeline.usePreset(p.id), render()) }, p.name)),
+      h("button", { class: "chip ghost", onclick: openPipeline }, "Edit…")));
+};
+
+// The site sheet: everything about the site in one place.
+const openSiteSheet = () =>
+  openSheet("Site", () => {
+    const prof = profile();
+    const site = siteFor(prof);
+    const st = siteState();
+    const want = choicesFor(prof).model;
+    const sites = [...S.plugins.values()].filter(isSite);
+    const pr = S.plugins.get("page-report");
+    return [
+      h("div", { class: "site-status " + st.key },
+        h("span", { class: "dot", "aria-hidden": "true" }),
+        h("div", { class: "grow" }, h("b", {}, site ? site.name : "No AI site yet"), h("div", { class: "muted" }, st.words + (S.site.url ? " · " + S.site.url : ""))),
+        site ? h("button", { class: "primary", onclick: showSite }, st.key === "off" ? "Open the page" : "Show the page") : h("button", { class: "primary", onclick: openGetSites }, "Get site plugins")),
+      h("h3", {}, "Profile"),
+      h("div", { class: "row" },
+        h("select", { class: "grow", "aria-label": "Profile", onchange: (e) => switchProfile(e.target.value) }, S.config.profiles.map((p) => h("option", { value: p.id, selected: p === prof }, p.name))),
+        h("button", { class: "small", onclick: openProfileMenu }, "Profiles")),
+      sites.length > 1 ? h("label", { class: "field" }, h("span", {}, "Site of this profile"),
+        h("select", { onchange: (e) => ((prof.site = e.target.value), saveConfig(), render(), rerenderSheet(), warmSite()) }, sites.map((x) => h("option", { value: x.id, selected: x.id === prof.site }, x.manifest.name)))) : null,
+      site ? h("h3", {}, "Model") : null,
+      site ? h("div", { class: "row" },
+        h("div", { class: "grow" }, h("div", {}, S.site.model ? "On the page: " + S.site.model : "The page hasn't shown its model yet"), want ? h("div", { class: "muted" }, "You picked: " + want + (S.site.model && !S.site.model.toLowerCase().includes(want.toLowerCase()) ? " (not what the page shows)" : "")) : null),
+        h("button", { class: "small", onclick: openModels }, "Model and switches")) : null,
+      h("h3", {}, "This chat and the page"),
+      h("div", { class: "row" },
+        h("button", { class: "small", onclick: linkToSite }, "Link to the open page"),
+        h("button", { class: "small", onclick: addFromPage }, "Take the newest reply"),
+        h("button", { class: "small", onclick: importHistory }, "Import the site chat")),
+      h("h3", {}, "Pages"),
+      h("div", { class: "row stepper" },
+        h("button", { class: "small", "aria-label": "Fewer pages", disabled: pageCount() <= 1, onclick: () => setPageCount(pageCount() - 1).then(rerenderSheet) }, "−"),
+        h("strong", {}, `${pageCount()} ${pageCount() === 1 ? "page" : "pages"} at once`),
+        h("button", { class: "small", "aria-label": "More pages", disabled: pageCount() >= 4, onclick: () => setPageCount(pageCount() + 1).then(rerenderSheet) }, "+")),
+      h("h3", {}, "Site plugins"),
+      h("div", { class: "row" },
+        h("button", { class: "small", onclick: openGetSites }, "Get site plugins"),
+        site ? h("button", { class: "small", onclick: () => openPluginSettings(prof.site) }, "Site plugin settings") : null),
+      h("h3", {}, "Developer"),
+      h("div", { class: "row" },
+        ...((pr && pr.def && pr.def.menu) || []).map((m) => h("button", { class: "small", onclick: () => Promise.resolve().then(() => m.run()).catch((e) => toast(e.message, "error")) }, m.label)),
+        h("button", { class: "small", onclick: decodeLast }, "Decode the newest reply (preview)")),
+    ];
+  });
 
 const renderTop = () => {
   const c = S.chat;
   const prof = profile();
-  // Plugins that are on, minus one the profile is already named after.
-  const active = activePlugins(prof).map((e) => pluginName(e.id)).filter((n) => n.toLowerCase() !== prof.name.toLowerCase());
   return h(
     "header",
     { class: "top" },
@@ -253,16 +473,9 @@ const renderTop = () => {
     h(
       "div",
       { class: "titlebox" },
-      h("button", { class: "title", title: "Chat info, tags, history · F2", onclick: renameChat }, c.meta.title || "New chat"),
-      h(
-        "div",
-        { class: "sub" },
-        siteDot(),
-        h("button", { class: "model", title: "Choose model", onclick: openModels }, (choicesFor(prof).model || S.site.model || "Model") + " ▾"),
-        h("span", { class: "sep" }, "·"),
-        h("button", { class: "profile", title: "Profile · Ctrl+P switches", onclick: openProfileMenu }, prof.name, active.length ? h("span", { class: "faint" }, " " + active.join(" + ")) : null),
-      ),
+      h("button", { class: "title", title: "Chat info, tags, history · F2", onclick: renameChat }, h("span", { class: "title-text" }, c.meta.title || "New chat"), h("span", { class: "chev", "aria-hidden": "true" }, "▾")),
     ),
+    siteButton(prof),
     ...topBlocks(),
     h("button", { class: "icon", title: "Search all chats · Ctrl+F", "aria-label": "Search", onclick: openSearch }, svgIcon("search")),
     h("button", { class: "icon", title: "Menu · Ctrl+K for commands", "aria-label": "Menu", onclick: openMenu }, svgIcon("more")),
@@ -318,8 +531,9 @@ const renderMessages = () => {
               "div",
               { class: "no-site" },
               h("p", {}, "No AI site plugin yet. promptpipe drives the AI chat site you log in to, through a site plugin."),
-              h("div", { class: "row" }, h("button", { class: "small primary", onclick: () => api("/api/app/action", { action: "pickPlugin" }) }, "Install from a file"), h("button", { class: "small", onclick: openPlugins }, "Install from a link"), h("button", { class: "small", onclick: openQuickStart }, "Quick start")),
+              h("div", { class: "row" }, h("button", { class: "small primary", onclick: openGetSites }, "Get site plugins"), h("button", { class: "small", onclick: () => api("/api/app/action", { action: "pickPlugin" }) }, "Install from a file"), h("button", { class: "small", onclick: openQuickStart }, "Quick start")),
             ),
+        presetPicker(),
         h("p", {}, c.meta.source ? "Linked to " + c.meta.source + ". Your message continues that chat." : "New chat"),
         c.meta.source ? h("button", { class: "small", onclick: importHistory }, "Import its earlier messages") : null,
         (local("recent") || []).length
@@ -482,18 +696,18 @@ const renderTurn = (c, t, i) => {
         : h(
             "div",
             { class: "msg-actions" },
-            h("button", { class: "ghost", onclick: () => navigator.clipboard.writeText(t.reply).then(() => toast("Copied")) }, "Copy"),
+            h("button", { class: "ghost", onclick: () => copyText(t.reply, "Copied") }, "Copy"),
             h("button", { class: "ghost", title: "Open the text in a box where you can pick any part of it", onclick: () => openSelect(t) }, "Select text"),
             h("button", { class: "ghost", title: "Quote this reply in your next message (or swipe it right)", onclick: () => fillComposer(quote(t.reply), "append") }, "Reply"),
             i === c.turns.length - 1 ? h("button", { class: "ghost", title: "Put your message back in the box", onclick: editLast }, "Edit & resend") : null,
-            t.thinking ? h("button", { class: "ghost", onclick: () => navigator.clipboard.writeText(t.thinking).then(() => toast("Copied")) }, "Copy thinking") : null,
+            t.thinking ? h("button", { class: "ghost", onclick: () => copyText(t.thinking, "Copied") }, "Copy thinking") : null,
             ...actions,
             details,
           ),
     ),
   );
   const ai = art.querySelector(".msg.ai");
-  onSwipe(ai, (dir) => (dir > 0 ? fillComposer(quote(t.reply), "append") : navigator.clipboard.writeText(t.reply).then(() => toast("Copied"))));
+  onSwipe(ai, (dir) => (dir > 0 ? fillComposer(quote(t.reply), "append") : copyText(t.reply, "Copied")));
   codeCopy(ai);
   return art;
 };
@@ -530,7 +744,7 @@ const onLongPress = (el, fn) => {
 // Code blocks get a Copy button (long-press is left to text selection).
 const codeCopy = (root) => {
   for (const pre of root.querySelectorAll(".md pre")) {
-    const copy = () => navigator.clipboard.writeText(pre.querySelector("code")?.textContent ?? pre.textContent).then(() => toast("Code copied"));
+    const copy = () => copyText(pre.querySelector("code")?.textContent ?? pre.textContent, "Code copied");
     pre.prepend(h("button", { class: "code-copy", onclick: copy }, "Copy"));
   }
 };
@@ -778,12 +992,30 @@ const chatRow = (c) => {
       "button",
       { class: "chat-open", onclick: () => openChat(c.path).catch((e) => toast(e.message, "error")) },
       h("span", { class: "chat-title" }, (isPinned(c.path) ? "📌 " : "") + (c.meta.title || c.path)),
-      h("span", { class: "chat-sub" }, [ChatFile.stamp(c.meta.updated), ...c.meta.tags.map((t) => "#" + t)].join("  ")),
+      h("span", { class: "chat-sub" }, ChatFile.stamp(c.meta.updated), c.meta.ai ? " · " + c.meta.ai : ""),
+      c.meta.tags.length ? h("span", { class: "chat-tags" }, c.meta.tags.slice(0, 4).map((t) => h("span", { class: "tag-pill" }, t)), c.meta.tags.length > 4 ? h("span", { class: "tag-pill more" }, "+" + (c.meta.tags.length - 4)) : null) : null,
     ),
     h("button", { class: "icon", title: "Chat actions (or long-press)", "aria-label": "Actions for " + c.meta.title, onclick: () => openChatActions(c) }, "⋯"),
   );
   onLongPress(row, () => openChatActions(c));
   return row;
+};
+
+// Tag chips under the search, most used first: tap one to show only its chats,
+// tap it again to show all.
+const tagFilter = () => {
+  const count = new Map();
+  for (const c of S.chats) for (const t of c.meta.tags || []) count.set(t, (count.get(t) || 0) + 1);
+  if (!count.size) return null;
+  const words = S.query.trim().split(/\s+/).filter(Boolean);
+  const on = (t) => words.includes("#" + t);
+  const toggle = (t) => {
+    S.query = (on(t) ? words.filter((w) => w !== "#" + t) : [...words, "#" + t]).join(" ");
+    render();
+  };
+  const tags = [...count.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  return h("div", { class: "tag-filter", role: "group", "aria-label": "Filter by tag" },
+    tags.map(([t, n]) => h("button", { class: "tag-chip" + (on(t) ? " on" : ""), "aria-pressed": String(on(t)), onclick: () => toggle(t) }, "#" + t, h("span", { class: "n" }, String(n)))));
 };
 
 const renderDrawer = () => {
@@ -872,6 +1104,7 @@ const renderDrawer = () => {
         }
       },
     }),
+    tagFilter(),
     h("div", { class: "row muted" }, "New chats go to: ", h("b", {}, S.folder || "top level"), S.folder ? h("button", { class: "small", onclick: () => ((S.folder = ""), render()) }, "use top level") : null),
     list,
     siteList,
@@ -1095,9 +1328,10 @@ const openPipeline = () =>
           h("label", { class: "field" }, h("span", {}, "Send it"),
             h("select", { onchange: (e) => ((r.when = e.target.value), redraw()) }, Object.entries(P.WHEN).map(([v, l]) => h("option", { value: v, selected: (r.when || "every") === v }, l)))),
           r.when === "everyN" ? h("label", { class: "field" }, h("span", {}, "N (the first message of a site chat always gets it)"), h("input", { type: "number", min: 1, value: r.n || 5, oninput: (e) => ((r.n = Math.max(1, +e.target.value || 1)), saveConfig()) })) : null,
+          r.when === "depth" ? h("label", { class: "field" }, h("span", {}, "N: how many messages up from the newest, inside the earlier chat Memory sends (0 = right after it). Without Memory's earlier messages it goes just before your message, and its place in this list doesn't matter."), h("input", { type: "number", min: 0, value: r.n ?? 0, oninput: (e) => ((r.n = Math.max(0, Math.round(+e.target.value || 0))), saveConfig()) })) : null,
           groupSelect(r),
           h("div", { class: "row" },
-            h("button", { class: "small", onclick: () => navigator.clipboard.writeText(r.text || "").then(() => toast("Copied")) }, "Copy text"),
+            h("button", { class: "small", onclick: () => copyText(r.text || "", "Copied") }, "Copy text"),
             h("button", { class: "small danger", onclick: async () => {
               if (!(await askConfirm(`Delete the piece “${rowName(r)}”?`))) return;
               pre.rows.splice(i, 1);
@@ -1319,7 +1553,7 @@ const openSelect = (t) =>
       const ta = h("textarea", { class: "select-box", readonly: true }, text);
       return [h("div", { class: "row" }, h("strong", {}, label), h("button", { class: "small", onclick: () => (ta.focus(), ta.select()) }, "Select all"), h("button", { class: "small primary", onclick: () => {
         const part = ta.value.slice(ta.selectionStart, ta.selectionEnd) || ta.value;
-        navigator.clipboard.writeText(part).then(() => toast(part === ta.value ? "Copied all" : "Copied selection"));
+        copyText(part, part === ta.value ? "Copied all" : "Copied selection");
       } }, "Copy selection")), ta];
     };
     return [...box("Reply", t.reply || ""), ...(t.thinking ? box("Thinking", t.thinking) : []), ...box("Your message", t.you || "")];
@@ -1440,18 +1674,20 @@ const lookControls = () => {
         h("span", { class: "muted" }, Math.round(S.config.ui.scale * 100) + "%"),
       ),
     ),
-    h(
-      "div",
-      { class: "field" },
-      h("span", {}, "Theme (install more like plugins)"),
-      h(
-        "div",
-        { class: "themes" },
-        [{ id: "", manifest: { name: "Midnight", description: "Default dark theme" } }, ...themes].map((t) =>
-          h("button", { class: "theme-pick" + ((S.config.ui.theme || "") === t.id ? " current" : ""), title: t.manifest.description || "", onclick: () => setTheme(t.id) }, t.manifest.name),
-        ),
-      ),
-    ),
+    h("div", { class: "field" }, h("span", {}, "Light or dark"),
+      h("div", { class: "themes" }, [["", "Like the system"], ["dark", "Dark"], ["light", "Light"]].map(([v, l]) =>
+        h("button", { class: "theme-pick" + ((S.config.ui.mode || "") === v ? " current" : ""), "aria-pressed": String((S.config.ui.mode || "") === v), disabled: !!S.config.ui.theme, onclick: () => setLook("mode", v) }, l)))),
+    h("div", { class: "field" }, h("span", {}, "Accent"),
+      h("div", { class: "themes" }, Object.entries(ACCENTS).map(([v, l]) =>
+        h("button", { class: "theme-pick accent-pick" + ((S.config.ui.accent || "") === v ? " current" : ""), "data-swatch": v || "orange", "aria-pressed": String((S.config.ui.accent || "") === v), onclick: () => setLook("accent", v) }, h("span", { class: "swatch", "aria-hidden": "true" }), l)))),
+    h("div", { class: "field" }, h("span", {}, "Text size"),
+      h("div", { class: "row stepper" },
+        h("button", { class: "small", "aria-label": "Smaller text", disabled: (+S.config.ui.text || 16) <= 13, onclick: () => setLook("text", (+S.config.ui.text || 16) - 1) }, "A−"),
+        h("strong", {}, `${+S.config.ui.text || 16} px`),
+        h("button", { class: "small", "aria-label": "Bigger text", disabled: (+S.config.ui.text || 16) >= 22, onclick: () => setLook("text", (+S.config.ui.text || 16) + 1) }, "A+"))),
+    h("div", { class: "field" }, h("span", {}, "Theme (install more like plugins; a theme brings its own colours)"),
+      h("div", { class: "themes" }, [{ id: "", manifest: { name: "Default", description: "Follows Light or dark and Accent above" } }, ...themes].map((t) =>
+        h("button", { class: "theme-pick" + ((S.config.ui.theme || "") === t.id ? " current" : ""), title: t.manifest.description || "", onclick: () => setTheme(t.id) }, t.manifest.name)))),
   ];
 };
 
@@ -1523,7 +1759,7 @@ const openCoreLog = async () => {
   openSheet("Core log", () => [
     h("p", { class: "muted" }, h("code", {}, log.path || "")),
     h("div", { class: "row" },
-      h("button", { class: "small primary", onclick: () => navigator.clipboard.writeText(textOf()).then(() => toast("Log copied")) }, "Copy"),
+      h("button", { class: "small primary", onclick: () => copyText(textOf(), "Log copied") }, "Copy"),
       h("button", { class: "small", onclick: async () => ((log = await read()), rerenderSheet(), toEnd()) }, "Refresh")),
     h("pre", { class: "pipe-preview core-log" }, textOf()),
   ]);
@@ -1559,10 +1795,10 @@ const openSettings = () =>
         : h("p", { class: "warn" }, "The app can't use /sdcard yet, so files are in its own folder. ", h("button", { onclick: () => api("/api/app/action", { action: "grantFiles" }) }, "Allow all files access"), " then restart the app."),
       h("h3", {}, "Local API for other apps"),
       h("p", { class: "muted" }, "Apps that take an OpenAI API key: base URL below, model = a profile name, API key = the token below (always required). Each request becomes one new chat on the site, unless it adds \"chat\": \"<path>.md\" to continue a saved chat (then only its last message is sent). Every reply also says, under \"promptpipe\", which chat it went to and what was sent. Requests at the same time run in parallel on the site pages (see Site pages at once), the rest wait their turn."),
-      h("div", { class: "row" }, h("pre", { class: "grow" }, `http://127.0.0.1:${S.app.port}/v1`), h("button", { class: "small", onclick: () => navigator.clipboard.writeText(`http://127.0.0.1:${S.app.port}/v1`).then(() => toast("Copied")) }, "Copy")),
+      h("div", { class: "row" }, h("pre", { class: "grow" }, `http://127.0.0.1:${S.app.port}/v1`), h("button", { class: "small", onclick: () => copyText(`http://127.0.0.1:${S.app.port}/v1`, "Copied") }, "Copy")),
       h("label", { class: "field" }, h("span", {}, "API token (send it as: Authorization: Bearer <token>)"), h("div", { class: "row" },
         h("pre", { class: "grow" }, S.app.apiTokenValue || "?"),
-        h("button", { class: "small", onclick: () => navigator.clipboard.writeText(S.app.apiTokenValue || "").then(() => toast("Copied")) }, "Copy"),
+        h("button", { class: "small", onclick: () => copyText(S.app.apiTokenValue || "", "Copied") }, "Copy"),
         h("button", { class: "small", onclick: async () => {
           await api("/api/secret", { key: "apiToken", value: "" });
           S.app = await api("/api/app");
@@ -1869,7 +2105,7 @@ const decodeLast = async () => {
     openSheet("Newest reply on the page", () => [
       h("div", { class: "md", html: mdToHtml(out) }),
       h("details", { class: "trace" }, h("summary", {}, "Trace"), trace.map((s) => h("div", { class: "stage" }, h("b", {}, s.label), h("pre", {}, s.text)))),
-      h("button", { onclick: () => navigator.clipboard.writeText(out).then(() => toast("Copied")) }, "Copy"),
+      h("button", { onclick: () => copyText(out, "Copied") }, "Copy"),
     ]);
   } catch (e) {
     toast(e.message, "error");
@@ -1931,6 +2167,8 @@ on("start", () => applyLook());
 on("ready", () => {
   render();
   scrollDown();
+  // First run: no site plugin yet and never welcomed.
+  if (!S.config.welcomed && ![...S.plugins.values()].some(isSite)) openWelcome();
 });
 // Text shared from another app starts a new chat with it in the box.
 on("share", (ev) => {

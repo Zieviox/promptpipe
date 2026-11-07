@@ -111,7 +111,10 @@ What goes to the site is built by the profile's **preset** (⋯ → Pipeline, or
 the first chip above the message box): a list of rows, sent top to bottom.
 
 - **Piece**: text you wrote. *Send it*: every message, the first message of a
-  site chat, every N messages (and the first), or off. Empty pieces aren't sent.
+  site chat, every N messages (and the first), at depth N, or off. Empty
+  pieces aren't sent. *At depth N* puts it N messages up inside the earlier
+  chat Memory sends (`ctx.depth`: a plugin that sends earlier messages places
+  them and sets `ctx.depth.used = true`); otherwise it goes just before your message.
 - **Step**: a plugin. `beforeSend` changes everything above its row (or only
   your message: the row's *It changes* setting); `piece()` puts its own text
   where its row is. `afterReply` hooks run in row order too.
@@ -166,6 +169,7 @@ afterReply(text, ctx) {
 | `PP.settings(id)` | another plugin's settings in the active profile |
 | `PP.sitePlugin` | the active profile's site (`name`, `url`, selectors) |
 | `PP.on(type, fn)` / `PP.emit(type, data)` | app events (below); your own events too |
+| `PP.copy(text, done)` | copy through the app's clipboard (works after a wait, unlike `navigator.clipboard`); shows `done` ("Copied") or why it failed |
 | `PP.confirm(text)` / `PP.askText(text, value)` | ask before something you can't undo / ask for a line of text; resolve to `true` / the text, or `null` (the app has no browser `confirm()`) |
 | `PP.pipeline` | presets and rows: `presets()`, `presetOf(profile)`, `previewMessage(profile)` ... |
 | `PP.safe` | true in safe mode |
@@ -318,6 +322,15 @@ plugin. Drivers show under Settings › App parts.
 
 ## Themes
 
+The default look follows the system's light or dark setting; Settings › Look
+also has Light or dark, five accents and the text size. A theme plugin sets
+its own colours instead: it only redefines the variables at the top of
+`chat-ui/ui.css` (`--bg`, `--raise`, `--raise2`, `--hair`, `--focus`, `--text`,
+`--muted`, `--faint`, `--accent`, `--accent-hover`, `--on-accent`, `--ok`,
+`--err`, `--warn`, `--toast-*`, `--shadow*`, radii `--r*`, `--font`, `--dur`). Keep text
+at 4.5:1 contrast or more.
+
+
 A theme is a plugin with `"kind": "theme"` and a CSS file:
 
 ```json
@@ -327,9 +340,10 @@ A theme is a plugin with `"kind": "theme"` and a CSS file:
 ```css
 /* theme.css: set the colour variables, add any other CSS you like */
 :root {
-  --bg: #0b0c0f; --raise: #14161b; --raise2: #1b1e25; --hair: #23262e;
-  --text: #e6e7ea; --muted: #8b909c; --faint: #5d626d;
-  --accent: #8f9cff; --accent-bg: #8f9cff1f; --ok: #6fd3a0; --err: #ff8a8a; --warn: #e7c46a;
+  --bg: #120f0d; --raise: #1c1815; --raise2: #251f1b; --hair: #2e2723; --focus: #463b34;
+  --text: #ece4dc; --muted: #a3968b; --faint: #85796f;
+  --accent: #f0a35e; --accent-hover: #f5b67d; --on-accent: #120f0d;
+  --ok: #9ccf7a; --err: #ff8a7a; --warn: #f0c86e;
 }
 ```
 

@@ -1,7 +1,7 @@
 {
   "id": "page-report",
   "name": "Page report",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "⋯ → Copy page report: an outline of the AI page (tags and class names, no message text beyond short snippets) to fix a site plugin's selectors. A site plugin can bring its own report (a probe command in its site script).",
   "main": "main.js",
   "block": false

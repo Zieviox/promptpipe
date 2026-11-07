@@ -41,8 +41,8 @@ const copyReport = async () => {
   let r = await PP.site("probe");
   if (!r.report) r = await PP.site("run", { code: "return (" + walker.toString() + ")(PP, site);" });
   const name = PP.sitePlugin?.name || "the site";
-  await navigator.clipboard.writeText(`Page report for ${name} (${r.url})\n\n${r.report}`);
-  PP.toast("Page report copied. Paste it to whoever fixes the site plugin.");
+  // PP.copy works after the wait for the page (the browser's clipboard doesn't).
+  await PP.copy(`Page report for ${name} (${r.url})\n\n${r.report}`, "Page report copied. Paste it to whoever fixes the site plugin.");
 };
 
 PP.plugin({

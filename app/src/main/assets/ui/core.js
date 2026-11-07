@@ -35,6 +35,23 @@ const api = async (path, body) => {
   return j;
 };
 
+// Copy through the app's clipboard module, which works after any wait (the
+// browser's only right after a tap); the browser's is the fallback. Says so either way.
+const copyText = async (text, done = "Copied") => {
+  try {
+    await api("/api/module", { module: "clipboard", call: "copy", args: { text: String(text ?? "") } });
+  } catch (e) {
+    try {
+      await navigator.clipboard.writeText(String(text ?? ""));
+    } catch (e2) {
+      toast("Couldn't copy: " + e.message, "error");
+      return false;
+    }
+  }
+  if (done) toast(done);
+  return true;
+};
+
 // Replaceable by the UI part (it may assign its own).
 let toast = (msg, kind = "info") => {
   const t = h("div", { class: "toast " + kind, role: kind === "error" ? "alert" : "status" }, msg);
@@ -104,7 +121,7 @@ const DEFAULT_CONFIG = () => ({
   lastChat: "",
   git: { enabled: true, name: "", email: "", remote: "", autoPush: false },
   api: { folder: "api" },
-  ui: { scale: 1, theme: "", enterSends: false },
+  ui: { scale: 1, theme: "", mode: "", accent: "", text: 16, enterSends: false },
   // Minutes to wait for a reply; 0 = no limit (Stop waiting is always there).
   wait: { idleMin: 0, maxMin: 0 },
   // Site pages at once: sends (yours, plugins', other apps') run in parallel up to this many.
@@ -126,6 +143,8 @@ const PP = (window.PP = {
   },
   h,
   api,
+  // Copy text (the app's clipboard): resolves true, or false after saying why.
+  copy: (text, done) => copyText(text, done),
   toast: (msg, kind) => toast(msg, kind),
   // App events (see "events" below): PP.on("job", fn), PP.emit("my-event", data).
   on: (type, fn) => on(type, fn),

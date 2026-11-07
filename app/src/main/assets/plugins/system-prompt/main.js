@@ -107,7 +107,7 @@ const openLibrary = (ctx) => {
             h("div", { class: "row" },
               h("button", { class: "small", onclick: async () => ((p.pinned = !p.pinned), await save((p.pinned ? "pinned " : "unpinned ") + nameOf(p)), PP.render()) }, p.pinned ? "Unpin" : "Pin"),
               h("button", { class: "small", onclick: () => ((editing = p.id), PP.render()) }, "Edit"),
-              h("button", { class: "small", onclick: () => navigator.clipboard.writeText(p.text).then(() => PP.toast("Copied")) }, "Copy"),
+              h("button", { class: "small", onclick: () => PP.copy(p.text) }, "Copy"),
               h("button", { class: "small danger", onclick: async () => {
                 if (!(await PP.confirm(`Delete "${nameOf(p)}" from the library?`))) return;
                 lib.prompts = lib.prompts.filter((x) => x !== p);
