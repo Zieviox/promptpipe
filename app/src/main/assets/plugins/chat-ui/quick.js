@@ -88,7 +88,7 @@ const openQuick = () => {
     return [
       h("div", { class: "row quick-head" },
         h("span", { class: "grow muted" }, "Quick edit: switch on or off, drag to reorder."),
-        h("button", { class: "chip", onclick: openPipeline }, svgIcon("edit"), "Edit profile")),
+        h("button", { class: "chip", onclick: () => openProfileEditor(prof.id) }, svgIcon("edit"), "Edit profile")),
       pre ? h("div", { class: "quick-list" }, pre.rows.map(row)) : h("p", { class: "muted" }, "This profile has no rows yet."),
       h("h3", {}, "Add to your message"),
       fileRow(false),

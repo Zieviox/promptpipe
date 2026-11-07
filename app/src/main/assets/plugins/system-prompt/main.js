@@ -37,6 +37,44 @@ const migrate = async (ctx) => {
 };
 load();
 
+// ---------- import and export ----------
+const fileSlug = (t) => (t || "prompt").toLowerCase().normalize("NFKD").replace(/[^\w\s-]/g, "").trim().replace(/[\s_]+/g, "-").slice(0, 40) || "prompt";
+const exportAll = () => PP.exportFile("system-prompts.json", JSON.stringify({ promptpipe: "system-prompts", version: 1, prompts: lib.prompts.map((p) => ({ name: p.name || "", text: p.text, pinned: !!p.pinned })) }, null, 2) + "\n");
+const exportOne = (p) => PP.exportFile(fileSlug(nameOf(p)) + ".md", p.text.trim() + "\n");
+// .md / .txt files (the name is the file's name) or a system-prompts.json from Export all.
+const promptsFromFiles = (files) =>
+  files.flatMap((f) => {
+    if (!/\.json$/i.test(f.name)) return [{ name: f.name.replace(/\.(md|markdown|txt)$/i, "").replace(/[-_]+/g, " "), text: f.text.trim() }];
+    let j;
+    try {
+      j = JSON.parse(f.text);
+    } catch (e) {}
+    if (!j || j.promptpipe !== "system-prompts" || !Array.isArray(j.prompts)) throw new Error(f.name + " is not a system prompts file");
+    return j.prompts.filter((p) => p && typeof p.text === "string");
+  });
+const importPrompts = (files) =>
+  (async () => {
+    const list = promptsFromFiles(files).filter((p) => p.text.trim());
+    let added = 0, replaced = 0;
+    for (const p of list) {
+      const name = (p.name || "").trim();
+      const clash = name && lib.prompts.find((x) => (x.name || "") === name);
+      let replace = false;
+      if (clash) replace = PP.importMode() === "replace" || (PP.importMode() === "ask" && (await PP.confirm(`A system prompt named “${name}” already exists. Replace it? (Cancel keeps both.)`, "Replace")));
+      if (clash && replace) (Object.assign(clash, { text: p.text, edited: new Date().toISOString() }), replaced++);
+      else {
+        let n = name, i = 2;
+        while (n && lib.prompts.some((x) => (x.name || "") === n)) n = `${name} (${i++})`;
+        lib.prompts.unshift({ id: newId(), name: n, text: p.text, pinned: !!p.pinned, created: new Date().toISOString() });
+        added++;
+      }
+    }
+    if (added || replaced) await save(`imported ${added + replaced}`);
+    PP.toast(added || replaced ? `Imported ${added} new${replaced ? `, replaced ${replaced}` : ""}` : "Nothing to import");
+    PP.render();
+  })().catch((e) => PP.toast(e.message, "error"));
+const pickAndImport = () => PP.pickFiles(importPrompts, { multiple: true, accept: ".md,.markdown,.txt,.json,text/*" });
+
 const openLibrary = (ctx) => {
   let query = "";
   let editing = null;
@@ -102,6 +140,9 @@ const openLibrary = (ctx) => {
       h("div", { class: "row" },
         h("h3", { class: "grow" }, `Library · ${lib.prompts.length}`),
         lib.prompts.length ? h("button", { class: "small", onclick: () => (unfolded.size ? unfolded.clear() : lib.prompts.forEach((p) => unfolded.add(p.id)), PP.render()) }, unfolded.size ? "Fold all" : "Unfold all") : null),
+      h("div", { class: "row" },
+        h("button", { class: "small", onclick: pickAndImport }, "Import…"),
+        lib.prompts.length ? h("button", { class: "small", onclick: exportAll }, "Export all") : null),
       lib.prompts.length > 4 ? h("input", { type: "search", placeholder: "Search prompts", value: query, oninput: (e) => ((query = e.target.value), PP.render()), "data-keep": "sp-search" }) : null,
       ...shown.map((p) => editing === p.id
         ? editor(p)
@@ -126,6 +167,7 @@ const openLibrary = (ctx) => {
                       }, 0);
                     } }, "Edit"),
                     h("button", { class: "small", onclick: () => PP.copy(p.text) }, "Copy"),
+                    h("button", { class: "small", onclick: () => exportOne(p) }, "Export"),
                     h("button", { class: "small danger", onclick: async () => {
                       if (!(await PP.confirm(`Delete "${nameOf(p)}" from the library?`))) return;
                       lib.prompts = lib.prompts.filter((x) => x !== p);
@@ -141,6 +183,11 @@ const openLibrary = (ctx) => {
 };
 
 PP.plugin({
+  // In Find: import and export without opening the library.
+  menu: [
+    { label: "Import system prompts…", run: pickAndImport },
+    { label: "Export all system prompts", run: async () => (await load(), lib.prompts.length ? exportAll() : PP.toast("No system prompts yet")) },
+  ],
   beforeSend(text, ctx) {
     const s = ctx.settings;
     if (s.when === "first" && !ctx.firstMessage) return text;

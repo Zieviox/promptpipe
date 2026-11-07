@@ -3,6 +3,7 @@ package ppcore
 // Settings, secrets, plugins and chat history on disk.
 
 import "core:encoding/json"
+import "core:fmt"
 import "core:os"
 import "core:strconv"
 import "core:strings"
@@ -242,9 +243,12 @@ companion :: proc(chat: string) -> (string, bool) {
 history_save :: proc(body: json.Object) -> (touched: [dynamic]string, err: string) {
 	touched = make([dynamic]string)
 	for d in get_arr(body, "mkdir") {
-		p, ok := history_path(string(d.(json.String) or_else ""))
+		rel := string(d.(json.String) or_else "")
+		p, ok := history_path(rel)
 		if !ok do return touched, "bad folder path"
-		os.make_directory_all(p)
+		if err := os.make_directory_all(p); err != nil && !os.is_dir(p) {
+			return touched, fmt.tprintf("could not make the folder %s (%v)", rel, err)
+		}
 	}
 	for m in get_arr(body, "moves") {
 		mo, _ := m.(json.Object)
@@ -269,7 +273,7 @@ history_save :: proc(body: json.Object) -> (touched: [dynamic]string, err: strin
 		rel := get_str(fo, "path")
 		p, ok := history_path(rel)
 		if !ok do return touched, strings.concatenate({"bad file path '", rel, "'"})
-		if !write_text(p, get_str(fo, "text")) do return touched, strings.concatenate({"could not write ", rel})
+		if why := write_text_why(p, get_str(fo, "text")); why != "" do return touched, fmt.tprintf("could not write %s (%s)", rel, why)
 		append(&touched, rel)
 	}
 	for d in get_arr(body, "delete") {

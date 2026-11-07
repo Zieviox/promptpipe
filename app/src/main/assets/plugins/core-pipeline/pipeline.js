@@ -5,8 +5,10 @@
 //            or, if it gives a piece() (Memory), puts its text where its row is
 //   message  where your message goes
 // A row can sit in a group: the group's switch turns all its rows on or off.
-// Presets are shared by profiles: S.config.presets, prof.preset = a preset id.
-// Plugin settings stay per profile (settingsFor); which steps run is the preset's.
+// A profile owns its rows: prof.pipe = { groups, rows }. S.config.presets are the
+// starters (RP, Story writing ...) a profile can be made from; changing a profile
+// never changes a starter or another profile.
+// Plugin settings stay per profile (settingsFor); which steps run is the profile's.
 
 const WHEN = { every: "Every message", first: "First message of a site chat", everyN: "Every N messages", depth: "At depth N (N messages up in the earlier chat)", off: "Off" };
 const newId = (p) => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -83,7 +85,12 @@ const STARTERS = () => [
 
 // ---------- lookups (pure on the config) ----------
 const presets = () => (S.config.presets = S.config.presets || []);
-const presetOf = (prof = profile()) => presets().find((p) => p.id === prof.preset) || presets()[0] || null;
+const clonePipe = (src) => {
+  const out = JSON.parse(JSON.stringify({ groups: src.groups || [], rows: src.rows }));
+  for (const r of out.rows) if (r.type === "piece") r.id = newId("pc");
+  return out;
+};
+const presetOf = (prof = profile()) => prof.pipe || null;
 const groupOf = (pre, row) => (row.group ? (pre.groups || []).find((g) => g.id === row.group) : null);
 const rowLive = (pre, row) => row.on !== false && groupOf(pre, row)?.on !== false;
 // A plugin's own row (not one of its pieces).
@@ -218,26 +225,31 @@ const previewMessage = (prof = profile(), opts = {}) => {
 };
 
 // ---------- presets: edit (each saves) ----------
-const usePreset = (id, prof = profile()) => {
-  prof.preset = id;
+// Fill a profile's rows from a starter (the profile's own rows are replaced).
+const applyStarter = (id, prof = profile()) => {
+  const t = presets().find((p) => p.id === id);
+  if (!t) return;
+  prof.pipe = clonePipe(t);
+  syncRows(prof.pipe);
   saveConfig();
 };
-const addPreset = (name, from = null) => {
-  const pre = from ? JSON.parse(JSON.stringify(from)) : { groups: [], rows: [messageRow()] };
-  pre.id = newId("ps");
-  pre.name = name;
-  for (const r of pre.rows) if (r.type === "piece") r.id = newId("pc");
-  syncRows(pre);
-  presets().push(pre);
-  saveConfig();
-  return pre;
+// A new profile with its own rows, from a starter (or just your message). It is
+// not made the active one.
+const makeProfile = (name, starterId = "plain", from = profile()) => {
+  const prof = { id: "p" + Date.now().toString(36), name, site: from.site || "", plugins: [] };
+  S.config.profiles.push(prof);
+  applyStarter(starterId, prof);
+  if (!prof.pipe) prof.pipe = { groups: [], rows: [messageRow()] };
+  return prof;
 };
-const removePreset = (pre) => {
-  const list = presets();
-  if (list.length < 2) return toast("Keep at least one preset", "error");
-  list.splice(list.indexOf(pre), 1);
-  for (const prof of S.config.profiles) if (prof.preset === pre.id) prof.preset = list[0].id;
+const copyProfile = (src, name) => {
+  const prof = JSON.parse(JSON.stringify(src));
+  prof.id = "p" + Date.now().toString(36);
+  prof.name = name;
+  prof.pipe = clonePipe(src.pipe);
+  S.config.profiles.push(prof);
   saveConfig();
+  return prof;
 };
 const moveRow = (pre, i, d) => moveRowTo(pre, i, i + d);
 // Take the row at `from` and put it at `to` (the others shift).
@@ -311,14 +323,28 @@ const migrateProfile = (prof, lib) => {
 const setUp = async () => {
   const fresh = !S.config.presets;
   if (fresh) S.config.presets = STARTERS();
-  const lib = S.config.profiles.some((p) => !p.preset) ? await promptLibrary() : [];
+  const lib = S.config.profiles.some((p) => !p.preset && !p.pipe) ? await promptLibrary() : [];
+  // Older configs: profiles shared presets (or had none). Each profile now gets its own rows.
+  const had = new Set(presets().map((p) => p.id));
+  const made = new Set(); // presets that only existed because of a profile
+  let moved = false;
   for (const prof of S.config.profiles) {
-    if (!prof.preset || !presets().some((p) => p.id === prof.preset)) prof.preset = prof.preset ? presets()[0].id : migrateProfile(prof, lib);
+    if (prof.pipe) continue;
+    moved = true;
+    if (!prof.preset) {
+      prof.preset = migrateProfile(prof, lib);
+      if (!had.has(prof.preset)) made.add(prof.preset);
+    }
+    const t = presets().find((p) => p.id === prof.preset) || presets()[0];
+    prof.pipe = clonePipe(t);
+    delete prof.preset;
   }
+  S.config.presets = presets().filter((p) => !made.has(p.id));
+  for (const prof of S.config.profiles) syncRows(prof.pipe);
   for (const pre of presets()) syncRows(pre);
-  if (fresh) saveConfig();
+  if (fresh || moved) saveConfig();
 };
 on("plugins", setUp, null);
 
 // Shared with the UI part and plugins.
-PP.pipeline = { partRow, pluginPieces, partOf, WHEN, presets, presetOf, rowLive, rowName, whenLabel, previewMessage, piece, promptLibrary, usePreset, addPreset, removePreset, moveRow, moveRowTo, addGroup, removeGroup };
+PP.pipeline = { partRow, pluginPieces, partOf, WHEN, presets, presetOf, rowLive, rowName, whenLabel, previewMessage, piece, promptLibrary, applyStarter, makeProfile, copyProfile, clonePipe, syncRows, moveRow, moveRowTo, addGroup, removeGroup };

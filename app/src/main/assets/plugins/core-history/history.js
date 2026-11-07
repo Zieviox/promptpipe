@@ -107,7 +107,10 @@ const makeFolder = async (name) => {
     return false;
   }
   name = parts.join("/");
-  const r = await api("/api/history/save", { files: [{ path: name + "/.gitkeep", text: "" }], message: "folder: " + name });
+  // The folder itself is what matters (mkdir says why if it can't be made). The
+  // .gitkeep only lets git keep an empty folder, so a failure to write it is not an error.
+  await api("/api/history/save", { mkdir: [name] });
+  const r = await api("/api/history/save", { files: [{ path: name + "/.gitkeep", text: "" }], message: "folder: " + name }).catch((e) => ({ gitError: "", keepError: e.message }));
   // Open it and every folder around it, or a subfolder would stay out of sight.
   parts.forEach((_, i) => S.openFolders.add(parts.slice(0, i + 1).join("/")));
   local("openFolders", [...S.openFolders]);

@@ -480,3 +480,18 @@ p.warn { background: color-mix(in srgb, var(--warn) 10%, transparent); border-ra
 .rbtn.dis { opacity: .3; pointer-events: none; }
 .plus .svg, .expand .svg { width: 22px; height: 22px; }
 .expand { min-width: 34px; }
+
+/* dropdowns that open in place */
+.dd { display: flex; flex-direction: column; gap: 6px; background: var(--raise2); border-radius: 14px; padding: 4px; }
+.dd-head { display: flex; align-items: center; gap: 6px; }
+.dd-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; text-align: left; font-weight: 600; }
+.dd-main .svg { width: 18px; height: 18px; color: var(--muted); }
+.dd-list { display: flex; flex-direction: column; max-height: 38vh; overflow-y: auto; }
+.dd-item { display: flex; align-items: center; gap: 6px; }
+.dd-pick { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; text-align: left; border-radius: var(--r-small); }
+.dd-pick .svg { width: 18px; height: 18px; flex: none; }
+.dd-pick.current { color: var(--accent); }
+.dd .chips { padding: 2px 6px 6px; }
+.prow.open { background: var(--raise2); border-radius: var(--r-small); }
+.prow .qname { text-align: left; align-items: flex-start; }
+.field .dd { background: var(--raise); }

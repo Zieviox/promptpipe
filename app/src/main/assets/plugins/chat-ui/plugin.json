@@ -1,6 +1,6 @@
 {
   "name": "Chat screen",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "kind": "ui",
   "order": 50,
   "description": "App part: the whole chat UI. Copy it to change anything you see.",
@@ -8,6 +8,7 @@
     "ui.js",
     "drawer.js",
     "quick.js",
+    "profiles.js",
     "chat-sheet.js",
     "find.js"
   ],

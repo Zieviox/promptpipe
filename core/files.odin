@@ -48,6 +48,11 @@ write_text :: proc(path: string, s: string, private := false) -> bool {
 	return os.write_entire_file(path, transmute([]byte)s, perm) == nil
 }
 
+// Like write_text (a folder is made for it first); on failure returns the OS's reason.
+write_text_why :: proc(path: string, s: string) -> string {
+	return write_bytes_why(path, transmute([]byte)s)
+}
+
 write_bytes :: proc(path: string, data: []byte) -> bool {
 	return write_bytes_why(path, data) == ""
 }

@@ -52,6 +52,30 @@ const copyText = async (text, done = "Copied") => {
   return true;
 };
 
+// Save a file for the user in <storage>/export/ (a folder other apps reach).
+// Resolves its path, or null after saying why.
+const exportFile = async (name, text) => {
+  try {
+    const r = await api("/api/export", { name, text });
+    toast("Saved " + r.path);
+    return r.path;
+  } catch (e) {
+    toast("Couldn't save the file: " + e.message, "error");
+    return null;
+  }
+};
+// Ask for text files; calls back with [{ name, text }] once they are read.
+const pickFiles = (done, { multiple = false, accept = ".json,.md,.txt,text/*" } = {}) => {
+  const input = h("input", { type: "file", multiple, accept });
+  input.onchange = async () => {
+    const files = [...(input.files || [])];
+    if (!files.length) return;
+    if (files.some((f) => f.size > 5_000_000)) return toast("A file is over 5 MB", "error");
+    done(await Promise.all(files.map(async (f) => ({ name: f.name, text: await f.text() }))));
+  };
+  input.click();
+};
+
 // Replaceable by the UI part (it may assign its own).
 let toast = (msg, kind = "info") => {
   const t = h("div", { class: "toast " + kind, role: kind === "error" ? "alert" : "status" }, msg);
@@ -146,6 +170,11 @@ const PP = (window.PP = {
   api,
   // Copy text (the app's clipboard): resolves true, or false after saying why.
   copy: (text, done) => copyText(text, done),
+  // Save a file for the user (<storage>/export/) and pick text files to read.
+  exportFile,
+  pickFiles,
+  // What to do when an imported name already exists: "ask" | "both" | "replace" (Settings › Import and export).
+  importMode: () => S.config.importClash || "ask",
   toast: (msg, kind) => toast(msg, kind),
   // App events (see "events" below): PP.on("job", fn), PP.emit("my-event", data).
   on: (type, fn) => on(type, fn),

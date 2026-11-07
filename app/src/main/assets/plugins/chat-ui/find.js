@@ -27,8 +27,8 @@ const commands = () => [
   { name: "Edit and resend last message", path: "Message bar", key: "↑ in empty box", run: editLast },
   { name: "Bigger or smaller message box", path: "Message bar", key: "Ctrl+E", run: toggleExpand },
   { name: "Fold or unfold all thinking", path: "Chat", key: "Ctrl+/", run: () => toggleThinking() },
-  { name: "Edit this profile", path: "Profile", key: "Ctrl+Shift+L", run: openPipeline },
-  { name: "Profiles", path: "Profile", key: "", run: openProfileMenu },
+  { name: "Edit this profile", path: "Profile", key: "Ctrl+Shift+L", run: () => openProfileEditor() },
+  { name: "Profiles: new, import, export", path: "Profile", key: "", run: () => openProfileEditor() },
   { name: "Next profile", path: "Profile", key: "Ctrl+P", run: nextProfile },
   { name: "Quick edit and add", path: "Message bar", key: "", run: openQuick },
   { name: "Put a text file in the box", path: "Message bar", key: "", run: () => pickTextFiles(false) },
@@ -58,6 +58,7 @@ const SETTING_CONTROLS = [
   ["Look", "Stay at the bottom while a reply comes in"], ["Look", "Enter sends"],
   ["Chats and storage", "Where chats are saved"], ["Chats and storage", "Git history and backup"],
   ["Sites", "Get site plugins"], ["Sites", "Site pages at once"], ["Sites", "Waiting for replies"],
+  ["Import and export", "Export all profiles"], ["Import and export", "Import a profile"], ["Import and export", "Importing a name you already have"],
   ["Local API", "API token"], ["Local API", "Folder for chats made through the API"],
   ["Advanced", "App parts"], ["Advanced", "Stop background service"], ["Advanced", "Core log"], ["Advanced", "Show the welcome again"],
 ];

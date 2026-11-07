@@ -575,23 +575,20 @@ const openWelcome = () => {
         h("div", { class: "row" },
           site ? h("button", { class: "primary", onclick: () => (showSite(), finish()) }, "Open " + site.name) : null,
           h("button", { class: site ? "" : "primary", onclick: finish }, site ? "Later" : "Start")),
-        h("p", { class: "muted" }, "Then pick a preset under the message box (RP, Story writing, Writing feedback or Plain) and send a message."),
+        h("p", { class: "muted" }, "Then send a message. The layers button next to the box (Quick edit and add) is where you choose what goes with it; Profiles has the starters (RP, Story writing, Writing feedback, Plain)."),
       ];
     },
   ];
   openSheet("Welcome to promptpipe", () => [h("p", { class: "faint" }, `Step ${stepNo + 1} of ${steps.length}`), ...steps[stepNo]()]);
 };
 
-// Starter presets as chips in an empty chat: tap to use one.
-const presetPicker = () => {
-  const list = PP.pipeline?.presets() || [];
-  if (list.length < 2) return null;
-  const cur = presetOf();
-  return h("div", { class: "preset-picker" },
-    h("p", { class: "faint" }, "Preset for this profile (what goes with your message)"),
-    h("div", { class: "row" }, list.map((p) => h("button", { class: "chip" + (p === cur ? " current" : ""), "aria-pressed": String(p === cur), onclick: () => (PP.pipeline.usePreset(p.id), render()) }, p.name)),
-      h("button", { class: "chip ghost", onclick: openPipeline }, "Edit…")));
-};
+// In an empty chat: which profile is in use, and the way to its rows.
+const presetPicker = () =>
+  h("div", { class: "preset-picker" },
+    h("p", { class: "faint" }, "Profile: " + profile().name + " (what goes with your message)"),
+    h("div", { class: "row" },
+      h("button", { class: "chip", onclick: openQuick }, svgIcon("stackadd"), "Quick edit"),
+      h("button", { class: "chip ghost", onclick: () => openProfileEditor() }, "Edit profile")));
 
 // The site sheet: everything about the site in one place.
 const openSiteSheet = () =>
@@ -608,11 +605,9 @@ const openSiteSheet = () =>
         h("div", { class: "grow" }, h("b", {}, site ? site.name : "No AI site yet"), h("div", { class: "muted" }, st.words + (S.site.url ? " · " + S.site.url : ""))),
         site ? h("button", { class: "primary", onclick: showSite }, st.key === "off" ? "Open the page" : "Show the page") : h("button", { class: "primary", onclick: openGetSites }, "Get site plugins")),
       h("h3", {}, "Profile"),
-      h("div", { class: "row" },
-        h("select", { class: "grow", "aria-label": "Profile", onchange: (e) => switchProfile(e.target.value) }, S.config.profiles.map((p) => h("option", { value: p.id, selected: p === prof }, p.name))),
-        h("button", { class: "small", onclick: openProfileMenu }, "Profiles")),
+      profileDropdown({ id: "site", current: prof, pick: (p) => (switchProfile(p.id), rerenderSheet()) }),
       sites.length > 1 ? h("label", { class: "field" }, h("span", {}, "Site of this profile"),
-        h("select", { onchange: (e) => ((prof.site = e.target.value), saveConfig(), render(), rerenderSheet(), warmSite()) }, sites.map((x) => h("option", { value: x.id, selected: x.id === prof.site }, x.manifest.name)))) : null,
+        dropdown({ id: "sitepick", label: "Site of this profile", value: prof.site, options: sites.map((x) => ({ value: x.id, label: x.manifest.name })), onPick: (v) => ((prof.site = v), saveConfig(), render(), rerenderSheet(), warmSite()) })) : null,
       site ? h("h3", {}, "Model") : null,
       site ? h("div", { class: "row" },
         h("div", { class: "grow" }, h("div", {}, S.site.model ? "On the page: " + S.site.model : "The page hasn't shown its model yet"), want ? h("div", { class: "muted" }, "You picked: " + want + (S.site.model && !S.site.model.toLowerCase().includes(want.toLowerCase()) ? " (not what the page shows)" : "")) : null),
@@ -1180,6 +1175,7 @@ PP.askText = askText;
 // ---------- sheets ----------
 openSheet = (title, renderFn) => {
   S.sheet = { title, render: renderFn };
+  S.dd = {}; // dropdowns close when another screen opens
   syncLayer();
   render();
 };
@@ -1277,7 +1273,7 @@ const openPluginSettings = (id) => {
   openSheet(`${p.manifest?.name || id} · ${profile().name}`, () => [
     h("p", { class: "muted" }, p.manifest?.description || ""),
     p.error ? h("p", { class: "error" }, "✕ " + p.error) : null,
-    isSite(p) ? null : h("label", { class: "field inline" }, h("span", {}, `On in the preset “${presetOf()?.name || "?"}”`), h("input", { type: "checkbox", checked: stepOn(id), onchange: (e) => (setStepOn(id, e.target.checked), render()) })),
+    isSite(p) ? null : h("label", { class: "field inline" }, h("span", {}, `On in the profile “${profile().name}”`), h("input", { type: "checkbox", checked: stepOn(id), onchange: (e) => (setStepOn(id, e.target.checked), render()) })),
     ...settingsForm(id),
     h("p", { class: "muted" }, "Settings are saved per profile; the switch and the order are the preset's (Pipeline)."),
   ]);
@@ -1285,145 +1281,6 @@ const openPluginSettings = (id) => {
 
 // The pipeline: the profile's preset, its rows in the order they are sent,
 // groups with one switch each, and a preview of what goes out.
-let pipeOpen = null; // the row whose details are unfolded
-const openPipeline = () =>
-  openSheet("Pipeline", () => {
-    const prof = profile();
-    const pre = presetOf(prof);
-    const P = PP.pipeline;
-    if (!pre) return [h("p", { class: "muted" }, "No presets yet.")];
-    const redraw = () => (saveConfig(), rerenderSheet(), render());
-    const groupSelect = (r) =>
-      h("label", { class: "field" }, h("span", {}, "Group"),
-        h("select", { onchange: (e) => ((r.group = e.target.value), redraw()) },
-          h("option", { value: "", selected: !r.group }, "No group"),
-          (pre.groups || []).map((g) => h("option", { value: g.id, selected: r.group === g.id }, g.name))));
-    const details = (r, i) => {
-      if (r.type === "piece")
-        return h("div", { class: "pipe-details" },
-          h("label", { class: "field" }, h("span", {}, "Name"), h("input", { value: r.name || "", oninput: (e) => ((r.name = e.target.value), saveConfig()) })),
-          h("label", { class: "field" }, h("span", {}, "Text"), h("textarea", { rows: 6, value: r.text || "", placeholder: "What to send. Empty pieces aren't sent.", oninput: (e) => ((r.text = e.target.value), saveConfig()) })),
-          h("label", { class: "field" }, h("span", {}, "Send it"),
-            h("select", { onchange: (e) => ((r.when = e.target.value), redraw()) }, Object.entries(P.WHEN).map(([v, l]) => h("option", { value: v, selected: (r.when || "every") === v }, l)))),
-          r.when === "everyN" ? h("label", { class: "field" }, h("span", {}, "N (the first message of a site chat always gets it)"), h("input", { type: "number", min: 1, value: r.n || 5, oninput: (e) => ((r.n = Math.max(1, +e.target.value || 1)), saveConfig()) })) : null,
-          r.when === "depth" ? h("label", { class: "field" }, h("span", {}, "N: how many messages up from the newest, inside the earlier chat Memory sends (0 = right after it). Without Memory's earlier messages it goes just before your message, and its place in this list doesn't matter."), h("input", { type: "number", min: 0, value: r.n ?? 0, oninput: (e) => ((r.n = Math.max(0, Math.round(+e.target.value || 0))), saveConfig()) })) : null,
-          groupSelect(r),
-          h("div", { class: "row" },
-            h("button", { class: "small", onclick: () => copyText(r.text || "", "Copied") }, "Copy text"),
-            h("button", { class: "small danger", onclick: async () => {
-              if (!(await askConfirm(`Delete the piece “${rowName(r)}”?`))) return;
-              pre.rows.splice(i, 1);
-              pipeOpen = null;
-              redraw();
-            } }, "Delete piece")));
-      if (r.type === "step") {
-        const p = S.plugins.get(r.plugin);
-        const own = r.part ? !!P.partOf(r) : p?.def && typeof p.def.piece === "function";
-        return h("div", { class: "pipe-details" },
-          h("p", { class: "muted" }, p ? p.manifest.description || "" : "This plugin isn't installed, so the row is skipped."),
-          !r.part && p?.def && typeof p.def.beforeSend === "function" && !own
-            ? h("label", { class: "field" }, h("span", {}, "It changes"),
-                h("select", { onchange: (e) => ((r.scope = e.target.value), redraw()) },
-                  h("option", { value: "above", selected: r.scope !== "message" }, "Everything above it"),
-                  h("option", { value: "message", selected: r.scope === "message" }, "Only your message")))
-            : own ? h("p", { class: "muted" }, "Its text goes where this row is.") : h("p", { class: "muted" }, "It doesn't change the message (it works on replies or chats), so its place doesn't matter."),
-          groupSelect(r),
-          h("div", { class: "row" },
-            p ? h("button", { class: "small", onclick: () => openPluginSettings(r.plugin) }, "Plugin settings") : null,
-            r.part ? h("button", { class: "small danger", onclick: async () => {
-              if (!(await askConfirm(`Take “${rowName(r)}” out of this preset?`, "Take out"))) return;
-              pre.rows.splice(i, 1);
-              pipeOpen = null;
-              redraw();
-            } }, "Take out") : null));
-      }
-      return h("div", { class: "pipe-details" }, h("p", { class: "muted" }, "Your message goes here. Move it to put pieces before or after it."));
-    };
-    const rowEl = (r, i) => {
-      const live = r.type === "message" || P.rowLive(pre, r);
-      const g = r.group && (pre.groups || []).find((x) => x.id === r.group);
-      const sub = r.type === "piece" ? whenLabel(r) + (!(r.text || "").trim() ? " · empty, not sent" : "")
-        : r.type === "step" ? (!S.plugins.get(r.plugin) ? "Step · not installed" : r.part ? "Plugin piece" : "Step" + (r.scope === "message" ? " · your message only" : ""))
-        : "Where your message goes";
-      const open = pipeOpen === r;
-      return h("div", { class: "pipe-row" + (r.type === "message" ? " anchor" : "") + (live ? "" : " off") + (open ? " open" : "") },
-        h("div", { class: "pipe-head" },
-          r.type === "message"
-            ? h("span", { class: "pipe-anchor-dot", "aria-hidden": "true" })
-            : h("input", { type: "checkbox", checked: r.on !== false, "aria-label": "On", onchange: (e) => ((r.on = e.target.checked), redraw()) }),
-          h("button", { class: "ghost grow pipe-name", "aria-expanded": String(open), onclick: () => ((pipeOpen = open ? null : r), rerenderSheet()) },
-            h("b", {}, rowName(r)), h("small", { class: "muted" }, sub + (g ? ` · ${g.name}${g.on === false ? " (off)" : ""}` : "")), h("span", { class: "chev" }, open ? "▾" : "›")),
-          h("button", { class: "small", "aria-label": "Move up", disabled: i === 0, onclick: () => (P.moveRow(pre, i, -1), rerenderSheet(), render()) }, "↑"),
-          h("button", { class: "small", "aria-label": "Move down", disabled: i === pre.rows.length - 1, onclick: () => (P.moveRow(pre, i, 1), rerenderSheet(), render()) }, "↓")),
-        open ? details(r, i) : null);
-    };
-    const addPiece = (name = "", text = "") => {
-      const at = pre.rows.findIndex((r) => r.type === "message");
-      const r = P.piece(name || "New piece", text);
-      pre.rows.splice(Math.max(0, at), 0, r);
-      pipeOpen = r;
-      redraw();
-    };
-    const fromLibrary = async () => {
-      const lib = await P.promptLibrary();
-      if (!lib.length) return toast("Your system prompt library is empty");
-      openSheet("Add a piece from your library", () => [
-        h("p", { class: "muted" }, "A copy goes into this preset, before your message."),
-        ...lib.map((x) => h("div", { class: "plugin-row" },
-          h("div", { class: "grow" }, h("b", {}, x.name || x.text.trim().split("\n")[0].slice(0, 40)), h("div", { class: "muted" }, x.text.length > 160 ? x.text.slice(0, 160) + "…" : x.text)),
-          h("button", { class: "small primary", onclick: () => (openPipeline(), addPiece(x.name || "", x.text)) }, "Add"))),
-      ]);
-    };
-    const fromPlugins = () => {
-      const list = P.pluginPieces();
-      if (!list.length) return toast("No plugin gives pieces of its own");
-      openSheet("Add a plugin piece", () => [
-        h("p", { class: "muted" }, "Part of a plugin's text, in a row of its own, so you can put it anywhere. It goes in before your message; move it after."),
-        ...list.map((x) => h("div", { class: "plugin-row" },
-          h("b", { class: "grow" }, x.name),
-          pre.rows.some((r) => r.plugin === x.plugin && r.part === x.part) ? h("span", { class: "muted" }, "in this preset") : null,
-          h("button", { class: "small primary", onclick: () => {
-            const at = pre.rows.findIndex((r) => r.type === "message");
-            pre.rows.splice(Math.max(0, at), 0, P.partRow(x.plugin, x.part));
-            saveConfig();
-            openPipeline(); // back to the pipeline (the same sheet layer)
-          } }, "Add"))),
-      ]);
-    };
-    let first = true;
-    const preview = h("pre", { class: "pipe-preview" });
-    const showPreview = () => (preview.textContent = P.previewMessage(prof, { first }) || "(nothing)");
-    return [
-      h("div", { class: "row" },
-        h("label", { class: "field grow" }, h("span", {}, `Preset for “${prof.name}”`),
-          h("select", { onchange: (e) => (P.usePreset(e.target.value, prof), (pipeOpen = null), rerenderSheet(), render()) }, P.presets().map((x) => h("option", { value: x.id, selected: x === pre }, x.name))))),
-      h("div", { class: "row" },
-        h("button", { class: "small", onclick: async () => { const n = await askText("Name of the new preset", "New preset", "Make it"); if (n) (P.usePreset(P.addPreset(n).id, prof), rerenderSheet(), render()); } }, "New"),
-        h("button", { class: "small", onclick: async () => { const n = await askText("Name of the copy", pre.name + " copy", "Copy"); if (n) (P.usePreset(P.addPreset(n, pre).id, prof), rerenderSheet(), render()); } }, "Copy"),
-        h("button", { class: "small", onclick: async () => { const n = await askText("Rename the preset", pre.name, "Rename"); if (n) ((pre.name = n), redraw()); } }, "Rename"),
-        h("button", { class: "small danger", disabled: P.presets().length < 2, onclick: async () => (await askConfirm(`Delete the preset “${pre.name}”? Profiles using it move to the first preset.`)) && (P.removePreset(pre), rerenderSheet(), render()) }, "Delete")),
-      h("p", { class: "muted" }, "Sent top to bottom. A step changes what is above it. Tap a row for its details. Presets are shared by profiles; the changes save at once."),
-      h("div", { class: "pipe-list" }, pre.rows.map(rowEl)),
-      h("div", { class: "row" },
-        h("button", { class: "primary", onclick: () => addPiece() }, "Add piece"),
-        h("button", { onclick: fromLibrary }, "Add from library"),
-        h("button", { onclick: fromPlugins }, "Add plugin piece")),
-      h("h3", {}, "Groups"),
-      (pre.groups || []).length ? null : h("p", { class: "muted" }, "A group's switch turns all its rows on or off. Put a row in a group from its details."),
-      ...(pre.groups || []).map((g) => h("div", { class: "plugin-row" },
-        h("input", { type: "checkbox", checked: g.on !== false, "aria-label": "Group on", onchange: (e) => ((g.on = e.target.checked), redraw()) }),
-        h("input", { class: "grow", value: g.name, "aria-label": "Group name", oninput: (e) => ((g.name = e.target.value), saveConfig(), render()) }),
-        h("small", { class: "muted" }, `${pre.rows.filter((r) => r.group === g.id).length} rows`),
-        h("button", { class: "small danger", "aria-label": "Delete group", onclick: async () => (await askConfirm(`Delete the group “${g.name}”? Its rows stay, without a group.`)) && (P.removeGroup(pre, g), rerenderSheet(), render()) }, "✕"))),
-      h("div", { class: "row" }, h("button", { class: "small", onclick: async () => { const n = await askText("Group name", "Group " + ((pre.groups || []).length + 1), "Add"); if (n) (P.addGroup(pre, n), rerenderSheet(), render()); } }, "Add group")),
-      h("h3", {}, "What will be sent"),
-      h("div", { class: "row" },
-        h("label", { class: "field inline" }, h("span", {}, "As the first message of a site chat"), h("input", { type: "checkbox", checked: first, onchange: (e) => ((first = e.target.checked), showPreview()) })),
-        h("button", { class: "small", onclick: showPreview }, "Show")),
-      (showPreview(), preview),
-    ];
-  });
-
 const openPlugins = () =>
   openSheet("Plugins", () => {
     const prof = profile();
@@ -1446,8 +1303,8 @@ const openPlugins = () =>
       h("p", { class: "muted" }, "Your plugin folder: ", h("code", {}, S.pluginFolder || "?")),
       h("div", { class: "row" }, url, h("button", { onclick: install }, "Install")),
       h("div", { class: "row" }, h("button", { class: "primary", onclick: openGetSites }, "Get site plugins"), h("button", { class: "primary", onclick: () => api("/api/app/action", { action: "pickPlugin" }) }, "Install from a file (.zip or plugin.json)")),
-      h("h3", {}, `Plugins · switches of the preset “${presetOf(prof)?.name || "?"}”`),
-      h("div", { class: "row" }, h("p", { class: "muted grow" }, "The order they run in, and your pieces of text, are in the pipeline."), h("button", { class: "small primary", onclick: openPipeline }, "Pipeline")),
+      h("h3", {}, `Plugins · switches of the profile “${prof.name}”`),
+      h("div", { class: "row" }, h("p", { class: "muted grow" }, "The order they run in, and your system prompts, are in the profile."), h("button", { class: "small primary", onclick: () => openProfileEditor() }, "Edit profile")),
       ...prof.plugins.map((e, i) => {
         if (S.plugins.get(e.id) && !isStep(S.plugins.get(e.id))) return null;
         const p = S.plugins.get(e.id);
@@ -1588,60 +1445,6 @@ const shareChat = async (c = S.chat) => {
 };
 const openGuide = () => openDoc("PLUGINS.md", "Writing plugins");
 const openQuickStart = () => openDoc("QUICKSTART.md", "Quick start");
-
-const openProfileMenu = () =>
-  openSheet("Profiles", () => {
-    const prof = profile();
-    const sites = [...S.plugins.values()].filter(isSite);
-    return [
-      h("p", { class: "muted" }, "A profile is an AI site, a preset (what goes with your message) and the plugins' settings. Ctrl+P switches to the next one."),
-      ...S.config.profiles.map((p) =>
-        h(
-          "div",
-          { class: "plugin-row" + (p === prof ? " current" : "") },
-          h("input", { type: "radio", name: "prof", checked: p === prof, onchange: () => switchProfile(p.id) }),
-          h("input", { class: "grow", value: p.name, "aria-label": "Profile name", oninput: (e) => ((p.name = e.target.value), saveConfig()) }),
-          h("select", { "aria-label": "AI site", onchange: (e) => ((p.site = e.target.value), saveConfig(), render()) }, sites.map((s) => h("option", { value: s.id, selected: s.id === p.site }, s.manifest.name))),
-          h("select", { "aria-label": "Preset", onchange: (e) => ((p.preset = e.target.value), saveConfig(), render()) }, PP.pipeline.presets().map((x) => h("option", { value: x.id, selected: x === presetOf(p) }, x.name))),
-          S.config.profiles.length > 1
-            ? h("button", { class: "small danger", "aria-label": "Delete profile", onclick: () => {
-                S.config.profiles = S.config.profiles.filter((x) => x !== p);
-                if (S.config.activeProfile === p.id) S.config.activeProfile = S.config.profiles[0].id;
-                saveConfig();
-                render();
-              } }, "✕")
-            : null,
-        ),
-      ),
-      h(
-        "div",
-        { class: "row" },
-        h("button", {
-          onclick: () => {
-            const copy = JSON.parse(JSON.stringify(prof));
-            copy.id = "p" + Date.now();
-            copy.name = prof.name + " copy";
-            S.config.profiles.push(copy);
-            switchProfile(copy.id);
-          },
-        }, "Duplicate current"),
-        h("button", { onclick: openPipeline }, "Pipeline"),
-        h("button", { onclick: openPlugins }, "Plugins"),
-      ),
-    ];
-  });
-
-const switchProfile = (id) => {
-  S.config.activeProfile = id;
-  saveConfig();
-  render();
-  toast("Profile: " + profile().name);
-  warmSite();
-};
-const nextProfile = () => {
-  const ps = S.config.profiles;
-  switchProfile(ps[(ps.indexOf(profile()) + 1) % ps.length].id);
-};
 
 const openGit = () =>
   openSheet("Git history", () => {
@@ -1829,9 +1632,24 @@ const SETTINGS = [
     ...[["idleMin", "Give up after this long with no activity on the page"], ["maxMin", "Give up after this long in total"]].map(([k, label]) =>
       h("label", { class: "field inline" }, h("span", {}, label), h("input", { type: "number", min: "0", step: "1", style: "width:5em", value: String((S.config.wait || {})[k] || 0), oninput: (e) => ((S.config.wait = { ...(S.config.wait || {}), [k]: Math.max(0, +e.target.value || 0) }), saveConfig()) }))),
   ]],
-  ["Plugins", "All plugins, install, updates, the pipeline", () => [
-    h("div", { class: "row" }, h("button", { class: "primary", onclick: openPlugins }, "Plugins"), h("button", { onclick: openPipeline }, "Pipeline")),
+  ["Plugins", "All plugins, install, updates, the profile", () => [
+    h("div", { class: "row" }, h("button", { class: "primary", onclick: openPlugins }, "Plugins"), h("button", { onclick: () => openProfileEditor() }, "Edit profile")),
   ]],
+  ["Import and export", "Profiles, system prompts, names that already exist", () => {
+    const menu = (label) => [...S.plugins.values()].flatMap((p) => p.def?.menu || []).find((m) => m.label === label);
+    const spImport = menu("Import system prompts…"), spExport = menu("Export all system prompts");
+    return [
+      h("p", { class: "muted" }, "Exports are saved in ", h("code", {}, (S.app.storage || "the app folder") + "/export"), ", where other apps can reach them."),
+      h("h3", {}, "Profiles"),
+      h("div", { class: "row" }, h("button", { onclick: () => exportProfiles(S.config.profiles) }, "Export all profiles"), h("button", { onclick: openImportProfile }, "Import a profile…")),
+      h("h3", {}, "System prompts"),
+      h("div", { class: "row" }, spExport ? h("button", { onclick: () => spExport.run() }, "Export all system prompts") : null, spImport ? h("button", { onclick: () => spImport.run() }, "Import system prompts…") : null),
+      spImport ? null : h("p", { class: "muted" }, "The System prompt plugin isn't installed."),
+      h("h3", {}, "When a name already exists"),
+      h("label", { class: "field" }, h("span", {}, "Importing a name you already have"),
+        dropdown({ id: "clash", label: "Importing a name you already have", value: importMode(), options: [{ value: "ask", label: "Ask each time (keep both is preselected)" }, { value: "both", label: "Always keep both" }, { value: "replace", label: "Always replace" }], onPick: (v) => ((S.config.importClash = v), saveConfig(), rerenderSheet()) })),
+    ];
+  }],
   ["Local API", "For other apps: address, token, folder", () => [
     h("p", { class: "muted" }, "Apps that take an OpenAI API key: base URL below, model = a profile name, API key = the token below (always required). Each request becomes one new chat on the site, unless it adds \"chat\": \"<path>.md\" to continue a saved chat (then only its last message is sent). Every reply also says, under \"promptpipe\", which chat it went to and what was sent. Requests at the same time run in parallel on the site pages (see Sites), the rest wait their turn."),
     h("div", { class: "row" }, h("pre", { class: "grow" }, `http://127.0.0.1:${S.app.port}/v1`), h("button", { class: "small", onclick: () => copyText(`http://127.0.0.1:${S.app.port}/v1`, "Copied") }, "Copy")),
@@ -1989,7 +1807,7 @@ document.addEventListener("keydown", (e) => {
   if (ctrl && !e.shiftKey && k === "b") return run(() => (S.drawer ? closeDrawer() : openDrawer()));
   if (ctrl && !e.shiftKey && k === "p") return run(nextProfile);
   if (ctrl && e.shiftKey && k === "p") return run(openPlugins);
-  if (ctrl && e.shiftKey && k === "l") return run(openPipeline);
+  if (ctrl && e.shiftKey && k === "l") return run(() => openProfileEditor());
   if (ctrl && e.shiftKey && k === "r") return run(reloadPlugins);
   if (ctrl && !e.shiftKey && k === "t") return run(() => (openChatSheet(), setTimeout(() => document.querySelector(".in-sheet .tag-input")?.focus(), 50)));
   if (ctrl && e.key === ",") return run(openSettings);
