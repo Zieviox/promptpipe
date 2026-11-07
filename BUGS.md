@@ -141,7 +141,7 @@ Not started. Same statuses as above. Fixes first, then the release items.
 | 74 | Update plugins is hidden and minimized too far | open | Make it a visible control (Plugins sheet, top), not buried in Settings. |
 | 75 | Profile export, one profile and all | open | New. |
 | 76 | A button to reset the app to a first launch without losing data | open | New. First-run welcome again; chats, settings and plugins stay. |
-| 77 | A new git push with updates to check | open | Unclear wording. Reading: the app checks the git repo for new pushes and offers the update (as the plugin bundle update does). **Unconfirmed with Gtex.** |
+| 77 | A new git push with updates to check | open | The app checks the repo for new pushes and offers the update (as the plugin bundle update does). Confirmed by Gtex. |
 
 ---
 
