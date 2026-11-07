@@ -648,12 +648,11 @@ const renderTop = () => {
     h(
       "div",
       { class: "titlebox" },
-      h("button", { class: "title", title: "Chat info, tags, history · F2", onclick: renameChat }, h("span", { class: "title-text" }, c.meta.title || "New chat"), h("span", { class: "chev", "aria-hidden": "true" }, "▾")),
+      h("button", { class: "title", title: "Chat: name, tags, move, export · F2", onclick: openChatSheet }, h("span", { class: "title-text" }, c.meta.title || "New chat"), h("span", { class: "chev", "aria-hidden": "true" }, "▾")),
     ),
     siteButton(prof),
     ...topBlocks(),
-    h("button", { class: "icon", title: "Search all chats · Ctrl+F", "aria-label": "Search", onclick: openSearch }, svgIcon("search")),
-    h("button", { class: "icon", title: "Menu · Ctrl+K for commands", "aria-label": "Menu", onclick: openMenu }, svgIcon("more")),
+    h("button", { class: "icon find-btn", title: "Find chats, messages, functions and settings · Ctrl+K or F3", "aria-label": "Find", onclick: () => openFind() }, svgIcon("search")),
   );
 };
 
@@ -664,7 +663,21 @@ const ICONS = {
   send: '<path d="M12 19V5M5.5 11.5L12 5l6.5 6.5"/>',
   stop: '<rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor"/>',
   layers: '<path d="M12 4l8 4-8 4-8-4z"/><path d="M4 12l8 4 8-4M4 16l8 4 8-4"/>',
-  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/>',
+  settings: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
+  pin: '<path d="M9 4h6l-1 6 3 3H7l3-3zM12 13v7"/>',
+  check: '<path d="M5 12l5 5 9-10"/>',
+  trash: '<path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12"/>',
+  folder: '<path d="M3 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  copy: '<rect x="8" y="8" width="11" height="11" rx="2"/><path d="M5 15V6a1 1 0 0 1 1-1h9"/>',
+  edit: '<path d="M5 19l1-4 9-9 3 3-9 9zM13.5 7.5l3 3"/>',
+  grip: '<circle cx="9" cy="6" r="1.3"/><circle cx="15" cy="6" r="1.3"/><circle cx="9" cy="12" r="1.3"/><circle cx="15" cy="12" r="1.3"/><circle cx="9" cy="18" r="1.3"/><circle cx="15" cy="18" r="1.3"/>',
+  right: '<path d="M9 5l7 7-7 7"/>',
+  down: '<path d="M6 10l6 6 6-6"/>',
+  share: '<path d="M12 15V4M8 8l4-4 4 4M5 13v6h14v-6"/>',
+  chat: '<path d="M5 6h14v9H10l-4 4v-4H5z"/>',
+  history: '<path d="M4 12a8 8 0 1 0 2.5-5.8M4 5v4h4M12 8v4l3 2"/>',
 };
 const svgIcon = (name) => {
   const span = h("span", { class: "svg", "aria-hidden": "true" });
@@ -973,7 +986,7 @@ const blockFor = (e, n) => {
       "span",
       { class: "pill " + (on ? "on" : "off") + (p.error ? " broken" : "") },
       h("button", { class: "pill-main", "aria-pressed": String(on), title: (n <= 9 ? `Alt+${n} toggles. ` : "") + (p.manifest.description || ""), onclick: toggle }, h("span", { class: "dot" }), text ?? label),
-      h("button", { class: "pill-gear", title: "Settings", "aria-label": label + " settings", onclick: () => openPluginSettings(e.id) }, svgIcon("gear")),
+      h("button", { class: "pill-gear", title: "Settings", "aria-label": label + " settings", onclick: () => openPluginSettings(e.id) }, svgIcon("settings")),
     );
   if (p.def && typeof p.def.renderBlock === "function") {
     try {
@@ -1189,273 +1202,6 @@ const editLast = () => {
 };
 
 // ---------- chat list (drawer) ----------
-const openDrawer = () => {
-  S.drawer = true;
-  syncLayer();
-  render();
-  setTimeout(() => document.querySelector(".drawer input")?.focus(), 0);
-};
-closeDrawer = () => {
-  if (!S.drawer) return;
-  S.drawer = false;
-  syncLayer();
-  render();
-};
-
-const matches = (c) => {
-  const q = S.query.trim().toLowerCase();
-  if (!q) return true;
-  return q.split(/\s+/).every((w) =>
-    w.startsWith("#") ? c.meta.tags.some((t) => t.toLowerCase().startsWith(w.slice(1))) : (c.meta.title || "").toLowerCase().includes(w) || c.meta.tags.some((t) => t.toLowerCase().includes(w)),
-  );
-};
-
-const isPinned = (path) => (S.config.pinned || []).includes(path);
-const togglePin = (path) => {
-  const p = new Set(S.config.pinned || []);
-  p.has(path) ? p.delete(path) : p.add(path);
-  S.config.pinned = [...p];
-  saveConfig();
-  render();
-};
-const dayGroup = (iso) => {
-  const d = new Date(iso);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const days = Math.floor((today - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
-  return isNaN(days) ? "Older" : days <= 0 ? "Today" : days === 1 ? "Yesterday" : days < 7 ? "This week" : days < 31 ? "This month" : "Older";
-};
-
-const chatRow = (c) => {
-  const row = h(
-    "div",
-    { class: "chat-row" + (S.chat.path === c.path ? " current" : "") },
-    h(
-      "button",
-      { class: "chat-open", onclick: () => openChat(c.path).catch((e) => toast(e.message, "error")) },
-      h("span", { class: "chat-title" }, (isPinned(c.path) ? "📌 " : "") + (c.meta.title || c.path)),
-      h("span", { class: "chat-sub" }, ChatFile.stamp(c.meta.updated), c.meta.ai ? " · " + c.meta.ai : ""),
-      c.meta.tags.length ? h("span", { class: "chat-tags" }, c.meta.tags.slice(0, 4).map((t) => h("span", { class: "tag-pill" }, t)), c.meta.tags.length > 4 ? h("span", { class: "tag-pill more" }, "+" + (c.meta.tags.length - 4)) : null) : null,
-    ),
-    h("button", { class: "icon", title: "Chat actions (or long-press)", "aria-label": "Actions for " + c.meta.title, onclick: () => openChatActions(c) }, "⋯"),
-  );
-  onLongPress(row, () => openChatActions(c));
-  return row;
-};
-
-// Tag chips under the search, most used first: tap one to show only its chats,
-// tap it again to show all.
-const tagFilter = () => {
-  const count = new Map();
-  for (const c of S.chats) for (const t of c.meta.tags || []) count.set(t, (count.get(t) || 0) + 1);
-  if (!count.size) return null;
-  const words = S.query.trim().split(/\s+/).filter(Boolean);
-  const on = (t) => words.includes("#" + t);
-  const toggle = (t) => {
-    S.query = (on(t) ? words.filter((w) => w !== "#" + t) : [...words, "#" + t]).join(" ");
-    render();
-  };
-  const tags = [...count.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  return h("div", { class: "tag-filter", role: "group", "aria-label": "Filter by tag" },
-    tags.map(([t, n]) => h("button", { class: "tag-chip" + (on(t) ? " on" : ""), "aria-pressed": String(on(t)), onclick: () => toggle(t) }, "#" + t, h("span", { class: "n" }, String(n)))));
-};
-
-const renderDrawer = () => {
-  const list = h("div", { class: "chat-list" });
-  const shown = S.chats.filter(matches);
-  const folderOf = (p) => (p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "");
-  const folders = [...new Set([...S.folders, ...S.chats.map((c) => folderOf(c.path)).filter(Boolean)])].sort();
-  const searching = !!S.query.trim();
-  // Pinned chats, then top level chats by day, then each folder (nested folders indent).
-  const pinned = shown.filter((c) => isPinned(c.path));
-  if (pinned.length) list.append(h("div", { class: "group" }, "Pinned"), ...pinned.map(chatRow));
-  let group = "";
-  for (const c of shown.filter((c) => !folderOf(c.path) && !isPinned(c.path))) {
-    const g = dayGroup(c.meta.updated);
-    if (g !== group) list.append(h("div", { class: "group" }, (group = g)));
-    list.append(chatRow(c));
-  }
-  for (const f of folders) {
-    const parent = folderOf(f);
-    if (parent && !S.openFolders.has(parent) && !searching) continue;
-    const inside = shown.filter((c) => folderOf(c.path) === f);
-    if (searching && !inside.length) continue;
-    const open = searching || S.openFolders.has(f);
-    list.append(
-      h(
-        "div",
-        { class: "folder-row", style: `padding-left:${(f.split("/").length - 1) * 14}px` },
-        h(
-          "button",
-          {
-            class: "folder" + (S.folder === f ? " current" : ""),
-            "aria-expanded": String(open),
-            onclick: () => {
-              open ? S.openFolders.delete(f) : S.openFolders.add(f);
-              S.folder = f;
-              local("openFolders", [...S.openFolders]);
-              render();
-            },
-          },
-          (open ? "▾ " : "▸ ") + f.split("/").pop(),
-          h("span", { class: "muted" }, ` ${inside.length}`),
-        ),
-        h("button", { class: "small", title: "New chat in this folder", onclick: () => startNewChat(f) }, "+"),
-      ),
-    );
-    if (open) for (const c of inside) list.append(h("div", { style: `padding-left:${f.split("/").length * 14}px` }, chatRow(c)));
-  }
-  const siteList = h(
-    "div",
-    { class: "site-list" },
-    h(
-      "div",
-      { class: "row" },
-      h("b", {}, "On " + (siteFor()?.name || "the AI site")),
-      h("button", { class: "small", onclick: refreshSiteChats }, "Refresh"),
-    ),
-    S.siteChats.length
-      ? S.siteChats.map((c) => h("button", { class: "site-chat", onclick: () => openSiteChat(c) }, (S.chats.some((x) => sameUrl(x.meta.source, c.url)) ? "✓ " : "↗ ") + c.title))
-      : h("p", { class: "muted" }, "Tap Refresh to list the chats from the site's sidebar."),
-    siteLinkRow(),
-  );
-  return h(
-    "aside",
-    { class: "drawer", role: "dialog", "aria-label": "Chats" },
-    h(
-      "div",
-      { class: "row" },
-      h("button", { class: "primary", onclick: () => startNewChat(), title: "Ctrl+N" }, "+ New chat" + (S.folder ? " in " + S.folder : "")),
-      h("button", { onclick: promptFolder }, "+ Folder"),
-      h("button", { class: "icon", onclick: closeDrawer, "aria-label": "Close" }, "✕"),
-    ),
-    h("input", {
-      type: "search",
-      "data-keep": "search",
-      placeholder: "Search titles, #tag",
-      value: S.query,
-      oninput: (e) => {
-        S.query = e.target.value;
-        render();
-      },
-      onkeydown: (e) => {
-        if (e.key === "Enter") document.querySelector(".chat-list .chat-open")?.click();
-        if (e.key === "ArrowDown") {
-          e.preventDefault();
-          document.querySelector(".chat-list button")?.focus();
-        }
-      },
-    }),
-    tagFilter(),
-    h("div", { class: "row muted" }, "New chats go to: ", h("b", {}, S.folder || "top level"), S.folder ? h("button", { class: "small", onclick: () => ((S.folder = ""), render()) }, "use top level") : null),
-    list,
-    siteList,
-  );
-};
-
-const refreshSiteChats = async () => {
-  try {
-    const r = await siteCmd("list");
-    S.siteChats = r.chats || [];
-    if (!S.siteChats.length) toast("No chats found in the site's sidebar (open it once with Alt+S?)");
-    render();
-  } catch (e) {
-    toast(e.message, "error");
-  }
-};
-
-const promptFolder = () => {
-  openSheet("New folder", () => {
-    const input = h("input", { placeholder: "Folder name (use / for subfolders)", value: S.folder ? S.folder + "/" : "" });
-    let busy = false;
-    const go = async () => {
-      if (busy) return;
-      busy = true;
-      try {
-        if (await makeFolder(input.value)) closeSheet();
-      } catch (e) {
-        toast("Couldn't create the folder: " + e.message, "error");
-      } finally {
-        busy = false;
-      }
-    };
-    input.onkeydown = (e) => e.key === "Enter" && go();
-    autofocus(input);
-    return [input, h("div", { class: "row" }, h("button", { class: "primary", onclick: go }, "Create"))];
-  });
-};
-
-const openChatActions = (c) => {
-  const folders = [...new Set(S.folders)].sort();
-  openSheet(c.meta.title || c.path, () => {
-    const sel = h("select", {}, h("option", { value: "" }, "(top level)"), folders.map((f) => h("option", { value: f, selected: c.path.startsWith(f + "/") && !c.path.slice(f.length + 1).includes("/") }, f)));
-    return [
-      h("p", { class: "muted" }, c.path),
-      h("div", { class: "row" }, h("span", {}, "Move to"), sel, h("button", { onclick: () => moveChat(c, sel.value).then(closeSheet) }, "Move")),
-      h(
-        "div",
-        { class: "row" },
-        h("button", { onclick: () => openChat(c.path).then(closeSheet) }, "Open"),
-        h("button", { onclick: () => copyChat(c) }, "Copy chat"),
-        h("button", { onclick: () => shareChat(c) }, "Share chat"),
-        h("button", { onclick: () => (togglePin(c.path), closeSheet()) }, isPinned(c.path) ? "Unpin" : "Pin"),
-        c.meta.source ? h("button", { onclick: () => api("/api/app/action", { action: "openUrl", url: c.meta.source }) }, "Open source in browser") : null,
-        h(
-          "button",
-          {
-            class: "danger",
-            onclick: async () => {
-              if (await askConfirm(`Delete "${c.meta.title}"? It stays in git history.`)) deleteChat(c.path).then(closeSheet);
-            },
-          },
-          "Delete",
-        ),
-      ),
-    ];
-  });
-};
-
-// Chat info (tap the title, F2): name, chat tags, file and its history.
-const renameChat = () => {
-  const c = S.chat;
-  openSheet("Chat", () => {
-    const input = h("input", { value: c.meta.title, "aria-label": "Chat name" });
-    const save = async () => {
-      const t = input.value.trim();
-      if (!t || t === c.meta.title) return;
-      c.meta.title = t;
-      if (c.path) await saveChat(c, "rename: " + c.meta.title);
-      render();
-    };
-    input.onkeydown = (e) => e.key === "Enter" && (e.preventDefault(), save());
-    input.onblur = save;
-    autofocus(input, true);
-    const log = h("div", { class: "log muted" }, c.path ? "Loading…" : "Not saved yet.");
-    if (c.path)
-      api("/api/git/log?path=" + encodeURIComponent(c.path))
-        .then((r) => log.replaceChildren(...(r.log.length ? r.log.map((x) => h("div", {}, h("code", {}, x.id), " ", ChatFile.stamp(new Date(x.time).toISOString()), " ", x.message)) : ["No commits yet."])))
-        .catch((e) => (log.textContent = e.message));
-    return [
-      input,
-      h("h3", {}, "Chat tags"),
-      h("p", { class: "muted" }, "Every message in this chat gets these. name# gives each new message the next number."),
-      h(
-        "div",
-        { class: "tags-row in-sheet" },
-        c.meta.tags.map((t) => tagChip(t, { onRemove: () => removeChatTag(c, t).then(rerenderSheet) })),
-        tagInput("+ tag", (v) => addChatTag(c, v).then(rerenderSheet), "sheet-tag"),
-        h("datalist", { id: "known-tags" }, knownTags().map((t) => h("option", { value: t }))),
-      ),
-      h("h3", {}, "Source"),
-      h("p", { class: "muted" }, c.meta.source ? h("a", { href: c.meta.source }, c.meta.source) : "Not linked to a site chat yet.", c.meta.ai ? ` · ${c.meta.ai}` : "", c.meta.model ? ` · ${c.meta.model}` : ""),
-      h("h3", {}, "File"),
-      h("p", { class: "muted" }, h("code", {}, c.path || "(saved after the first message)")),
-      h("h3", {}, "History"),
-      log,
-    ];
-  });
-};
-
 // ---------- asking ----------
 // The app's own confirm and text prompt (the app's browser has none of its own).
 // askUser(message, { value, ok, danger }) resolves to true / the text, or null on Cancel.
@@ -2172,182 +1918,6 @@ const openSettings = () =>
     h("p", { class: "muted" }, "Version " + (S.app.version || "?") + (S.app.coreVersion ? " · core " + S.app.coreVersion : "")),
   ]);
 
-// ---------- search (Ctrl+F) ----------
-// Searches every message of every saved chat. Words must all match (any case);
-// "exact phrase", #tag (prefix, message tags incl. chat tags), in:folder,
-// is:you / is:ai to look only at your messages or the replies.
-const buildIndex = async () => {
-  const { files } = await api("/api/history/all");
-  const out = [];
-  for (const f of files) {
-    const chat = ChatFile.fromMd(f.path, f.text);
-    chat.turns.forEach((t, i) =>
-      out.push({ path: f.path, title: chat.meta.title || f.path, n: i, at: t.at, you: t.you, reply: t.reply, tags: ChatFile.messageTags(chat.meta, t) }),
-    );
-    if (!chat.turns.length) out.push({ path: f.path, title: chat.meta.title || f.path, n: -1, at: chat.meta.updated, you: "", reply: "", tags: chat.meta.tags });
-  }
-  S.index = out;
-};
-
-const parseQuery = (q) => {
-  const terms = { words: [], tags: [], folder: null, side: null };
-  for (const m of q.matchAll(/"([^"]+)"|(\S+)/g)) {
-    const w = (m[1] ?? m[2]).toLowerCase();
-    if (m[1] != null) terms.words.push(w);
-    else if (w.startsWith("#") && w.length > 1) terms.tags.push(w.slice(1));
-    else if (w.startsWith("in:")) terms.folder = w.slice(3);
-    else if (w === "is:you" || w === "is:ai") terms.side = w.slice(3);
-    else terms.words.push(w);
-  }
-  return terms;
-};
-
-const search = (q) => {
-  const t = parseQuery(q);
-  if (!t.words.length && !t.tags.length && !t.folder) return [];
-  return S.index
-    .filter((e) => {
-      if (t.folder && !e.path.toLowerCase().startsWith(t.folder.replace(/\/$/, "") + "/")) return false;
-      if (!t.tags.every((tag) => e.tags.some((x) => x.toLowerCase().startsWith(tag)))) return false;
-      const hay = (t.side === "you" ? e.you : t.side === "ai" ? e.reply : e.title + "\n" + e.you + "\n" + e.reply).toLowerCase();
-      return t.words.every((w) => hay.includes(w));
-    })
-    .sort((a, b) => (b.at || "").localeCompare(a.at || ""));
-};
-
-const snippet = (e, words) => {
-  const text = (e.you + "  ⟶  " + e.reply).replace(/\s+/g, " ");
-  const lower = text.toLowerCase();
-  const at = words.length ? Math.max(0, lower.indexOf(words[0])) : 0;
-  const part = (at > 40 ? "…" : "") + text.slice(Math.max(0, at - 40), at + 140);
-  const frag = h("span", {});
-  let rest = part;
-  const re = words.length ? new RegExp("(" + words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")", "i") : null;
-  while (re && rest) {
-    const m = re.exec(rest);
-    if (!m) break;
-    frag.append(rest.slice(0, m.index), h("mark", {}, m[0]));
-    rest = rest.slice(m.index + m[0].length);
-  }
-  frag.append(rest);
-  return frag;
-};
-
-const openSearch = () =>
-  openSheet("Search all chats", () => {
-    const input = h("input", { type: "search", placeholder: 'words, "exact phrase", #tag, in:folder, is:you, is:ai', value: S.lastSearch || "" });
-    const list = h("div", { class: "results" });
-    let sel = 0;
-    let hits = [];
-    const draw = async () => {
-      if (!S.index) {
-        list.replaceChildren(h("p", { class: "muted" }, "Reading chats…"));
-        try {
-          await buildIndex();
-        } catch (e) {
-          return list.replaceChildren(h("p", { class: "error" }, e.message));
-        }
-      }
-      S.lastSearch = input.value;
-      hits = search(input.value);
-      sel = Math.min(sel, Math.max(0, hits.length - 1));
-      const words = parseQuery(input.value).words;
-      list.replaceChildren(
-        h("p", { class: "muted" }, input.value.trim() ? `${hits.length} message${hits.length === 1 ? "" : "s"}` : `${S.index.length} messages in ${new Set(S.index.map((e) => e.path)).size} chats`),
-        ...hits.slice(0, 200).map((e, i) =>
-          h(
-            "button",
-            { class: "result" + (i === sel ? " sel" : ""), onclick: () => goTo(e) },
-            h("span", { class: "result-head" }, h("b", {}, e.title), e.n >= 0 ? ` · #${e.n + 1}` : "", " · ", ChatFile.stamp(e.at), e.tags.length ? "  " + e.tags.map((t) => "#" + t).join(" ") : ""),
-            h("span", { class: "result-text" }, snippet(e, words)),
-          ),
-        ),
-      );
-      list.querySelector(".sel")?.scrollIntoView({ block: "nearest" });
-    };
-    const goTo = async (e) => {
-      S.sheet = null;
-      syncLayer();
-      await openChat(e.path);
-      if (e.n >= 0) {
-        S.highlight = e.n;
-        render();
-        document.getElementById("turn-" + e.n)?.scrollIntoView({ block: "center" });
-        setTimeout(() => ((S.highlight = null), render()), 2500);
-      }
-    };
-    let timer = 0;
-    input.oninput = () => {
-      clearTimeout(timer);
-      sel = 0;
-      timer = setTimeout(draw, 150);
-    };
-    input.onkeydown = (e) => {
-      if (e.key === "ArrowDown") sel = Math.min(sel + 1, hits.length - 1);
-      else if (e.key === "ArrowUp") sel = Math.max(sel - 1, 0);
-      else if (e.key === "Enter" && hits[sel]) return void goTo(hits[sel]);
-      else return;
-      e.preventDefault();
-      draw();
-    };
-    draw();
-    autofocus(input);
-    return [input, list];
-  });
-
-const openMenu = () =>
-  openSheet("Menu", () =>
-    commands()
-      .filter((c) => c.menu)
-      .map((c) => h("button", { class: "menu-item", onclick: () => runFromSheet(c) }, h("span", {}, c.name), h("kbd", {}, c.key || ""))),
-  );
-
-// ---------- commands (Ctrl+K) ----------
-const commands = () => [
-  { name: "New chat", key: "Ctrl+N", run: () => startNewChat(), menu: true },
-  { name: "All commands", key: "Ctrl+K", run: openPalette, menu: true },
-  { name: "Shortcuts & help", key: "Ctrl+?", run: openHelp, menu: true },
-  { name: "Quick start", key: "", run: openQuickStart, menu: true },
-  { name: "Writing plugins", key: "", run: openGuide, menu: true },
-  { name: "Edit and resend last message", key: "↑ in empty box", run: editLast },
-  { name: "Fold or unfold all thinking", key: "Ctrl+/", run: () => toggleThinking() },
-  { name: "Chats and folders", key: "Ctrl+B", run: openDrawer, menu: true },
-  { name: "Search all chats", key: "Ctrl+F", run: openSearch, menu: true },
-  { name: "Show AI page", key: "Alt+S", run: showSite, menu: true },
-  { name: "Choose model", key: "Ctrl+M", run: openModels, menu: true },
-  { name: "Expand or shrink the message box", key: "Ctrl+E", run: toggleExpand },
-  { name: "Plugins", key: "Ctrl+Shift+P", run: openPlugins, menu: true },
-  { name: "Pipeline: presets, pieces and order", key: "Ctrl+Shift+L", run: openPipeline, menu: true },
-  { name: "Profiles", key: "", run: openProfileMenu, menu: true },
-  { name: "Next profile", key: "Ctrl+P", run: nextProfile },
-  { name: "Git history", key: "", run: openGit, menu: true },
-  { name: "Settings", key: "Ctrl+,", run: openSettings, menu: true },
-  { name: "Look: scale and theme", key: "", run: () => openSheet("Look", lookControls), menu: true },
-  { name: "Bigger UI", key: "Ctrl+=", run: () => setScale(S.config.ui.scale + 0.05) },
-  { name: "Smaller UI", key: "Ctrl+-", run: () => setScale(S.config.ui.scale - 0.05) },
-  { name: "Plugin guide", key: "", run: openGuide, menu: true },
-  { name: "Reload plugins", key: "Ctrl+Shift+R", run: reloadPlugins, menu: true },
-  { name: "Toggle Advanced blocks", key: "Ctrl+Shift+A", run: toggleAdvanced },
-  { name: "Copy the whole chat", key: "", run: () => copyChat(), menu: true },
-  { name: "Share or export the whole chat…", key: "", run: () => shareChat(), menu: true },
-  { name: "Chat info: name, tags, history", key: "F2", run: renameChat, menu: true },
-  { name: "Add chat tag", key: "Ctrl+T", run: () => (renameChat(), setTimeout(() => document.querySelector(".in-sheet .tag-input")?.focus(), 50)) },
-  { name: "Previous chat", key: "Alt+↑", run: () => stepChat(-1) },
-  { name: "Next chat", key: "Alt+↓", run: () => stepChat(1) },
-  { name: "Link this chat to the open AI page", key: "", run: linkToSite, menu: true },
-  // Plugins' own menu entries.
-  ...[...S.plugins.values()].flatMap((p) =>
-    (p.def?.menu || []).map((m) => ({ name: m.label, key: "", menu: true, run: () => Promise.resolve().then(() => m.run()).catch((e) => toast(e.message, "error")) })),
-  ),
-  { name: "Import messages from the linked site chat", key: "", run: importHistory, menu: true },
-  { name: "Add the page's newest reply to this chat", key: "", run: addFromPage, menu: true },
-  { name: "Decode newest reply on the AI page (preview)", key: "", run: decodeLast },
-  { name: "Move chat to folder…", key: "", run: () => S.chat.path ? openChatActions(S.chats.find((c) => c.path === S.chat.path) || S.chat) : toast("Send a message first") },
-  ...profile().plugins
-    .filter((e) => isStep(S.plugins.get(e.id)))
-    .map((e) => ({ name: `Toggle ${pluginName(e.id)} (${stepOn(e.id) ? "on" : "off"})`, run: () => (setStepOn(e.id, !stepOn(e.id)), render()) })),
-];
-
 const openHelp = () =>
   openSheet("Shortcuts & help", () => [
     h("p", { class: "muted" }, "Everything has a button or a gesture; keys are extras for a hardware keyboard."),
@@ -2356,8 +1926,10 @@ const openHelp = () =>
       ["Swipe a reply right", "quote it in your message"],
       ["Swipe a reply left", "copy it"],
       ["Long-press any text", "select it (or Options › Select text)"],
-      ["Long-press a chat in the list", "pin, move, delete"],
-      ["Tap the title", "chat info, tags, history"],
+      ["Press and hold a chat in the list", "start selecting chats (then Pin, Move…, Delete)"],
+      ["Drag the ⋮⋮ grip of a row", "move it into a folder, reorder it, or onto Pinned to pin it"],
+      ["Tap the title", "the Chat sheet: name, tags, copy, share, pin, move, history"],
+      ["Tap the magnifier", "Find: chats, messages, every function and setting"],
       ["Tap \u201c\u25cf site \u00b7 model\u201d at the top", "the site sheet: status, model, profile, pages, site plugins"],
       ["⋯ under a reply, or long-press it", "the message menu: copy, quote, select, send again, tags, what was sent, plugin actions"],
       ["Tap a reply", "shows Copy and Quote under it"],
@@ -2366,6 +1938,7 @@ const openHelp = () =>
       ["⤢ next to Send", "big message box"],
     ].map(([a, b]) => h("div", { class: "menu-item" }, h("span", {}, a), h("kbd", {}, b))),
     h("h3", {}, "Keys"),
+    h("div", { class: "menu-item" }, h("span", {}, "Find"), h("kbd", {}, "Ctrl+K · F3 · Ctrl+F")),
     ...commands().filter((c) => c.key).map((c) => h("div", { class: "menu-item" }, h("span", {}, c.name), h("kbd", {}, c.key))),
   ]);
 
@@ -2373,32 +1946,6 @@ const toggleThinking = () => {
   S.thinkingOpen = !S.thinkingOpen;
   for (const d of document.querySelectorAll("details.thinking")) d.open = S.thinkingOpen;
 };
-
-const openPalette = () =>
-  openSheet("Commands", () => {
-    const list = h("div", { class: "palette" });
-    const input = h("input", { placeholder: "Type to filter, Enter runs" });
-    let sel = 0;
-    const draw = () => {
-      const q = input.value.toLowerCase();
-      const items = commands().filter((c) => c.name.toLowerCase().includes(q));
-      sel = Math.min(sel, Math.max(0, items.length - 1));
-      list.replaceChildren(...items.map((c, i) => h("button", { class: "menu-item" + (i === sel ? " sel" : ""), onclick: () => runFromSheet(c) }, h("span", {}, c.name), h("kbd", {}, c.key || ""))));
-      return items;
-    };
-    input.oninput = () => ((sel = 0), draw());
-    input.onkeydown = (e) => {
-      const items = draw();
-      if (e.key === "ArrowDown") sel = Math.min(sel + 1, items.length - 1);
-      else if (e.key === "ArrowUp") sel = Math.max(sel - 1, 0);
-      else if (e.key === "Enter" && items[sel]) return runFromSheet(items[sel]); else return;
-      e.preventDefault();
-      draw();
-    };
-    draw();
-    autofocus(input);
-    return [input, list];
-  });
 
 const stepChat = (d) => {
   const list = S.chats.filter(matches);
@@ -2481,9 +2028,10 @@ document.addEventListener("keydown", (e) => {
     const b = document.querySelector(".composer .send.stop");
     if (b) return run(() => b.click());
   }
-  if (ctrl && !e.shiftKey && k === "k") return run(openPalette);
+  if (ctrl && !e.shiftKey && k === "k") return run(() => openFind());
   if (ctrl && !e.shiftKey && k === "n") return run(() => startNewChat());
-  if (ctrl && !e.shiftKey && k === "f") return run(openSearch);
+  if (ctrl && !e.shiftKey && k === "f") return run(() => openFind());
+  if (e.key === "F3") return run(() => openFind());
   if (ctrl && !e.shiftKey && k === "m") return run(openModels);
   if (ctrl && !e.shiftKey && k === "e") return run(toggleExpand);
   if (ctrl && e.key === "/") return run(toggleThinking);
@@ -2495,12 +2043,12 @@ document.addEventListener("keydown", (e) => {
   if (ctrl && e.shiftKey && k === "l") return run(openPipeline);
   if (ctrl && e.shiftKey && k === "r") return run(reloadPlugins);
   if (ctrl && e.shiftKey && k === "a") return run(toggleAdvanced);
-  if (ctrl && !e.shiftKey && k === "t") return run(() => (renameChat(), setTimeout(() => document.querySelector(".in-sheet .tag-input")?.focus(), 50)));
+  if (ctrl && !e.shiftKey && k === "t") return run(() => (openChatSheet(), setTimeout(() => document.querySelector(".in-sheet .tag-input")?.focus(), 50)));
   if (ctrl && e.key === ",") return run(openSettings);
   if (ctrl && (e.key === "=" || e.key === "+")) return run(() => setScale(S.config.ui.scale + 0.05));
   if (ctrl && e.key === "-") return run(() => setScale(S.config.ui.scale - 0.05));
   if (ctrl && e.key === "0") return run(() => setScale(1));
-  if (e.key === "F2") return run(renameChat);
+  if (e.key === "F2") return run(openChatSheet);
   if (e.altKey && e.key === "ArrowUp") return run(() => stepChat(-1));
   if (e.altKey && e.key === "ArrowDown") return run(() => stepChat(1));
   if (e.altKey && /^[1-9]$/.test(e.key)) {
