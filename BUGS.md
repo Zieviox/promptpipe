@@ -142,6 +142,8 @@ Not started. Same statuses as above. Fixes first, then the release items.
 | 75 | Profile export, one profile and all | open | New. |
 | 76 | A button to reset the app to a first launch without losing data | open | New. First-run welcome again; chats, settings and plugins stay. |
 | 77 | A new git push with updates to check | open | The app checks the repo for new pushes and offers the update (as the plugin bundle update does). Confirmed by Gtex. |
+| 78 | Import and export for system prompts | open | New. The library of system prompt pieces needs import (file or paste) and export (one piece, all). Fits with the pieces rework (#69). |
+| 79 | No visible option to save chats and their git history to a folder of my choice | open | Gtex cannot find it (move chats and version control to a chosen folder). Check what the app offers today (history folder setting) and make it findable. Reproduce first. |
 
 ---
 
