@@ -128,6 +128,28 @@ copy_tree :: proc(from, to: string) -> bool {
 	return true
 }
 
+// Copy what `to` doesn't have yet (nothing is overwritten); the .git folder stays where it is.
+// Returns how many chats (.md files) were added.
+merge_tree :: proc(from, to: string) -> (added: int, ok: bool) {
+	make_dirs(to)
+	infos, err := os.read_all_directory_by_path(from, context.allocator)
+	if err != nil do return 0, false
+	for fi in infos {
+		src, dst := join(from, fi.name), join(to, fi.name)
+		if fi.type == .Directory {
+			if fi.name == ".git" do continue
+			n, sub_ok := merge_tree(src, dst)
+			if !sub_ok do return added, false
+			added += n
+		} else if !os.exists(dst) {
+			data, rerr := os.read_entire_file(src, context.allocator)
+			if rerr != nil || !write_bytes(dst, data) do return added, false
+			if strings.has_suffix(fi.name, ".md") do added += 1
+		}
+	}
+	return added, true
+}
+
 // How many files ending in `suffix` are under `dir` (the .git folder isn't looked into).
 count_files :: proc(dir, suffix: string) -> int {
 	infos, err := os.read_all_directory_by_path(dir, context.allocator)

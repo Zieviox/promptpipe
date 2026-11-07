@@ -24,7 +24,7 @@ const h = (tag, props = {}, ...kids) => {
     else if (k === "value") e.value = v;
     else e.setAttribute(k, v === true ? "" : v);
   }
-  for (const k of kids.flat()) if (k != null && k !== false) e.append(k instanceof Node ? k : String(k));
+  for (const k of kids.flat(Infinity)) if (k != null && k !== false) e.append(k instanceof Node ? k : String(k));
   return e;
 };
 

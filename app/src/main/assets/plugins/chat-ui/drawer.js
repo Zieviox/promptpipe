@@ -329,7 +329,7 @@ const chatRowFor = (c, { depth = 0, drag = true } = {}) => {
       status ? h("span", { class: "cstat " + (status === "Reply ready" ? "ready" : "") }, status) : null,
     ),
     S.selMode ? null : rbtn("pin", isPinned(c.path) ? "Unpin" : "Pin to top", () => togglePin(c.path), isPinned(c.path) ? "on" : ""),
-    S.selMode || !drag ? null : gripBtn(k),
+    drag ? gripBtn(k) : null,
   );
   holdToSelect(row, k);
   return row;
@@ -386,7 +386,7 @@ const folderRowFor = (m, f, depth) => {
       h("span", { class: "ccount" }, String(count)),
     ),
     S.selMode ? null : rbtn("edit", "Rename or delete the folder " + dBase(f), () => ((S.fedit = S.fedit === f ? null : f), render())),
-    S.selMode ? null : gripBtn(k),
+    gripBtn(k),
   );
   holdToSelect(row, k);
   return row;

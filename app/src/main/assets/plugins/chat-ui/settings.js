@@ -5,10 +5,23 @@
 const settingsPage = (title, body) =>
   openSheet(title, () => [h("button", { class: "ghost back", onclick: openSettings }, "‹ Settings"), ...body()]);
 // ---------- the chats folder ----------
-const FOLDER = { info: null, loading: false };
+const FOLDER = { info: null, loading: false, found: [], done: new Set() };
+// The places the chats were kept before the app's folder changed (no "all files" access, then with it).
+const OLD_CHAT_FOLDERS = [
+  "/storage/emulated/0/PromptPipe/history",
+  "/storage/emulated/0/Android/data/dev.zieviox.promptpipe/files/PromptPipe/history",
+];
+const sameFolder = (a, b) => a.replace(/^\/sdcard\//, "/storage/emulated/0/") === b.replace(/^\/sdcard\//, "/storage/emulated/0/");
+const findOldChats = async (here) => {
+  const found = await Promise.all(OLD_CHAT_FOLDERS.filter((p) => !sameFolder(p, here) && !FOLDER.done.has(p)).map((path) =>
+    api("/api/storage/count?path=" + encodeURIComponent(path)).then((r) => ({ path, chats: r.chats }), () => ({ path, chats: 0 }))));
+  FOLDER.found = found.filter((f) => f.chats > 0);
+};
 const loadFolderInfo = () => {
   FOLDER.loading = true;
-  return api("/api/storage/folder").then((i) => (FOLDER.info = i), () => {}).finally(() => ((FOLDER.loading = false), rerenderSheet()));
+  return api("/api/storage/folder")
+    .then(async (i) => ((FOLDER.info = i), await findOldChats(i.path)), () => {})
+    .finally(() => ((FOLDER.loading = false), rerenderSheet()));
 };
 const backToStorage = () => settingsPage("Chats and storage", settingsBody("Chats and storage"));
 // Use `path` as the chats folder ("" = the default one); the chats in the old one are copied when asked.
@@ -19,6 +32,20 @@ const useFolder = async (path, copy) => {
     await loadTree().catch(() => {});
     render();
     toast(`Chats folder: ${r.path}` + (r.copied ? ` (${r.copied} chats copied; the old folder is untouched)` : ""));
+    backToStorage();
+  } catch (e) {
+    if (!(await askStorageAccess(e))) toast(e.message, "error");
+  }
+};
+// Add the chats of an old folder to the one in use (existing chats are never overwritten).
+const copyOldChats = async (from) => {
+  try {
+    const r = await api("/api/storage/copy", { from });
+    FOLDER.done.add(from);
+    FOLDER.info = null;
+    await loadTree().catch(() => {});
+    render();
+    toast(`${r.copied} chat${r.copied === 1 ? "" : "s"} added here; the old folder is untouched`);
     backToStorage();
   } catch (e) {
     if (!(await askStorageAccess(e))) toast(e.message, "error");
@@ -117,6 +144,12 @@ const SETTINGS = [
       h("div", { class: "row" },
         h("button", { class: "primary", onclick: openFolderPicker }, "Choose a folder…"),
         f && f.custom ? h("button", { onclick: () => useFolder("", true) }, "Use the default folder") : null),
+      ...FOLDER.found.map((o) => h("div", { class: "card" },
+        h("p", {}, h("strong", {}, `${o.chats} chat${o.chats === 1 ? "" : "s"} found in another folder`)),
+        h("p", {}, h("code", {}, o.path)),
+        h("div", { class: "row" },
+          h("button", { class: "primary", onclick: () => useFolder(o.path, false) }, "Use that folder"),
+          h("button", { onclick: () => copyOldChats(o.path) }, "Copy them here")))),
       h("h3", {}, "App folder"),
       h("p", {}, h("code", {}, S.app.storage || "?")),
       S.app.allFiles

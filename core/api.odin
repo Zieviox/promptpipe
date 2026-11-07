@@ -165,6 +165,18 @@ api_route :: proc(req: ^Request) -> Response {
 		if !post do return json_res(200, fmt.tprintf(`{{"path":%s,"default":%s,"custom":%v,"chats":%d}}`, quote(history_dir()), quote(history_default()), S.history_override != "", count_files(history_dir(), ".md")))
 		copied, err := choose_history_folder(get_str(body, "path"), get_bool(body, "copy"))
 		return err == "" ? json_res(200, fmt.tprintf(`{{"path":%s,"copied":%d}}`, quote(history_dir()), copied)) : json_error(400, err)
+	case "/api/storage/count":
+		// How many chats a folder holds (to find the old ones after the app's folder changed).
+		path := strings.trim_right(q["path"] or_else "", "/")
+		if !strings.has_prefix(path, "/") || !os.is_dir(path) do return json_res(200, `{"chats":0,"exists":false}`)
+		return json_res(200, fmt.tprintf(`{{"chats":%d,"exists":true}}`, count_files(path, ".md")))
+	case "/api/storage/copy":
+		// POST {from}: add the chats of another folder to the chats folder in use (nothing is overwritten).
+		from := strings.trim_right(get_str(body, "from"), "/")
+		if !post || !strings.has_prefix(from, "/") || strings.contains(from, "/../") || !os.is_dir(from) do return json_error(400, "give the full path of a folder that exists")
+		if from == history_dir() do return json_error(400, "that is the folder already in use")
+		added, ok := merge_tree(from, history_dir())
+		return ok ? json_res(200, fmt.tprintf(`{{"copied":%d}}`, added)) : json_error(400, fmt.tprintf("copying stopped part way (%d chats added); nothing was overwritten or removed", added))
 	case "/api/storage/dirs":
 		path := strings.trim_right(q["path"] or_else "", "/")
 		if path == "" do path = "/"
