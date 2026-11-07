@@ -167,6 +167,51 @@ const tagInput = (placeholder, onAdd, keep) =>
 // sheet's fields. Without this, lists jumped back to the top and sheets lost
 // their text whenever anything in the background redrew.
 const SCROLLERS = ".messages, .drawer, .chat-list, .sheet, .sheet-body, .pipe-preview, .core-log, .models, .tag-filter, .blocks";
+// A sheet's fields have no ids, so each is named by what it is (tag, type, placeholder,
+// label) plus its number among fields of the same name: it survives fields being added.
+const fieldKey = (f, all) => {
+  const name = [f.tagName, f.type, f.placeholder, f.name, f.getAttribute("aria-label"), f.dataset.keep].join("|");
+  return name + "#" + all.filter((x) => x === f || [x.tagName, x.type, x.placeholder, x.name, x.getAttribute("aria-label"), x.dataset.keep].join("|") === name).indexOf(f);
+};
+const textLike = (f) => f.tagName === "TEXTAREA" || (f.tagName === "INPUT" && /^(text|search|url|password|email|number|)$/.test(f.type));
+// A selection inside one text block of a message: which block, and where in its text.
+const TEXT_BLOCK = ".msg .text, .msg .md, .thinking .md";
+const selectionSpot = () => {
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
+  const r = sel.getRangeAt(0);
+  const host = (n) => (n.nodeType === 1 ? n : n.parentElement)?.closest?.(TEXT_BLOCK);
+  const block = host(r.startContainer);
+  const turn = block?.closest(".turn");
+  if (!block || !turn || block !== host(r.endContainer)) return null;
+  const at = (node, off) => {
+    const pre = document.createRange();
+    pre.selectNodeContents(block);
+    pre.setEnd(node, off);
+    return pre.toString().length;
+  };
+  return { turn: turn.id, n: [...turn.querySelectorAll(TEXT_BLOCK)].indexOf(block), from: at(r.startContainer, r.startOffset), to: at(r.endContainer, r.endOffset) };
+};
+const restoreSelection = (spot) => {
+  const block = [...(document.getElementById(spot.turn)?.querySelectorAll(TEXT_BLOCK) || [])][spot.n];
+  if (!block) return;
+  const point = (off) => {
+    const walk = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+    for (let node, left = off; (node = walk.nextNode()); ) {
+      if (left <= node.length) return [node, left];
+      left -= node.length;
+    }
+    return null;
+  };
+  const [a, b] = [point(spot.from), point(spot.to)];
+  if (!a || !b) return;
+  const r = document.createRange();
+  r.setStart(...a);
+  r.setEnd(...b);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(r);
+};
 const snapshotView = () => {
   const spots = [];
   const seen = {};
@@ -176,39 +221,44 @@ const snapshotView = () => {
     if (el.scrollTop || el.scrollLeft) spots.push({ k, i, top: el.scrollTop, left: el.scrollLeft });
   }
   const fields = [...app.querySelectorAll(".sheet input, .sheet textarea, .sheet select")];
-  const textLike = (f) => f.tagName === "TEXTAREA" || (f.tagName === "INPUT" && /^(text|search|url|password|email|number|)$/.test(f.type));
-  const typed = fields.map((f, n) => ({ n, f })).filter(({ f }) => f.dataset.edited && textLike(f)).map(({ n, f }) => ({ n, value: f.value }));
-  const at = fields.indexOf(document.activeElement);
+  const typed = fields.filter((f) => f.dataset.edited && textLike(f)).map((f) => ({ key: fieldKey(f, fields), value: f.value }));
+  const active = fields.includes(document.activeElement) ? document.activeElement : null;
   return {
     spots,
     typed,
-    count: fields.length,
-    focus: at,
-    sel: at >= 0 && document.activeElement.selectionStart != null ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null,
-    sheet: S.sheet?.title,
+    focus: active && fieldKey(active, fields),
+    sel: active && active.selectionStart != null ? [active.selectionStart, active.selectionEnd] : null,
+    // The sheet on screen now, not S.sheet (already the next one when a new sheet opens).
+    sheet: app.querySelector(".sheet")?.getAttribute("aria-label"),
+    selection: selectionSpot(),
     pinned: nearBottom(),
   };
 };
 const restoreView = (v, hadSheet) => {
+  const sameSheet = hadSheet && S.sheet?.title === v.sheet;
   const seen = {};
   for (const el of app.querySelectorAll(SCROLLERS)) {
     const k = el.className;
     const i = (seen[k] = (seen[k] ?? -1) + 1);
+    // A different sheet opening starts at its top; the same sheet redrawn keeps its place.
+    if (/\bsheet(-body)?\b/.test(k) && !sameSheet) continue;
     const spot = v.spots.find((x) => x.k === k && x.i === i);
     if (spot) (el.scrollTop = spot.top), (el.scrollLeft = spot.left);
   }
-  // The same sheet redrawn: put back the fields' text (new ones start fresh).
-  if (hadSheet && S.sheet?.title === v.sheet) {
+  if (sameSheet) {
     const fields = [...app.querySelectorAll(".sheet input, .sheet textarea, .sheet select")];
-    if (fields.length === v.count) {
-      for (const t of v.typed) (fields[t.n].value = t.value), (fields[t.n].dataset.edited = "1");
-      const f = fields[v.focus];
-      if (f) {
-        f.focus({ preventScroll: true });
-        if (v.sel) try { f.setSelectionRange(v.sel[0], v.sel[1]); } catch (e) {}
-      }
+    const byKey = new Map(fields.map((f) => [fieldKey(f, fields), f]));
+    for (const t of v.typed) {
+      const f = byKey.get(t.key);
+      if (f) (f.value = t.value), (f.dataset.edited = "1");
+    }
+    const f = v.focus && byKey.get(v.focus);
+    if (f) {
+      f.focus({ preventScroll: true });
+      if (v.sel) try { f.setSelectionRange(v.sel[0], v.sel[1]); } catch (e) {}
     }
   }
+  if (v.selection) restoreSelection(v.selection);
 };
 // A field counts as typed into once the person changed it.
 document.addEventListener("input", (e) => {
@@ -783,9 +833,20 @@ const renderTurn = (c, t, i) => {
         h("span", { class: "time" }, ChatFile.stamp(t.at)),
         open ? h("button", { class: "ghost foot-btn", onclick: () => copyText(t.reply, "Copied") }, "Copy") : null,
         open ? h("button", { class: "ghost foot-btn", onclick: () => fillComposer(quote(t.reply), "append") }, "Quote") : null,
-        h("button", { class: "ghost more", title: "Message menu (or long-press the reply)", "aria-label": "Message menu", onclick: menu }, svgIcon("more")),
+        h("button", { class: "ghost more", title: "Message menu", "aria-label": "Message menu", onclick: menu }, svgIcon("more")),
       );
-  const you = h("div", { class: "msg you", title: ChatFile.stamp(t.at) }, h("div", { class: "text" }, t.you));
+  // Your own message: tap it for Copy and Send again (a long-press is left to text selection).
+  const youOpen = S.openYou.has(t);
+  const you = h("div", { class: "msg you", title: ChatFile.stamp(t.at) }, h("div", { class: "text" }, t.you),
+    youOpen ? h("div", { class: "msg-foot you-foot" },
+      h("button", { class: "ghost foot-btn", onclick: () => copyText(t.you, "Copied") }, "Copy"),
+      h("button", { class: "ghost foot-btn", onclick: () => send(t.you) }, "Send again"),
+      h("button", { class: "ghost foot-btn", onclick: () => fillComposer(t.you) }, "Edit")) : null);
+  you.addEventListener("click", (e) => {
+    if (e.target.closest("a, button") || String(window.getSelection() || "").trim()) return;
+    S.openYou.has(t) ? S.openYou.delete(t) : S.openYou.add(t);
+    render();
+  });
   const art = h(
     "article",
     { class: "turn" + (S.highlight === i ? " hit" : ""), id: "turn-" + i },
@@ -812,7 +873,12 @@ const renderTurn = (c, t, i) => {
       S.openTurns.has(t) ? S.openTurns.delete(t) : S.openTurns.add(t);
       render();
     });
-    onLongPress(ai, menu);
+    // Desktop right-click opens the menu. On a phone a long-press selects text, so the menu is the ⋯ button.
+    ai.addEventListener("contextmenu", (e) => {
+      if (!matchMedia("(pointer: fine)").matches) return;
+      e.preventDefault();
+      menu();
+    });
   }
   onSwipe(ai, (dir) => (dir > 0 ? fillComposer(quote(t.reply), "append") : copyText(t.reply, "Copied")));
   codeCopy(ai);
@@ -1294,6 +1360,8 @@ const openChatActions = (c) => {
         "div",
         { class: "row" },
         h("button", { onclick: () => openChat(c.path).then(closeSheet) }, "Open"),
+        h("button", { onclick: () => copyChat(c) }, "Copy chat"),
+        h("button", { onclick: () => shareChat(c) }, "Share chat"),
         h("button", { onclick: () => (togglePin(c.path), closeSheet()) }, isPinned(c.path) ? "Unpin" : "Pin"),
         c.meta.source ? h("button", { onclick: () => api("/api/app/action", { action: "openUrl", url: c.meta.source }) }, "Open source in browser") : null,
         h(
@@ -1763,6 +1831,30 @@ const openSelect = (t) =>
     };
     return [...box("Reply", t.reply || ""), ...(t.thinking ? box("Thinking", t.thinking) : []), ...box("Your message", t.you || "")];
   });
+// The whole chat as Markdown (what its file holds): to copy, or to send to another app.
+// `c` is the open chat, or a row of the chats list (read from its file).
+const chatText = async (c) => {
+  if (c.turns) return c.turns.length ? ChatFile.toMd(c) : "";
+  return (await api("/api/history/file?path=" + encodeURIComponent(c.path))).text || "";
+};
+const copyChat = async (c = S.chat) => {
+  try {
+    const text = await chatText(c);
+    if (!text.trim()) return toast("Nothing in this chat yet");
+    await copyText(text, "Whole chat copied");
+  } catch (e) {
+    toast("Couldn't copy the chat: " + e.message, "error");
+  }
+};
+const shareChat = async (c = S.chat) => {
+  try {
+    const text = await chatText(c);
+    if (!text.trim()) return toast("Nothing in this chat yet");
+    await api("/api/module", { module: "share", call: "text", args: { text } });
+  } catch (e) {
+    toast("Couldn't share the chat: " + e.message, "error");
+  }
+};
 const openGuide = () => openDoc("PLUGINS.md", "Writing plugins");
 const openQuickStart = () => openDoc("QUICKSTART.md", "Quick start");
 
@@ -2200,6 +2292,8 @@ const commands = () => [
   { name: "Plugin guide", key: "", run: openGuide, menu: true },
   { name: "Reload plugins", key: "Ctrl+Shift+R", run: reloadPlugins, menu: true },
   { name: "Toggle Advanced blocks", key: "Ctrl+Shift+A", run: toggleAdvanced },
+  { name: "Copy the whole chat", key: "", run: () => copyChat(), menu: true },
+  { name: "Share or export the whole chat…", key: "", run: () => shareChat(), menu: true },
   { name: "Chat info: name, tags, history", key: "F2", run: renameChat, menu: true },
   { name: "Add chat tag", key: "Ctrl+T", run: () => (renameChat(), setTimeout(() => document.querySelector(".in-sheet .tag-input")?.focus(), 50)) },
   { name: "Previous chat", key: "Alt+↑", run: () => stepChat(-1) },

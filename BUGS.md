@@ -7,7 +7,7 @@ One list for every promptpipe bug. Owner: the Warden thread. If you see a bug, t
 - `fixed`: changed in code, **waiting for Gtex to check it on the phone**. The commit is named.
 - `verified`: Gtex confirmed it on the phone. Only Gtex can move a bug here.
 
-A bug closes only when it is `verified`. Last checked against branch `claude/project-thread-5vu1zj` (alpha6 `aae403e` + the alpha7 batch `a9e02a7`), 2026-11-07.
+A bug closes only when it is `verified`. Last checked against branch `claude/project-thread-5vu1zj` (alpha6 `aae403e` + the alpha7 batch), 2026-11-07. The rebuild waits: the UI needs a big cleanup first (Gtex, 2026-11-07).
 
 Build the current batch: `cd /root/promptpipe && git pull origin claude/project-thread-5vu1zj && sh scripts/build-local.sh 0.7.0-alpha7-local 17`
 
@@ -18,7 +18,7 @@ Build the current batch: `cd /root/promptpipe && git pull origin claude/project-
 | # | Bug | Status | Notes |
 |---|---|---|---|
 | 1 | Menus behave randomly (sheets close by themselves, Back does odd things) | fixed `a9e02a7` | Cause found and reproduced in a browser: closing a sheet ran `history.back()`, whose late "popstate" closed the *next* sheet that opened right after (any menu item that opens another menu). Sheet and drawer now share one history entry, given back one tick later and only if nothing is open. |
-| 2 | Auto-scroll is random everywhere | fixed `a9e02a7` | Cause: every redraw rebuilt everything and only the chat list kept its scroll place. Sheets, the chats drawer and every other list jumped to the top on any background redraw. Now every list keeps its place. Chat rule, one rule everywhere: at the bottom you stay at the bottom as a reply grows; scrolled up your place never moves (jump button shows new replies). Settings › Look › Chat can turn "stay at the bottom" off. |
+| 2 | Auto-scroll is random everywhere | fixed `a9e02a7` + batch 2 | Cause: every redraw rebuilt everything and only the chat list kept its scroll place. Sheets, the chats drawer and every other list jumped to the top on any background redraw. Now every list keeps its place. Chat rule, one rule everywhere: at the bottom you stay at the bottom as a reply grows; scrolled up your place never moves (jump button shows new replies). Settings › Look › Chat can turn "stay at the bottom" off. |
 | 3 | Create folder doesn't work | fixed `a9e02a7` | Three causes, all reproduced: text typed into the sheet was wiped by a background redraw (then "not a valid name"), a subfolder was created but stayed hidden because its parent folder was closed, and errors were swallowed with no message. Now: typed text survives, parents open, errors show, the sheet closes only on success, a toast says "Folder created". |
 | 4 | Icons and app colour themes mismatch | fixed `a9e02a7` (check which icons) | The launcher icon was blue on slate while the app is warm orange: now orange on the app's dark. The Android shell (behind the page, the site bar, status and navigation bar icons) was always dark even in light mode or with Paper: it now takes the page's background and light/dark from the theme. If you meant different icons (inside the app), say which screen. |
 | 5 | Plugin update failed: "could not write system-prompt/main.js" | open | Not reproduced here (the same write works on desktop, empty files too). The message now says the OS reason, so the next failure tells us why. Please send that text if it shows again. |
@@ -80,6 +80,13 @@ Build the current batch: `cd /root/promptpipe && git pull origin claude/project-
 | 46 | `PP.ask` from a plugin step with one site page hangs | fixed (clear error, 0.5.8) | |
 | 47 | Base64 "�" garbage at the end of decoded replies | fixed (Base64 1.1.0) | Never confirmed. |
 | 48 | Unsent messages/drafts live in browser storage, not the chat files | open | Raised 2026-11-06, no fix. Rebuild: store in the chat folder. |
+| 57 | Selecting and copying text didn't work (2026-11-07) | fixed (alpha7 batch 2) | Two causes: a long-press on a reply opened the message menu at 550 ms, on top of the phone's own long-press selection; and any redraw cleared a selection. Long-press now only selects (the menu is the ⋯ button; right-click on desktop). A selection in a reply, and the cursor and selection in a field, now survive a redraw. |
+| 58 | Your own messages have no copy option | fixed (batch 2) | Tap your message: Copy, Send again, Edit. (The reply's menu also had "Copy your message", hidden two taps deep.) |
+| 59 | No way to copy or export the whole chat | fixed (batch 2) | Menu: "Copy the whole chat" and "Share or export the whole chat…" (Android share sheet). Also in a chat's actions in the chats list: Copy chat, Share chat. Copies the chat's Markdown, the same text as its file. |
+| 60 | Turning plugins on and off resets the sheet's place; you scroll again | fixed (batch 1 + 2) | Same cause as #2. Tested: toggling keeps the place. A different sheet opening now starts at its top; the same sheet redrawn keeps its place. |
+| 61 | Editing a system prompt scrolls too far from it | fixed (batch 2) | Edit now brings the editor into view and puts the cursor in it. |
+| 62 | System prompts need a collapse | fixed (batch 2, System prompt 2.1.0) | Library entries are folded to one line; tap to unfold; Fold all / Unfold all; "+ New prompt" is folded until you want it. |
+| 63 | The UI needs a massive cleanup | open | Gtex, 2026-11-07. Plan is a separate redesign pass before any rebuild. |
 
 ## 5. Sub-chats, Memory, pipeline
 
@@ -112,7 +119,7 @@ Build the current batch: `cd /root/promptpipe && git pull origin claude/project-
 
 Every fixed bug above came from one of these. Build them in from the start.
 
-1. **One redraw rule.** If the screen is rebuilt, a rebuild must keep every scroll place, focus, selection and typed text. Better: update in place and never rebuild lists the person is using. (Bugs 2, 3, 27.)
+1. **A redraw never resets anything.** Scroll place of every list, focus, text selection, typed text and folded/unfolded state must survive. Best: update in place and never rebuild what the person is using; if a screen is rebuilt, carry all of it over. (Bugs 2, 3, 27, 57, 60.)
 2. **Layers are a stack, not a pile of history calls.** Sheets, menus and the chats list are one stack with one back-button entry. Closing and opening in the same moment must be safe. (Bug 1.)
 3. **Never swallow an error.** Every action that can fail says so on screen, with the reason, and leaves the person where they were. A button that does nothing is the worst bug. (Bugs 3, 5.)
 4. **Chat scroll has one rule:** stay at the bottom only if you were there; never move a reader who scrolled up. (Bug 2.)

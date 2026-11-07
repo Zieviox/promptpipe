@@ -95,6 +95,7 @@ const S = {
   query: "",
   traces: new WeakMap(), // turn -> full trace (this session only)
   openTurns: new WeakSet(), // turns whose options are unfolded
+  openYou: new WeakSet(), // your own messages whose Copy / Send again row is showing
 };
 
 // S.site = the page the site view shows (most commands act on it).

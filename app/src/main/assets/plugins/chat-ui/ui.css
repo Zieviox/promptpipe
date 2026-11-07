@@ -314,6 +314,9 @@ mark { background: color-mix(in srgb, var(--warn) 25%, transparent); color: var(
 .sp-item { padding: 10px 0; border-bottom: 1px solid var(--hair); }
 .sp-item.pinned strong { color: var(--accent); }
 .sp-text { white-space: pre-wrap; font-size: 13px; margin: 4px 0 6px; }
+.sp-fold { text-align: left; justify-content: flex-start; font-weight: 600; min-height: 36px; padding: 0 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-one { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0 0 2px 6px; }
+.you-foot { justify-content: flex-end; margin-top: 4px; }
 .sp-edit { display: grid; gap: 8px; margin: 6px 0 12px; }
 .sp-edit textarea, .sp-edit input { background: var(--raise); border: 1px solid var(--hair); }
 .grow { flex: 1; min-width: 0; }
