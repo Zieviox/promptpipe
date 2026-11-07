@@ -224,9 +224,9 @@ conversation, like "summarise this into memory".
 - `profile`: a profile name (default: the active one).
 - `hooks: true` runs that profile's plugins on it too (off by default).
 - It takes a free site page. Inside `beforeSend` / `afterReply` you need
-  **Settings › Site pages at once** at 2 or more (the message being answered
+  **Settings › Sites › Max replies at once** at 2 or more (the message being answered
   holds a page); with 1 page it fails with a clear error instead of hanging.
-- Several `PP.ask` calls at once run in parallel, up to the page count.
+- Several `PP.ask` calls at once run in parallel, up to Max replies at once.
 
 ```js
 afterReply: async (text, ctx) => {
@@ -310,7 +310,7 @@ Replies are read as Markdown, so return `PP.answerText(site, el)` rather than
 its way; with `thinking` and/or `reply` the app shows them live (thinking open,
 the reply so far under it). The built-in wait does this for you.
 
-With several site pages (Settings › Site pages at once) each page runs its own
+With several site pages (Settings › Sites › Max replies at once) each page runs its own
 copy of your script; nothing to change.
 
 ### Site drivers

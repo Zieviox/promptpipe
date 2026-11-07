@@ -435,7 +435,7 @@ const openSheet = (ctx) => {
             ...lib.prompts.filter((p) => !own.includes(p.id)).sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)).map((p) =>
               h("div", { class: "sp-row" }, h("span", { class: "sp-name grow" }, (p.pinned ? "📌 " : "") + nameOf(p)), h("button", { class: "small primary", onclick: () => set("stack", [...own, p.id]) }, "Use"))))
         : null,
-      h("p", { class: "muted" }, "The summary request, the max, the part size and the recent messages are under the ⚙. Summaries run in their own chat on a free site page: with plugins inside a send, that needs Settings › Site pages at once at 2 or more (otherwise memory clips instead and says so in the trace)."),
+      h("p", { class: "muted" }, "The summary request, the max, the part size and the recent messages are under the ⚙. Summaries run in their own chat on a free site page: with plugins inside a send, that needs Settings › Sites › Max replies at once at 2 or more (otherwise memory clips instead and says so in the trace)."),
       h("div", { class: "row" }, h("button", { class: "small", onclick: openGuide }, "Guide")),
     ];
   });

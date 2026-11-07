@@ -184,10 +184,12 @@ pre { white-space: pre-wrap; word-break: break-word; background: var(--raise); b
 .adv-toggle { font-size: 13px; color: var(--faint); min-height: 32px; flex: none; }
 
 /* drawer + sheets */
-.scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 10; animation: fade var(--dur) var(--ease); backdrop-filter: blur(2px); }
+.scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 10; backdrop-filter: blur(2px); }
+.scrim.enter { animation: fade var(--dur) var(--ease); }
 @keyframes fade { from { opacity: 0; } }
 .drawer { position: fixed; z-index: 11; top: 0; bottom: 0; left: 0; width: min(360px, 88vw); background: var(--bg); border-right: 1px solid var(--hair);
-  padding: 10px 10px 12px; display: flex; flex-direction: column; gap: 8px; overflow: hidden; animation: slide var(--dur) var(--ease); }
+  padding: 10px 10px 12px; display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
+.drawer.enter { animation: slide var(--dur) var(--ease); }
 @keyframes slide { from { transform: translateX(-30px); opacity: 0; } }
 .drawer input[type=search], .drawer .folder-box input { width: 100%; border-radius: 12px; padding: 9px 12px; background: var(--raise); }
 .drawer .muted { font-size: 12.5px; }
@@ -249,7 +251,8 @@ pre { white-space: pre-wrap; word-break: break-word; background: var(--raise); b
 .find-row .result-head { display: flex; justify-content: space-between; gap: 8px; }
 .result-path { font-size: 12px; color: var(--faint); }
 .sheet { position: fixed; z-index: 12; left: 50%; transform: translateX(-50%); bottom: 0; width: min(620px, 100vw); max-height: calc(88dvh / var(--scale, 1));
-  background: var(--raise); border-radius: 24px 24px 0 0; display: flex; flex-direction: column; animation: rise var(--dur) var(--ease); box-shadow: var(--shadow); }
+  background: var(--raise); border-radius: 24px 24px 0 0; display: flex; flex-direction: column; box-shadow: var(--shadow); }
+.sheet.enter { animation: rise var(--dur) var(--ease); }
 @keyframes rise { from { transform: translate(-50%, 24px); opacity: 0; } }
 .sheet::before { content: ""; width: 36px; height: 4px; border-radius: 2px; background: var(--hair); margin: 8px auto 0; }
 .sheet-head { padding: 4px 8px 4px 18px; }

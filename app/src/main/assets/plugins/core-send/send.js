@@ -6,11 +6,22 @@
 // ---------- page pool ----------
 // Each send takes a free site page and gives it back when done; when all are
 // busy it waits its turn. A chat never has two sends at once.
-const pageCount = () => Math.max(1, Math.min(4, +S.config.pages || 1));
+// Max replies at once (Settings › Sites): sends run in parallel, each on its own site
+// page, up to this many. Pages open when a send has to wait for one.
+const maxReplies = () => Math.max(1, Math.min(S.config.moreReplies ? 10 : 5, +S.config.maxReplies || 5));
+const pageCount = () => {
+  if (S.livePages == null) S.livePages = Math.max(1, (S.app.pages || []).length);
+  return Math.max(1, Math.min(maxReplies(), S.livePages));
+};
 const setPageCount = (n) => {
-  S.config.pages = Math.max(1, Math.min(4, +n || 1));
-  saveConfig();
-  return api("/api/site/pages", { count: S.config.pages }).then(pump, (e) => toast(e.message, "error"));
+  S.livePages = Math.max(1, Math.min(maxReplies(), +n || 1));
+  return api("/api/site/pages", { count: S.livePages }).then(pump, (e) => toast(e.message, "error"));
+};
+let growing = false;
+const growPages = () => {
+  if (growing || pageCount() >= maxReplies()) return;
+  growing = true;
+  setPageCount(pageCount() + 1).finally(() => (growing = false));
 };
 const waiting = [];
 // want: { page } for that exact page, or { url } to prefer a page already there.
@@ -20,7 +31,10 @@ const pump = () => {
     const { want, res } = waiting[k];
     const free = [...Array(pageCount()).keys()].filter((i) => !pg(i).busy);
     const ok = want.page != null ? free.filter((i) => i === want.page) : free;
-    if (!ok.length) continue;
+    if (!ok.length) {
+      if (want.page == null) growPages();
+      continue;
+    }
     const at = (f) => ok.find((i) => f(pg(i).url || ""));
     const i = (want.url && (at((u) => sameUrl(u, want.url)) ?? at((u) => sameHost(u, want.url)))) ?? ok[0];
     pg(i).busy = true;
@@ -230,7 +244,7 @@ const askSite = async (prompt, opts = {}) => {
   const prof = S.config.profiles.find((p) => opts.profile && p.name.toLowerCase() === String(opts.profile).toLowerCase()) || profile();
   const site = siteFor(prof);
   if (!site) throw new Error("PP.ask: this profile has no AI site plugin");
-  if (hookDepth > 0 && pageCount() === 1) throw new Error("PP.ask inside a plugin step needs 2 or more site pages (Settings › Site pages at once)");
+  if (hookDepth > 0 && maxReplies() === 1) throw new Error("PP.ask inside a plugin step needs Max replies at once to be 2 or more (Settings › Sites)");
   const page = await acquire({ url: site.url });
   try {
     const quiet = {}; // progress of side requests isn't shown under the message box

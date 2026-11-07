@@ -11,7 +11,8 @@
     "profiles.js",
     "chat-sheet.js",
     "find.js",
-    "plugins-screen.js"
+    "plugins-screen.js",
+    "settings.js"
   ],
   "css": [
     "ui.css"

@@ -95,8 +95,9 @@ Settings → **Look**: UI scale, Enter sends, themes (themes are plugins too).
 Settings → **Waiting for replies**: optional limits in minutes; 0 = none.
 
 ### Chats in parallel
-Settings → **Site pages at once** (1 to 4). Each page is its own copy of the
-site, so that many chats get answered at the same time: yours, plugins'
+Settings › Sites › **Max replies at once** (5, or up to 10). Each reply runs on its
+own copy of the site (a page opens when a message has to wait), so that many chats
+get answered at the same time: yours, plugins'
 (`PP.ask`) and other apps' (local API). Anything more waits its turn. All
 pages share the login. In the site view, **Page 1/2** switches between them;
 Check and "Add the page's newest reply" use the page on screen. More pages use

@@ -149,8 +149,10 @@ const DEFAULT_CONFIG = () => ({
   ui: { scale: 1, theme: "", mode: "", accent: "", text: 16, enterSends: false },
   // Minutes to wait for a reply; 0 = no limit (Stop waiting is always there).
   wait: { idleMin: 0, maxMin: 0 },
-  // Site pages at once: sends (yours, plugins', other apps') run in parallel up to this many.
-  pages: 1,
+  // Max replies at once: sends (yours, plugins', other apps') run in parallel up to this many
+  // (5; 10 once moreReplies is on). Site pages open as they are needed.
+  maxReplies: 5,
+  moreReplies: false,
 });
 
 let configTimer = 0;
@@ -183,6 +185,8 @@ const PP = (window.PP = {
   // brings its own (the browser's confirm() may be switched off in the app).
   confirm: (msg) => Promise.resolve(window.confirm(msg) || null),
   askText: (msg, value = "") => Promise.resolve(window.prompt(msg, value) || null),
+  // Change a plugin's setting for the active profile: PP.setSetting("id", "key", value).
+  setSetting: (id, key, value) => setSetting(id, key, value),
   // True in safe mode (only built-in plugins are loaded).
   safe: SAFE,
   md: (text) => mdToHtml(text),
@@ -530,10 +534,13 @@ on("pluginBundle", (ev) => {
 });
 
 // ---------- start ----------
+// The screen before the UI part is there: a small spinner while it starts, the reason if it can't.
 const bootScreen = (msg, error) => {
   app.replaceChildren(
-    h("p", { class: (error ? "error" : "muted") + " boot" }, msg),
-    error ? h("div", { class: "row" }, h("button", { onclick: () => location.reload() }, "Retry"), SAFE ? null : h("button", { onclick: () => restart(true) }, "Open in safe mode")) : null,
+    ...[
+      h("p", { class: (error ? "error" : "muted") + " boot", role: error ? "alert" : "status" }, error ? null : h("span", { class: "spinner", "aria-hidden": "true" }), msg),
+      error ? h("div", { class: "row" }, h("button", { onclick: () => location.reload() }, "Retry"), SAFE ? null : h("button", { onclick: () => restart(true) }, "Open in safe mode")) : null,
+    ].filter(Boolean),
   );
 };
 const boot = async () => {

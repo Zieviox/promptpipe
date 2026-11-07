@@ -64,7 +64,7 @@ class Hub(private val app: App) {
     private fun page(title: String, detail: String): String {
         fun esc(s: String) = s.replace("&", "&amp;").replace("<", "&lt;")
         val html = "<meta name=viewport content='width=device-width'><body style='background:#0b0c0f;color:#d8dbe2;font:16px system-ui;padding:24px'>" +
-            "<p>${esc(title)}</p>" + (if (detail.isEmpty()) "" else "<pre style='white-space:pre-wrap;font-size:12px;color:#9aa1ad'>${esc(detail)}</pre><p><a style='color:#e8875a' href='${App.base}/open?key=${app.core.key}'>Try again</a></p>")
+            (if (detail.isEmpty()) "<style>@keyframes s{to{transform:rotate(360deg)}}</style><p style='display:flex;align-items:center;gap:12px'><span style='width:18px;height:18px;border-radius:50%;border:2px solid #9aa1ad;border-right-color:transparent;animation:s .9s linear infinite'></span>${esc(title)}</p>" else "<p>${esc(title)}</p>") + (if (detail.isEmpty()) "" else "<pre style='white-space:pre-wrap;font-size:12px;color:#9aa1ad'>${esc(detail)}</pre><p><a style='color:#e8875a' href='${App.base}/open?key=${app.core.key}'>Try again</a></p>")
         return "data:text/html;charset=utf-8," + java.net.URLEncoder.encode(html, "UTF-8").replace("+", "%20")
     }
 
@@ -142,11 +142,11 @@ class Hub(private val app: App) {
     val siteSession get() = pages[0].session
     val siteInfo get() = pages[0].info
 
-    fun page(i: Int): SitePage = pages.getOrNull(i) ?: throw IOException("there is no site page ${i + 1} (Settings › Site pages at once)")
+    fun page(i: Int): SitePage = pages.getOrNull(i) ?: throw IOException("there is no site page ${i + 1} (Settings › Sites › Max replies at once)")
 
     fun pagesInfo(): JSONArray = JSONArray().also { a -> pages.forEach { a.put(JSONObject().put("page", it.index).put("connected", it.port != null).put("url", it.info.optString("url")).put("title", it.info.optString("title"))) } }
 
-    // How many site pages run at once (1-4). Extra pages are closed from the end.
+    // How many site pages run at once (1-10). Extra pages are closed from the end.
     fun setPages(n: Int) {
         val want = n.coerceIn(1, MAX_PAGES)
         main.post {
@@ -329,6 +329,6 @@ class Hub(private val app: App) {
     }
 
     companion object {
-        const val MAX_PAGES = 4
+        const val MAX_PAGES = 10
     }
 }

@@ -1,7 +1,10 @@
 /* Before the UI part loads (and if it can't): just enough to read. */
 html, body { margin: 0; background: #1b1a1f; color: #ecebef; font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
 @media (prefers-color-scheme: light) { html, body { background: #faf9f7; color: #1f1d1b; } }
-.boot { padding: 24px; }
+.boot { padding: 24px; display: flex; align-items: center; gap: 12px; }
+.spinner { width: 18px; height: 18px; flex: none; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; border-right-color: currentColor; opacity: .6; } }
 .error { color: #ff8f87; }
 .muted { color: #a4a1ab; }
 #app > .row { display: flex; gap: 8px; padding: 0 24px; }

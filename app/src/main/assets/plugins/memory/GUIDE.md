@@ -10,7 +10,7 @@ from before it.
 Turn **Memory** on in the profile. Tap ⚙ for the settings and ☰ for this
 chat's summaries and the summary chat's system prompts.
 
-For summaries, set **Settings › Site pages at once** to 2 or more: a summary
+For summaries, keep **Settings › Sites › Max replies at once** at 2 or more: a summary
 is made in its own chat on a second site page while your message holds the
 first. With 1 page, Memory clips older messages instead and says so in the
 trace.

@@ -267,17 +267,22 @@ document.addEventListener("input", (e) => {
   if (e.target?.closest?.(".sheet")) e.target.dataset.edited = "1";
 }, true);
 
+const withClass = (el, cls) => (cls && el.classList.add(cls.trim()), el);
 render = () => {
   const keepFocus = document.activeElement?.dataset?.keep;
   const draft = document.querySelector(".composer textarea")?.value;
   const view = snapshotView();
   const hadSheet = !!document.querySelector(".sheet");
+  const hadDrawer = !!document.querySelector(".drawer");
   const composer = renderComposer(draft);
   // Floats just above the composer; shows once you scroll up.
   composer.prepend(jumpButton());
   app.replaceChildren(...[safeBanner(), renderTop(), renderTagsRow(), renderMessages(), composer].filter(Boolean));
-  if (S.drawer) app.append(h("div", { class: "scrim", onclick: closeDrawer }), renderDrawer());
-  if (S.sheet) app.append(h("div", { class: "scrim", onclick: closeSheet }), renderSheet());
+  // A layer slides in only when it opens, never again on a redraw (that read as it
+  // tucking away and reopening on every tap).
+  const enter = (was) => (was ? "" : " enter");
+  if (S.drawer) app.append(h("div", { class: "scrim" + enter(hadDrawer), onclick: closeDrawer }), withClass(renderDrawer(), enter(hadDrawer)));
+  if (S.sheet) app.append(h("div", { class: "scrim" + enter(hadSheet), onclick: closeSheet }), withClass(renderSheet(), enter(hadSheet)));
   restoreView(view, hadSheet);
   // Reading at the very bottom, you stay at the bottom as the chat grows; anywhere
   // above it, your place is never moved (new replies show on the jump button).
@@ -530,10 +535,7 @@ const openSiteSheet = () =>
         h("button", { class: "small", onclick: addFromPage }, "Take the newest reply"),
         h("button", { class: "small", onclick: importHistory }, "Import the site chat")),
       h("h3", {}, "Pages"),
-      h("div", { class: "row stepper" },
-        h("button", { class: "small", "aria-label": "Fewer pages", disabled: pageCount() <= 1, onclick: () => setPageCount(pageCount() - 1).then(rerenderSheet) }, "−"),
-        h("strong", {}, `${pageCount()} ${pageCount() === 1 ? "page" : "pages"} at once`),
-        h("button", { class: "small", "aria-label": "More pages", disabled: pageCount() >= 4, onclick: () => setPageCount(pageCount() + 1).then(rerenderSheet) }, "+")),
+      h("div", { class: "row" }, h("span", { class: "grow" }, `${maxReplies()} replies at once at most; ${pageCount()} ${pageCount() === 1 ? "page is" : "pages are"} open`), h("button", { class: "small", onclick: () => settingsPage("Sites", settingsBody("Sites")) }, "Change")),
       h("h3", {}, "Site plugins"),
       h("div", { class: "row" },
         h("button", { class: "small", onclick: openGetSites }, "Get site plugins"),
@@ -1331,19 +1333,10 @@ const lookControls = () => {
   const themes = [...S.plugins.values()].filter(isTheme);
   return [
     h("h3", {}, "Look"),
-    h(
-      "div",
-      { class: "field" },
-      h("span", {}, "UI scale · Ctrl+= / Ctrl+- / Ctrl+0"),
-      h(
-        "div",
-        { class: "row scale" },
-        h("button", { class: "small", "aria-label": "Smaller", onclick: () => setScale(S.config.ui.scale - 0.05) }, "A−"),
-        h("input", { type: "range", min: 60, max: 200, step: 5, value: Math.round(S.config.ui.scale * 100), class: "grow", "aria-label": "UI scale", onchange: (e) => setScale(e.target.value / 100) }),
-        h("button", { class: "small", "aria-label": "Bigger", onclick: () => setScale(S.config.ui.scale + 0.05) }, "A+"),
-        h("span", { class: "muted" }, Math.round(S.config.ui.scale * 100) + "%"),
-      ),
-    ),
+    h("div", { class: "field" }, h("span", {}, "UI scale (Ctrl+= / Ctrl+- / Ctrl+0 on a keyboard)"),
+      h("div", { class: "chips" },
+        [90, 100, 115, 130].map((v) => h("button", { class: "chip" + (Math.round(S.config.ui.scale * 100) === v ? " current" : ""), "aria-pressed": String(Math.round(S.config.ui.scale * 100) === v), onclick: () => (setScale(v / 100), rerenderSheet()) }, v + "%")),
+        [90, 100, 115, 130].includes(Math.round(S.config.ui.scale * 100)) ? null : h("span", { class: "muted" }, "now " + Math.round(S.config.ui.scale * 100) + "%"))),
     h("div", { class: "field" }, h("span", {}, "Light or dark"),
       h("div", { class: "themes" }, [["", "Like the system"], ["dark", "Dark"], ["light", "Light"]].map(([v, l]) =>
         h("button", { class: "theme-pick" + ((S.config.ui.mode || "") === v ? " current" : ""), "aria-pressed": String((S.config.ui.mode || "") === v), disabled: !!S.config.ui.theme, onclick: () => setLook("mode", v) }, l)))),
@@ -1456,94 +1449,6 @@ const openCoreLog = async () => {
   ]);
   toEnd();
 };
-
-// Settings: one page of groups, each a page of its own (‹ Settings goes back).
-const settingsPage = (title, body) =>
-  openSheet(title, () => [h("button", { class: "ghost back", onclick: openSettings }, "‹ Settings"), ...body()]);
-const SETTINGS = [
-  ["Look", "Light or dark, accent, text size, UI scale, theme, Enter sends", () => [
-    ...lookControls(),
-    h("h3", {}, "Chat"),
-    h("label", { class: "field inline" }, h("span", {}, "Stay at the bottom while a reply comes in (only if you were already there; scrolled up, your place never moves)"), h("input", { type: "checkbox", checked: followOn(), onchange: (e) => ((S.config.ui.follow = e.target.checked), saveConfig()) })),
-    h("h3", {}, "Keyboard"),
-    h("label", { class: "field inline" }, h("span", {}, "Enter sends (Shift+Enter for a new line)"), h("input", { type: "checkbox", checked: !!S.config.ui.enterSends, onchange: (e) => ((S.config.ui.enterSends = e.target.checked), saveConfig()) })),
-  ]],
-  ["Chats and storage", "Where chats are saved, git history and backup", () => [
-    h("h3", {}, "Storage"),
-    h("p", {}, h("code", {}, S.app.storage || "?")),
-    S.app.allFiles
-      ? h("p", { class: "muted" }, "Plugins, config and history live here, so Termux and Neovim can reach them.")
-      : h("p", { class: "warn" }, "The app can't use /sdcard yet, so files are in its own folder. ", h("button", { onclick: () => api("/api/app/action", { action: "grantFiles" }) }, "Allow all files access"), " then restart the app."),
-    h("div", { class: "row" }, h("button", { onclick: openStorageCheck }, "Storage check")),
-    h("h3", {}, "Git"),
-    h("div", { class: "row" }, h("button", { onclick: openGit }, "Git history and backup")),
-  ]],
-  ["Sites", "Site plugins, pages at once, waiting for replies", () => [
-    h("div", { class: "row" }, h("button", { class: "primary", onclick: openGetSites }, "Get site plugins"), h("button", { onclick: openSiteSheet }, "This profile's site")),
-    h("h3", {}, "Site pages at once"),
-    h("p", { class: "muted" }, "Each page is a separate copy of the site, so this many chats (yours, plugins' and other apps') get answered at the same time. More pages use more memory, and many messages at once on one account can look like a bot to the site."),
-    h("div", { class: "row stepper" },
-      h("button", { class: "small", "aria-label": "Fewer pages", disabled: pageCount() <= 1, onclick: () => setPageCount(pageCount() - 1).then(rerenderSheet) }, "−"),
-      h("strong", {}, `${pageCount()} ${pageCount() === 1 ? "page" : "pages"}`),
-      h("button", { class: "small", "aria-label": "More pages", disabled: pageCount() >= 4, onclick: () => setPageCount(pageCount() + 1).then(rerenderSheet) }, "+")),
-    h("p", { class: "muted" }, "Log in once: all pages share the login. In the site view, Page 1/2 switches between them."),
-    h("h3", {}, "Waiting for replies"),
-    h("p", { class: "muted" }, "In minutes. 0 = no limit. Stop on a reply that's coming always works."),
-    ...[["idleMin", "Give up after this long with no activity on the page"], ["maxMin", "Give up after this long in total"]].map(([k, label]) =>
-      h("label", { class: "field inline" }, h("span", {}, label), h("input", { type: "number", min: "0", step: "1", style: "width:5em", value: String((S.config.wait || {})[k] || 0), oninput: (e) => ((S.config.wait = { ...(S.config.wait || {}), [k]: Math.max(0, +e.target.value || 0) }), saveConfig()) }))),
-  ]],
-  ["Plugins", "All plugins, install, updates, the profile", () => [
-    h("div", { class: "row" }, h("button", { class: "primary", onclick: () => openPlugins() }, "Plugins"), h("button", { onclick: () => openProfileEditor() }, "Edit profile")),
-  ]],
-  ["Import and export", "Profiles, system prompts, names that already exist", () => {
-    const menu = (label) => [...S.plugins.values()].flatMap((p) => p.def?.menu || []).find((m) => m.label === label);
-    const spImport = menu("Import system prompts…"), spExport = menu("Export all system prompts");
-    return [
-      h("p", { class: "muted" }, "Exports are saved in ", h("code", {}, (S.app.storage || "the app folder") + "/export"), ", where other apps can reach them."),
-      h("h3", {}, "Profiles"),
-      h("div", { class: "row" }, h("button", { onclick: () => exportProfiles(S.config.profiles) }, "Export all profiles"), h("button", { onclick: openImportProfile }, "Import a profile…")),
-      h("h3", {}, "System prompts"),
-      h("div", { class: "row" }, spExport ? h("button", { onclick: () => spExport.run() }, "Export all system prompts") : null, spImport ? h("button", { onclick: () => spImport.run() }, "Import system prompts…") : null),
-      spImport ? null : h("p", { class: "muted" }, "The System prompt plugin isn't installed."),
-      h("h3", {}, "When a name already exists"),
-      h("label", { class: "field" }, h("span", {}, "Importing a name you already have"),
-        dropdown({ id: "clash", label: "Importing a name you already have", value: importMode(), options: [{ value: "ask", label: "Ask each time (keep both is preselected)" }, { value: "both", label: "Always keep both" }, { value: "replace", label: "Always replace" }], onPick: (v) => ((S.config.importClash = v), saveConfig(), rerenderSheet()) })),
-    ];
-  }],
-  ["Local API", "For other apps: address, token, folder", () => [
-    h("p", { class: "muted" }, "Apps that take an OpenAI API key: base URL below, model = a profile name, API key = the token below (always required). Each request becomes one new chat on the site, unless it adds \"chat\": \"<path>.md\" to continue a saved chat (then only its last message is sent). Every reply also says, under \"promptpipe\", which chat it went to and what was sent. Requests at the same time run in parallel on the site pages (see Sites), the rest wait their turn."),
-    h("div", { class: "row" }, h("pre", { class: "grow" }, `http://127.0.0.1:${S.app.port}/v1`), h("button", { class: "small", onclick: () => copyText(`http://127.0.0.1:${S.app.port}/v1`, "Copied") }, "Copy")),
-    h("label", { class: "field" }, h("span", {}, "API token (send it as: Authorization: Bearer <token>)"), h("div", { class: "row" },
-      h("pre", { class: "grow" }, S.app.apiTokenValue || "?"),
-      h("button", { class: "small", onclick: () => copyText(S.app.apiTokenValue || "", "Copied") }, "Copy"),
-      h("button", { class: "small", onclick: async () => {
-        await api("/api/secret", { key: "apiToken", value: "" });
-        S.app = await api("/api/app");
-        toast("New API token made: apps using the old one need the new one");
-        rerenderSheet();
-      } }, "New token"))),
-    h("pre", {}, `curl -s 127.0.0.1:${S.app.port}/v1/chat/completions -H "Authorization: Bearer ${S.app.apiTokenValue || "TOKEN"}" -d '{"model":"${profile().name}","messages":[{"role":"user","content":"hi"}]}'`),
-    h("label", { class: "field" }, h("span", {}, "Folder for chats made through the API"), h("input", { value: S.config.api.folder, oninput: (e) => ((S.config.api.folder = e.target.value), saveConfig()) })),
-  ]],
-  ["Advanced", "App parts, safe mode, background, core log", () => [
-    h("h3", {}, "App parts"),
-    ...appPartsControls(),
-    h("h3", {}, "Background"),
-    h("p", { class: "muted" }, "A notification keeps the AI page and the API alive while the app is in the background."),
-    h("button", { onclick: () => api("/api/app/action", { action: "stopService" }) }, "Stop background service"),
-    h("h3", {}, "Core log"),
-    h("p", { class: "muted" }, "What the app's core printed, for reporting a problem."),
-    h("button", { onclick: openCoreLog }, "Show core log"),
-    h("h3", {}, "First run"),
-    h("button", { onclick: openWelcome }, "Show the welcome again"),
-  ]],
-];
-const openSettings = () =>
-  openSheet("Settings", () => [
-    h("div", { class: "results" }, SETTINGS.map(([title, sub, body]) =>
-      h("button", { class: "menu-item settings-row", onclick: () => settingsPage(title, body) }, h("span", { class: "grow" }, h("b", {}, title), h("small", { class: "muted" }, sub)), h("span", { class: "chev", "aria-hidden": "true" }, "›")))),
-    h("p", { class: "muted" }, "Version " + (S.app.version || "?") + (S.app.coreVersion ? " · core " + S.app.coreVersion : "")),
-  ]);
 
 const openHelp = () =>
   openSheet("Shortcuts & help", () => [

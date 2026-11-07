@@ -58,7 +58,7 @@ const SETTING_CONTROLS = [
   ["Look", "Light or dark"], ["Look", "Accent"], ["Look", "Text size"], ["Look", "UI scale"], ["Look", "Theme"],
   ["Look", "Stay at the bottom while a reply comes in"], ["Look", "Enter sends"],
   ["Chats and storage", "Where chats are saved"], ["Chats and storage", "Git history and backup"], ["Chats and storage", "Storage check"],
-  ["Sites", "Get site plugins"], ["Sites", "Site pages at once"], ["Sites", "Waiting for replies"],
+  ["Sites", "Get site plugins"], ["Sites", "Max replies at once"], ["Sites", "Waiting for replies"],
   ["Import and export", "Export all profiles"], ["Import and export", "Import a profile"], ["Import and export", "Importing a name you already have"],
   ["Local API", "API token"], ["Local API", "Folder for chats made through the API"],
   ["Advanced", "App parts"], ["Advanced", "Stop background service"], ["Advanced", "Core log"], ["Advanced", "Show the welcome again"],
@@ -221,7 +221,7 @@ const openFind = (initial) => {
       sel = Math.min(sel, Math.max(0, things.length + hits.length - 1));
       const words = parseQuery(q).words;
       picks = [...things, ...hits.slice(0, 200).map((e) => ({ run: () => goToMessage(e) }))];
-      list.replaceChildren(
+      list.replaceChildren(...[
         things.length ? h("h3", {}, q.trim() ? "Chats, functions and settings" : "Try") : null,
         ...things.map(row),
         wantsMessages ? h("h3", {}, `Messages${hits.length ? " (" + hits.length + ")" : ""}`) : null,
@@ -232,7 +232,7 @@ const openFind = (initial) => {
             h("span", { class: "result-head" }, h("b", {}, e.title), e.n >= 0 ? ` · #${e.n + 1}` : "", " · ", ChatFile.stamp(e.at), e.tags.length ? "  " + e.tags.map((t) => "#" + t).join(" ") : ""),
             h("span", { class: "result-text" }, snippet(e, words)));
         }),
-      );
+      ].filter(Boolean));
       list.querySelector(".sel")?.scrollIntoView({ block: "nearest" });
     };
     let timer = 0;
