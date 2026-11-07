@@ -391,3 +391,26 @@ p.warn { background: color-mix(in srgb, var(--warn) 10%, transparent); border-ra
 .site-btn .site-name { overflow: hidden; text-overflow: ellipsis; flex: none; max-width: 100%; }
 .site-btn .site-model { min-width: 0; }
 .top .icon { min-width: 36px; }
+
+/* ---------- message menu, footer, thinking line ---------- */
+.menu-quote { margin: 0; padding: 8px 12px; border-left: 2px solid var(--accent); color: var(--muted); font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg); border-radius: 0 var(--r-small) var(--r-small) 0; }
+.menu-item.danger { color: var(--err); }
+.menu-item { min-height: 48px; align-items: center; border-radius: var(--r-small); }
+.msg-tags-edit { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.foot-btn { min-height: 32px; padding: 0 10px; color: var(--muted); }
+.msg-foot .time { margin-left: auto; }
+.think-line { display: inline-flex; gap: 6px; align-items: center; min-width: 0; max-width: 100%; }
+.think-last { color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.thinking.live summary { max-width: 100%; }
+.thinking.live summary::before { content: none; }
+.think-mark { width: 10px; height: 10px; border-radius: 3px; background: var(--accent); flex: none; animation: think 1.2s var(--ease) infinite; }
+@keyframes think { 50% { transform: rotate(45deg) scale(.7); opacity: .6; } }
+.send.stop { background: var(--text); color: var(--bg); }
+.plus { width: 40px; height: 40px; min-height: 40px; padding: 0; border-radius: 50%; color: var(--muted); flex: none; display: grid; place-items: center; font-size: 22px; line-height: 1; margin-left: -10px; }
+.file-pick input { display: none; }
+.file-pick { cursor: pointer; }
+.settings-row { text-align: left; gap: 10px; }
+.settings-row .grow { display: flex; flex-direction: column; gap: 2px; }
+.settings-row small { font-size: 12.5px; }
+.settings-row .chev { color: var(--faint); font-size: 20px; }
+.back { align-self: flex-start; min-height: 36px; color: var(--muted); padding-left: 0; }

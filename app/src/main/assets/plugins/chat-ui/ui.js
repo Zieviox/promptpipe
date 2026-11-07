@@ -218,11 +218,17 @@ const composerProgress = () => {
   return [S.progress, others ? `${others} ${others === 1 ? "reply" : "replies"} coming in other chats` : ""].filter(Boolean).join(" · ");
 };
 
-// The waiting message: thinking (open) and the reply so far, as the page shows them.
+// The last line of the thinking so far, for the one-line "Thinking · …".
+const lastLine = (text) => (String(text).trim().split("\n").filter((l) => l.trim()).pop() || "").replace(/[*_#`>]/g, "").slice(-120);
+// The waiting message: thinking (one line, tap to unfold) and the reply so far, as the page shows them.
 const liveParts = (t) => {
   const L = t.live || {};
   return [
-    L.thinking ? h("details", { class: "thinking live", open: true }, h("summary", {}, L.reply ? "Thought" : "Thinking…"), h("div", { class: "md", html: mdToHtml(L.thinking) })) : null,
+    L.thinking
+      ? h("details", { class: "thinking live", open: !!S.thinkingOpen },
+          h("summary", {}, L.reply ? "Thought" : h("span", { class: "think-line" }, h("span", { class: "think-mark", "aria-hidden": "true" }), "Thinking", h("span", { class: "think-last" }, " · " + lastLine(L.thinking)))),
+          h("div", { class: "md", html: mdToHtml(L.thinking) }))
+      : null,
     L.reply ? h("div", { class: "text md" }, h("div", { html: mdToHtml(L.reply) })) : null,
     h(
       "div",
@@ -487,6 +493,7 @@ const ICONS = {
   search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
   more: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
   send: '<path d="M12 19V5M5.5 11.5L12 5l6.5 6.5"/>',
+  stop: '<rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor"/>',
   layers: '<path d="M12 4l8 4-8 4-8-4z"/><path d="M4 12l8 4 8-4M4 16l8 4 8-4"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/>',
 };
@@ -616,13 +623,24 @@ const pluginTurnParts = (c, t, i) => {
   return out;
 };
 
-const renderTurn = (c, t, i) => {
-  const transformed = t.sent !== t.you || t.raw !== t.reply;
+// What a plugin's message action does to a reply (from the message menu).
+const runMessageAction = async (c, t, i, p, a) => {
+  const notes = [];
+  try {
+    t.reply = await a.run(t.raw, { chat: c, turn: t, settings: settingsFor(p.id), note: (m) => notes.push(m) });
+    t.notes = [...(t.notes || []), ...notes.map((n) => `${pluginName(p.id)}: ${n}`)];
+    delete t.error;
+    render();
+    if (c.path) await saveChat(c, `${a.label}: ${c.meta.title} (#${i + 1})`);
+  } catch (e) {
+    toast(a.label + ": " + e.message, "error");
+  }
+};
+
+// The trace: what went out and what came back, step by step.
+const traceOf = (t) => {
   const trace = S.traces.get(t);
-  const details = h(
-    "details",
-    { class: "trace" },
-    h("summary", {}, "Trace"),
+  return [
     ...(trace || [
       { label: "You", text: t.you },
       { label: "Sent", text: t.sent },
@@ -630,49 +648,59 @@ const renderTurn = (c, t, i) => {
       { label: "Shown", text: t.reply },
     ]).map((s) => h("div", { class: "stage" + (s.error ? " err" : "") }, h("b", {}, s.label + (s.notes && s.notes.length ? " (" + s.notes.join("; ") + ")" : "")), h("pre", {}, s.text))),
     t.notes && t.notes.length ? h("p", { class: "muted" }, t.notes.join(" · ")) : null,
-  );
-  const actions = [];
-  for (const p of S.plugins.values()) {
-    for (const a of p.def?.messageActions || []) {
-      actions.push(
-        h("button", {
-          class: "ghost",
-          onclick: async () => {
-            const notes = [];
-            try {
-              t.reply = await a.run(t.raw, { chat: c, turn: t, settings: settingsFor(p.id), note: (m) => notes.push(m) });
-              t.notes = [...(t.notes || []), ...notes.map((n) => `${pluginName(p.id)}: ${n}`)];
-              delete t.error;
-              render();
-              if (c.path) await saveChat(c, `${a.label}: ${c.meta.title} (#${i + 1})`);
-            } catch (e) {
-              toast(a.label + ": " + e.message, "error");
-            }
-          },
-        }, a.label),
-      );
-    }
-  }
+  ];
+};
+
+// One menu for every message: the message quoted at the top, then its actions.
+const openMessageMenu = (c, t, i) => {
+  const last = i === c.turns.length - 1;
+  const item = (label, run, opts = {}) => h("button", { class: "menu-item" + (opts.danger ? " danger" : ""), onclick: run }, h("span", {}, label), opts.key ? h("kbd", {}, opts.key) : null);
+  openSheet("Message", () => {
+    const own = t.tags || [];
+    const inherited = ChatFile.messageTags(c.meta, t).filter((x) => !own.includes(x));
+    const plugin = [];
+    for (const p of S.plugins.values()) for (const a of p.def?.messageActions || []) plugin.push(item(`${a.label} · ${pluginName(p.id)}`, () => (closeSheet(), runMessageAction(c, t, i, p, a))));
+    return [
+      h("blockquote", { class: "menu-quote" }, (t.reply || t.you || "").slice(0, 240) + ((t.reply || "").length > 240 ? "…" : "")),
+      h("div", { class: "results" },
+        item("Copy the reply", () => copyText(t.reply, "Copied"), { key: "swipe ←" }),
+        item("Quote it in your next message", () => (closeSheet(), fillComposer(quote(t.reply), "append")), { key: "swipe →" }),
+        item("Select text", () => openSelect(t)),
+        item("Copy your message", () => copyText(t.you, "Copied")),
+        t.thinking ? item("Copy the thinking", () => copyText(t.thinking, "Copied")) : null,
+        item("Send your message again", () => (closeSheet(), send(t.you))),
+        last ? item("Edit and send again", () => (closeSheet(), editLast()), { key: "↑" }) : null,
+        ...plugin),
+      h("h3", {}, "Tags"),
+      h("div", { class: "msg-tags-edit" },
+        own.map((x) => tagChip(x, { onRemove: () => (removeMessageTag(c, t, x), setTimeout(rerenderSheet, 50)), onBump: counterOf(x) ? () => addMessageTag(c, t, counterOf(x)[1] + "#") : null })),
+        inherited.map((x) => tagChip(x, { dim: true })),
+        tagInput("+ tag", (v) => (addMessageTag(c, t, v), setTimeout(rerenderSheet, 50)), "mtag-menu")),
+      h("h3", {}, "What was sent"),
+      h("details", { class: "trace" }, h("summary", {}, "Show the trace (what went out, what came back)"), ...traceOf(t)),
+    ];
+  });
+};
+
+const renderTurn = (c, t, i) => {
+  const transformed = t.sent !== t.you || t.raw !== t.reply;
   const own = t.tags || [];
   const inherited = ChatFile.messageTags(c.meta, t).filter((x) => !own.includes(x));
-  // Options under a reply are folded: one quiet line with its tags, time and ⋯.
-  const open = S.openTurns.has(t);
-  const toggleOpen = () => {
-    open ? S.openTurns.delete(t) : S.openTurns.add(t);
-    render();
-  };
+  // The footer: tags and time; Copy and Quote on the newest reply and on one you tap; ⋯ for the menu.
+  const newest = i === c.turns.findLastIndex((x) => !x.pending);
+  const open = newest || S.openTurns.has(t);
+  const menu = () => openMessageMenu(c, t, i);
   const foot = t.pending
     ? null
     : h(
         "div",
         { class: "msg-foot" },
-        open
-          ? own.map((x) => tagChip(x, { onRemove: () => removeMessageTag(c, t, x), onBump: counterOf(x) ? () => addMessageTag(c, t, counterOf(x)[1] + "#") : null }))
-          : own.map((x) => h("span", { class: "tag-text" + (counterOf(x) ? " counter" : "") }, "#" + x)),
+        own.map((x) => h("span", { class: "tag-text" + (counterOf(x) ? " counter" : "") }, "#" + x)),
         inherited.map((x) => h("span", { class: "tag-text dim", title: "From the chat tags" }, "#" + x)),
-        open ? tagInput("+ tag", (v) => addMessageTag(c, t, v), "mtag" + i) : null,
         h("span", { class: "time" }, ChatFile.stamp(t.at)),
-        h("button", { class: "ghost more" + (open ? " open" : ""), title: open ? "Fold options" : "Copy, trace, tags, plugin actions", "aria-expanded": String(open), "aria-label": "Message options", onclick: toggleOpen }, svgIcon("more")),
+        open ? h("button", { class: "ghost foot-btn", onclick: () => copyText(t.reply, "Copied") }, "Copy") : null,
+        open ? h("button", { class: "ghost foot-btn", onclick: () => fillComposer(quote(t.reply), "append") }, "Quote") : null,
+        h("button", { class: "ghost more", title: "Message menu (or long-press the reply)", "aria-label": "Message menu", onclick: menu }, svgIcon("more")),
       );
   const you = h("div", { class: "msg you", title: ChatFile.stamp(t.at) }, h("div", { class: "text" }, t.you));
   const art = h(
@@ -682,31 +710,27 @@ const renderTurn = (c, t, i) => {
     h(
       "div",
       { class: "msg ai" + (t.error ? " has-error" : "") },
-      h("div", { class: "who" }, c.meta.ai || "AI", transformed ? h("span", { class: "piped", title: "Went through plugins; see Trace" }, "piped") : null, t.profile ? h("span", { class: "faint" }, t.profile) : null),
+      h("div", { class: "who" }, c.meta.ai || "AI", transformed ? h("span", { class: "piped", title: "Went through the pipeline; the message menu shows what was sent" }, "piped") : null, t.profile ? h("span", { class: "faint" }, t.profile) : null),
       t.thinking
-        ? h("details", { class: "thinking", open: S.thinkingOpen }, h("summary", { title: "Tap to fold or unfold · Ctrl+/ for all" }, t.secs != null ? `Thought for ${t.secs}s` : "Thinking"), h("div", { class: "md", html: mdToHtml(t.thinking) }))
+        ? h("details", { class: "thinking", open: S.thinkingOpen }, h("summary", { title: "Tap to fold or unfold · Ctrl+/ for all" }, t.secs != null ? `Thought for ${t.secs} s` : "Thought"), h("div", { class: "md", html: mdToHtml(t.thinking) }))
         : null,
       t.pending
         ? h("div", { class: "live-box", "data-turn": i }, ...liveParts(t).filter(Boolean))
         : h("div", { class: "text md", html: mdToHtml(t.reply) }),
       t.error ? h("div", { class: "error" }, "✕ " + t.error) : null,
       foot,
-      t.pending || !open
-        ? null
-        : h(
-            "div",
-            { class: "msg-actions" },
-            h("button", { class: "ghost", onclick: () => copyText(t.reply, "Copied") }, "Copy"),
-            h("button", { class: "ghost", title: "Open the text in a box where you can pick any part of it", onclick: () => openSelect(t) }, "Select text"),
-            h("button", { class: "ghost", title: "Quote this reply in your next message (or swipe it right)", onclick: () => fillComposer(quote(t.reply), "append") }, "Reply"),
-            i === c.turns.length - 1 ? h("button", { class: "ghost", title: "Put your message back in the box", onclick: editLast }, "Edit & resend") : null,
-            t.thinking ? h("button", { class: "ghost", onclick: () => copyText(t.thinking, "Copied") }, "Copy thinking") : null,
-            ...actions,
-            details,
-          ),
     ),
   );
   const ai = art.querySelector(".msg.ai");
+  if (!t.pending) {
+    // Tap a reply (not a link or a selection) to show its Copy and Quote.
+    ai.addEventListener("click", (e) => {
+      if (newest || e.target.closest("a, button, details, pre") || String(window.getSelection() || "").trim()) return;
+      S.openTurns.has(t) ? S.openTurns.delete(t) : S.openTurns.add(t);
+      render();
+    });
+    onLongPress(ai, menu);
+  }
   onSwipe(ai, (dir) => (dir > 0 ? fillComposer(quote(t.reply), "append") : copyText(t.reply, "Copied")));
   codeCopy(ai);
   return art;
@@ -839,6 +863,8 @@ const renderComposer = (draft) => {
     oninput: (e) => {
       local("draft", e.target.value);
       grow(e.target);
+      const b = document.querySelector(".composer .send");
+      if (b && b.classList.contains("stop") !== !!(waitingTurn() && !e.target.value.trim())) b.replaceWith(sendButton(e.target.value));
     },
     onkeydown: (e) => {
       const enterSends = S.config.ui.enterSends;
@@ -856,10 +882,11 @@ const renderComposer = (draft) => {
     h(
       "div",
       { class: "inputbox" },
+      h("button", { class: "plus", title: "Pipeline, site, a text file, bigger box", "aria-label": "More", onclick: openPlusMenu }, "+"),
       ta,
       h("div", { class: "input-side" },
         h("button", { class: "ghost expand", onclick: toggleExpand, title: (S.expanded ? "Shrink" : "Expand") + " the message box · Ctrl+E", "aria-label": S.expanded ? "Shrink message box" : "Expand message box", "aria-pressed": String(!!S.expanded) }, S.expanded ? "⤡" : "⤢"),
-        h("button", { class: "send", onclick: send, title: "Send · Ctrl+Enter", "aria-label": "Send" }, svgIcon("send"))),
+        sendButton(ta.value)),
     ),
     h(
       "div",
@@ -868,6 +895,36 @@ const renderComposer = (draft) => {
     ),
   );
 };
+
+// The reply this chat is waiting for (on a site page), if any.
+const waitingTurn = () => S.chat?.turns.find((t) => t.pending && t.page != null);
+// Send, or Stop while a reply is coming and the box is empty (type to queue a message instead).
+const sendButton = (text = "") => {
+  const t = waitingTurn();
+  if (t && !text.trim())
+    return h("button", { class: "send stop", title: "Stop waiting for the reply · Esc", "aria-label": "Stop", onclick: () => api("/api/site", { cmd: "cancel", page: t.page }).then(() => toast("Stopped waiting"), (e) => toast(e.message, "error")) }, svgIcon("stop"));
+  return h("button", { class: "send", onclick: send, title: "Send · Ctrl+Enter" + (t ? " (it waits its turn)" : ""), "aria-label": "Send" }, svgIcon("send"));
+};
+
+// + next to the box: the things you add to or around a message.
+const openPlusMenu = () =>
+  openSheet("Add", () => [
+    h("div", { class: "results" },
+      h("button", { class: "menu-item", onclick: openPipeline }, h("span", {}, "Pipeline: presets and pieces"), h("kbd", {}, "Ctrl+Shift+L")),
+      h("button", { class: "menu-item", onclick: openSiteSheet }, h("span", {}, "Site, model and profile")),
+      h("label", { class: "menu-item file-pick" }, h("span", {}, "Put a text file in the box"),
+        h("input", { type: "file", accept: "text/*,.md,.txt,.json,.csv", onchange: async (e) => {
+          const f = e.target.files && e.target.files[0];
+          if (!f) return;
+          if (f.size > 2_000_000) return toast("That file is over 2 MB; paste the part you need", "error");
+          const text = await f.text();
+          closeSheet();
+          setTimeout(() => fillComposer(text, "append"), 50);
+          toast(`Added ${f.name} (${text.length} characters)`);
+        } })),
+      h("button", { class: "menu-item", onclick: () => (closeSheet(), setTimeout(toggleExpand, 50)) }, h("span", {}, S.expanded ? "Smaller message box" : "Bigger message box"), h("kbd", {}, "Ctrl+E")),
+      ...[...S.plugins.values()].flatMap((p) => (p.def?.menu || []).filter((m) => m.plus).map((m) => h("button", { class: "menu-item", onclick: () => (closeSheet(), Promise.resolve().then(() => m.run()).catch((e) => toast(e.message, "error"))) }, h("span", {}, m.label))))),
+  ]);
 
 // Expand mode: the message box takes most of the screen for long text.
 const toggleExpand = () => {
@@ -1766,57 +1823,75 @@ const openCoreLog = async () => {
   toEnd();
 };
 
+// Settings: one page of groups, each a page of its own (‹ Settings goes back).
+const settingsPage = (title, body) =>
+  openSheet(title, () => [h("button", { class: "ghost back", onclick: openSettings }, "‹ Settings"), ...body()]);
+const SETTINGS = [
+  ["Look", "Light or dark, accent, text size, UI scale, theme, Enter sends", () => [
+    ...lookControls(),
+    h("h3", {}, "Keyboard"),
+    h("label", { class: "field inline" }, h("span", {}, "Enter sends (Shift+Enter for a new line)"), h("input", { type: "checkbox", checked: !!S.config.ui.enterSends, onchange: (e) => ((S.config.ui.enterSends = e.target.checked), saveConfig()) })),
+  ]],
+  ["Chats and storage", "Where chats are saved, git history and backup", () => [
+    h("h3", {}, "Storage"),
+    h("p", {}, h("code", {}, S.app.storage || "?")),
+    S.app.allFiles
+      ? h("p", { class: "muted" }, "Plugins, config and history live here, so Termux and Neovim can reach them.")
+      : h("p", { class: "warn" }, "The app can't use /sdcard yet, so files are in its own folder. ", h("button", { onclick: () => api("/api/app/action", { action: "grantFiles" }) }, "Allow all files access"), " then restart the app."),
+    h("h3", {}, "Git"),
+    h("div", { class: "row" }, h("button", { onclick: openGit }, "Git history and backup")),
+  ]],
+  ["Sites", "Site plugins, pages at once, waiting for replies", () => [
+    h("div", { class: "row" }, h("button", { class: "primary", onclick: openGetSites }, "Get site plugins"), h("button", { onclick: openSiteSheet }, "This profile's site")),
+    h("h3", {}, "Site pages at once"),
+    h("p", { class: "muted" }, "Each page is a separate copy of the site, so this many chats (yours, plugins' and other apps') get answered at the same time. More pages use more memory, and many messages at once on one account can look like a bot to the site."),
+    h("div", { class: "row stepper" },
+      h("button", { class: "small", "aria-label": "Fewer pages", disabled: pageCount() <= 1, onclick: () => setPageCount(pageCount() - 1).then(rerenderSheet) }, "−"),
+      h("strong", {}, `${pageCount()} ${pageCount() === 1 ? "page" : "pages"}`),
+      h("button", { class: "small", "aria-label": "More pages", disabled: pageCount() >= 4, onclick: () => setPageCount(pageCount() + 1).then(rerenderSheet) }, "+")),
+    h("p", { class: "muted" }, "Log in once: all pages share the login. In the site view, Page 1/2 switches between them."),
+    h("h3", {}, "Waiting for replies"),
+    h("p", { class: "muted" }, "In minutes. 0 = no limit. Stop on a reply that's coming always works."),
+    ...[["idleMin", "Give up after this long with no activity on the page"], ["maxMin", "Give up after this long in total"]].map(([k, label]) =>
+      h("label", { class: "field inline" }, h("span", {}, label), h("input", { type: "number", min: "0", step: "1", style: "width:5em", value: String((S.config.wait || {})[k] || 0), oninput: (e) => ((S.config.wait = { ...(S.config.wait || {}), [k]: Math.max(0, +e.target.value || 0) }), saveConfig()) }))),
+  ]],
+  ["Plugins", "All plugins, install, updates, the pipeline", () => [
+    h("div", { class: "row" }, h("button", { class: "primary", onclick: openPlugins }, "Plugins"), h("button", { onclick: openPipeline }, "Pipeline")),
+  ]],
+  ["Local API", "For other apps: address, token, folder", () => [
+    h("p", { class: "muted" }, "Apps that take an OpenAI API key: base URL below, model = a profile name, API key = the token below (always required). Each request becomes one new chat on the site, unless it adds \"chat\": \"<path>.md\" to continue a saved chat (then only its last message is sent). Every reply also says, under \"promptpipe\", which chat it went to and what was sent. Requests at the same time run in parallel on the site pages (see Sites), the rest wait their turn."),
+    h("div", { class: "row" }, h("pre", { class: "grow" }, `http://127.0.0.1:${S.app.port}/v1`), h("button", { class: "small", onclick: () => copyText(`http://127.0.0.1:${S.app.port}/v1`, "Copied") }, "Copy")),
+    h("label", { class: "field" }, h("span", {}, "API token (send it as: Authorization: Bearer <token>)"), h("div", { class: "row" },
+      h("pre", { class: "grow" }, S.app.apiTokenValue || "?"),
+      h("button", { class: "small", onclick: () => copyText(S.app.apiTokenValue || "", "Copied") }, "Copy"),
+      h("button", { class: "small", onclick: async () => {
+        await api("/api/secret", { key: "apiToken", value: "" });
+        S.app = await api("/api/app");
+        toast("New API token made: apps using the old one need the new one");
+        rerenderSheet();
+      } }, "New token"))),
+    h("pre", {}, `curl -s 127.0.0.1:${S.app.port}/v1/chat/completions -H "Authorization: Bearer ${S.app.apiTokenValue || "TOKEN"}" -d '{"model":"${profile().name}","messages":[{"role":"user","content":"hi"}]}'`),
+    h("label", { class: "field" }, h("span", {}, "Folder for chats made through the API"), h("input", { value: S.config.api.folder, oninput: (e) => ((S.config.api.folder = e.target.value), saveConfig()) })),
+  ]],
+  ["Advanced", "App parts, safe mode, background, core log", () => [
+    h("h3", {}, "App parts"),
+    ...appPartsControls(),
+    h("h3", {}, "Background"),
+    h("p", { class: "muted" }, "A notification keeps the AI page and the API alive while the app is in the background."),
+    h("button", { onclick: () => api("/api/app/action", { action: "stopService" }) }, "Stop background service"),
+    h("h3", {}, "Core log"),
+    h("p", { class: "muted" }, "What the app's core printed, for reporting a problem."),
+    h("button", { onclick: openCoreLog }, "Show core log"),
+    h("h3", {}, "First run"),
+    h("button", { onclick: openWelcome }, "Show the welcome again"),
+  ]],
+];
 const openSettings = () =>
-  openSheet("Settings", () => {
-    return [
-      ...lookControls(),
-      h("h3", {}, "Site pages at once"),
-      h("p", { class: "muted" }, "Each page is a separate copy of the site, so this many chats (yours, plugins' and other apps') get answered at the same time. More pages use more memory, and many messages at once on one account can look like a bot to the site."),
-      h("div", { class: "row stepper" },
-        h("button", { class: "small", "aria-label": "Fewer pages", disabled: pageCount() <= 1, onclick: () => setPageCount(pageCount() - 1).then(render) }, "−"),
-        h("strong", {}, `${pageCount()} ${pageCount() === 1 ? "page" : "pages"}`),
-        h("button", { class: "small", "aria-label": "More pages", disabled: pageCount() >= 4, onclick: () => setPageCount(pageCount() + 1).then(render) }, "+"),
-      ),
-      h("p", { class: "muted" }, "Log in once: all pages share the login. In the site view, Page 1/2 switches between them."),
-      h("h3", {}, "Waiting for replies"),
-      h("p", { class: "muted" }, "In minutes. 0 = no limit. Stop waiting on a reply that's coming always works."),
-      ...[["idleMin", "Give up after this long with no activity on the page"], ["maxMin", "Give up after this long in total"]].map(([k, label]) =>
-        h("label", { class: "field inline" }, h("span", {}, label), h("input", { type: "number", min: "0", step: "1", style: "width:5em", value: String((S.config.wait || {})[k] || 0), oninput: (e) => ((S.config.wait = { ...(S.config.wait || {}), [k]: Math.max(0, +e.target.value || 0) }), saveConfig()) })),
-      ),
-      h("h3", {}, "Keyboard"),
-      h("label", { class: "field inline" }, h("span", {}, "Enter sends (Shift+Enter for a new line)"), h("input", { type: "checkbox", checked: !!S.config.ui.enterSends, onchange: (e) => ((S.config.ui.enterSends = e.target.checked), saveConfig()) })),
-      h("h3", {}, "App parts"),
-      ...appPartsControls(),
-      h("details", { class: "advanced-settings" }, h("summary", {}, "Advanced: storage, local API, background"),
-      h("h3", {}, "Storage"),
-      h("p", {}, h("code", {}, S.app.storage || "?")),
-      S.app.allFiles
-        ? h("p", { class: "muted" }, "Plugins, config and history live here, so Termux and Neovim can reach them.")
-        : h("p", { class: "warn" }, "The app can't use /sdcard yet, so files are in its own folder. ", h("button", { onclick: () => api("/api/app/action", { action: "grantFiles" }) }, "Allow all files access"), " then restart the app."),
-      h("h3", {}, "Local API for other apps"),
-      h("p", { class: "muted" }, "Apps that take an OpenAI API key: base URL below, model = a profile name, API key = the token below (always required). Each request becomes one new chat on the site, unless it adds \"chat\": \"<path>.md\" to continue a saved chat (then only its last message is sent). Every reply also says, under \"promptpipe\", which chat it went to and what was sent. Requests at the same time run in parallel on the site pages (see Site pages at once), the rest wait their turn."),
-      h("div", { class: "row" }, h("pre", { class: "grow" }, `http://127.0.0.1:${S.app.port}/v1`), h("button", { class: "small", onclick: () => copyText(`http://127.0.0.1:${S.app.port}/v1`, "Copied") }, "Copy")),
-      h("label", { class: "field" }, h("span", {}, "API token (send it as: Authorization: Bearer <token>)"), h("div", { class: "row" },
-        h("pre", { class: "grow" }, S.app.apiTokenValue || "?"),
-        h("button", { class: "small", onclick: () => copyText(S.app.apiTokenValue || "", "Copied") }, "Copy"),
-        h("button", { class: "small", onclick: async () => {
-          await api("/api/secret", { key: "apiToken", value: "" });
-          S.app = await api("/api/app");
-          toast("New API token made: apps using the old one need the new one");
-          rerenderSheet();
-        } }, "New token"))),
-      h("pre", {}, `curl -s 127.0.0.1:${S.app.port}/v1/chat/completions -H "Authorization: Bearer ${S.app.apiTokenValue || "TOKEN"}" -d '{"model":"${profile().name}","messages":[{"role":"user","content":"hi"}]}'`),
-      h("label", { class: "field" }, h("span", {}, "Folder for chats made through the API"), h("input", { value: S.config.api.folder, oninput: (e) => ((S.config.api.folder = e.target.value), saveConfig()) })),
-      h("h3", {}, "Background"),
-      h("p", { class: "muted" }, "A notification keeps the AI page and the API alive while the app is in the background."),
-      h("button", { onclick: () => api("/api/app/action", { action: "stopService" }) }, "Stop background service"),
-      h("h3", {}, "Core log"),
-      h("p", { class: "muted" }, "What the app's core printed, for reporting a problem."),
-      h("button", { onclick: openCoreLog }, "Show core log"),
-      ),
-      h("p", { class: "muted" }, "Version " + (S.app.version || "?")),
-    ];
-  });
+  openSheet("Settings", () => [
+    h("div", { class: "results" }, SETTINGS.map(([title, sub, body]) =>
+      h("button", { class: "menu-item settings-row", onclick: () => settingsPage(title, body) }, h("span", { class: "grow" }, h("b", {}, title), h("small", { class: "muted" }, sub)), h("span", { class: "chev", "aria-hidden": "true" }, "›")))),
+    h("p", { class: "muted" }, "Version " + (S.app.version || "?") + (S.app.coreVersion ? " · core " + S.app.coreVersion : "")),
+  ]);
 
 // ---------- search (Ctrl+F) ----------
 // Searches every message of every saved chat. Words must all match (any case);
@@ -2002,9 +2077,11 @@ const openHelp = () =>
       ["Long-press any text", "select it (or Options › Select text)"],
       ["Long-press a chat in the list", "pin, move, delete"],
       ["Tap the title", "chat info, tags, history"],
-      ["Tap the model name", "choose model and switches"],
-      ["Tap the site name", "show the AI page"],
-      ["⋯ under a reply", "copy, reply, trace, tags, plugin actions"],
+      ["Tap \u201c\u25cf site \u00b7 model\u201d at the top", "the site sheet: status, model, profile, pages, site plugins"],
+      ["⋯ under a reply, or long-press it", "the message menu: copy, quote, select, send again, tags, what was sent, plugin actions"],
+      ["Tap a reply", "shows Copy and Quote under it"],
+      ["+ next to the box", "pipeline, site, a text file, bigger box"],
+      ["■ (Send while a reply is coming)", "stop waiting; type to queue a message instead"],
       ["⤢ next to Send", "big message box"],
     ].map(([a, b]) => h("div", { class: "menu-item" }, h("span", {}, a), h("kbd", {}, b))),
     h("h3", {}, "Keys"),
@@ -2120,6 +2197,8 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     if (S.sheet) return run(closeSheet);
     if (S.drawer) return run(closeDrawer);
+    const b = document.querySelector(".composer .send.stop");
+    if (b) return run(() => b.click());
   }
   if (ctrl && !e.shiftKey && k === "k") return run(openPalette);
   if (ctrl && !e.shiftKey && k === "n") return run(() => startNewChat());
