@@ -116,6 +116,35 @@ Build the current batch: `cd /root/promptpipe && git pull origin claude/project-
 
 ---
 
+## 8. Planned batch (from Gtex, 2026-11-07 04:01; work starts after the usage reset)
+
+Not started. Same statuses as above. Fixes first, then the release items.
+
+### Fixes
+
+| # | Item | Status | Notes |
+|---|---|---|---|
+| 65 | Adding a folder still gives an error | open | Gtex still gets an error (probably on alpha6/7). Alpha8's fix made errors visible and fixed three causes, but this one is not understood. **Need the exact error text** (it shows in a red toast). Check on alpha8 first. |
+| 66 | Can't switch sites under the profile dropdown | open | Not looked at yet. Reproduce in the browser first. |
+| 67 | Can't even switch profile from the dropdown | open | Not looked at yet. Likely the same cause as #66. Reproduce first. |
+| 68 | Menu holds duplicates and items that belong in the main UI | open | Needs a pass through the menu list in chat-ui (`COMMANDS` with `menu: true`): each item either gets a place in the main UI or is removed. Part of the UI cleanup (#63); agree the list with Gtex before cutting (organize, never hide control). |
+| 69 | Plugins should be on top | open | Presumably the Plugins entry first in the menu and Settings. Confirm what "on top" means (menu order, or the plugin switches above other rows). |
+| 70 | The whole system-prompt stack can only go in one place; can't decide which system prompt applies before or after which plugin | open | Cause known from the code: the System prompt plugin is one pipeline step, so its whole stack is sent as a unit. Fix: each stacked prompt becomes its own pipeline piece (the way Memory's pieces work), placeable anywhere. |
+
+### Release items (after the fixes)
+
+| # | Item | Status | Notes |
+|---|---|---|---|
+| 71 | Website page with quick guides | open | Release blocker. Separate thread later. |
+| 72 | Easy download button | open | Release blocker. Separate thread later. |
+| 73 | Error when clicking Update plugins | open | Related to #5 (could not write system-prompt/main.js). Alpha8 now says why; need that text. |
+| 74 | Update plugins is hidden and minimized too far | open | Make it a visible control (Plugins sheet, top), not buried in Settings. |
+| 75 | Profile export, one profile and all | open | New. |
+| 76 | A button to reset the app to a first launch without losing data | open | New. First-run welcome again; chats, settings and plugins stay. |
+| 77 | A new git push with updates to check | open | Unclear wording. Reading: the app checks the git repo for new pushes and offers the update (as the plugin bundle update does). **Unconfirmed with Gtex.** |
+
+---
+
 ## What the blind rebuild must get right
 
 Every fixed bug above came from one of these. Build them in from the start.
