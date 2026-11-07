@@ -127,7 +127,7 @@ Not started. Same statuses as above. Fixes first, then the release items.
 | 65 | Adding a folder still gives an error | open | Gtex still gets an error (probably on alpha6/7). Alpha8's fix made errors visible and fixed three causes, but this one is not understood. **Need the exact error text** (it shows in a red toast). Check on alpha8 first. |
 | 66 | Can't switch sites under the profile dropdown | open | Not looked at yet. Reproduce in the browser first. |
 | 67 | Can't even switch profile from the dropdown | open | Not looked at yet. Likely the same cause as #66. Reproduce first. |
-| 68 | Menu holds duplicates and items that belong in the main UI | open | Needs a pass through the menu list in chat-ui (`COMMANDS` with `menu: true`): each item either gets a place in the main UI or is removed. Part of the UI cleanup (#63); agree the list with Gtex before cutting (organize, never hide control). |
+| 68 | Menu holds duplicates and items that belong in the main UI | fixed (waiting for Gtex phone check) | Alpha9 (UI redesign step 1): the ⋯ menu is gone. Find (magnifier, Ctrl+K, F3) lists every function and setting once, with its path and shortcut, and flashes the control. |
 | 69 | Plugins should be on top | open | Presumably the Plugins entry first in the menu and Settings. Confirm what "on top" means (menu order, or the plugin switches above other rows). |
 | 70 | The whole system-prompt stack can only go in one place; can't decide which system prompt applies before or after which plugin | open | Cause known from the code: the System prompt plugin is one pipeline step, so its whole stack is sent as a unit. Fix: each stacked prompt becomes its own pipeline piece (the way Memory's pieces work), placeable anywhere. |
 
@@ -143,7 +143,7 @@ Not started. Same statuses as above. Fixes first, then the release items.
 | 76 | A button to reset the app to a first launch without losing data | open | New. First-run welcome again; chats, settings and plugins stay. |
 | 77 | A new git push with updates to check | open | APP self-update (not only plugins). The app checks the repo for new pushes and offers the update (as the plugin bundle update does). Confirmed by Gtex. | Gtex (15:15) approved the full design: the app checks GitHub releases on Zieviox/promptpipe for a newer version, downloads the APK, and opens the Android installer. The user taps Install; "install unknown apps" permission needed once. Needs builds published as GitHub releases, so also add a simple way to publish the local build as a release (a script and a step on the PP commands page). Distinct from the plugin bundle update. Do not start before Gtex says go.
 | 78 | Import and export for system prompts | open | New. The library of system prompt pieces needs import (file or paste) and export (one piece, all). Fits with the pieces rework (#69). |
-| 79 | No visible option to save chats and their git history to a folder of my choice | open | Gtex cannot find it (move chats and version control to a chosen folder). Check what the app offers today (history folder setting) and make it findable. Reproduce first. |
+| 79 | No visible option to save chats and their git history to a folder of my choice | open | Step 3/5 of the redesign: "Chats and storage" gets the folder chooser. Alpha9 only adds Move to folder in the Chat sheet and the drawer. |
 
 ---
 
