@@ -10,6 +10,7 @@ import "core:encoding/base64"
 import "core:encoding/endian"
 import "core:encoding/json"
 import "core:fmt"
+import "core:os"
 import "core:strings"
 import "core:time"
 
@@ -110,7 +111,16 @@ install_plugins :: proc(plugins: []Plugin_Files, target: string, bundle_json := 
 	out := make([dynamic]string)
 	for p in plugins {
 		dir := join(base, p.id)
-		if target == "user" do os_remove_all(dir)
+		if target == "user" {
+			// Keep what's being replaced, so the plugin page can roll back to it.
+			if has_manifest(dir) {
+				prev := join(previous_dir(), p.id)
+				os_remove_all(prev)
+				os.make_directory_all(previous_dir())
+				if !os_rename(dir, prev) do os_remove_all(dir)
+			}
+			os_remove_all(dir)
+		}
 		for f in p.files {
 			if why := write_bytes_why(join(dir, f.path), f.data); why != "" do return nil, fmt.tprintf("could not write %s/%s (%s)", p.id, f.path, why)
 		}
@@ -217,6 +227,15 @@ install_bytes :: proc(name: string, data: []byte) -> (id: string, err: string) {
 	_, e5 := install_plugins([]Plugin_Files{{pid, []File_Data{{"plugin.json", data}}}}, "user")
 	if e5 != "" do return "", e5
 	return pid, ""
+}
+
+// A plugin given as its files (path -> text), e.g. an AI's answer split into files.
+install_files :: proc(files: []File_Data) -> (id: string, err: string) {
+	plugins, is_bundle, _, e1 := plugins_in_zip(files)
+	if e1 != "" do return "", e1
+	if is_bundle do return "", "that is a plugin bundle: install it from its .zip"
+	if _, e2 := install_plugins(plugins, "user"); e2 != "" do return "", e2
+	return plugins[0].id, ""
 }
 
 // From a link: a .zip, a plugin.json (its listed files are fetched next to

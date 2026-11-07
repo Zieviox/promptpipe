@@ -260,7 +260,7 @@ pre { white-space: pre-wrap; word-break: break-word; background: var(--raise); b
 .sheet-body input, .sheet-body select, .sheet-body textarea { background: var(--bg); }
 .sheet-body > input, .sheet-body .row > input { flex: 1; min-width: 0; }
 .sheet-body > input[type=search], .sheet-body > input:first-child { padding: 10px 12px; }
-.sheet-body button:not(.primary):not(.ghost):not(.icon):not(.menu-item):not(.result):not(.small) { background: var(--raise2); }
+.sheet-body button:not(.primary):not(.ghost):not(.icon):not(.menu-item):not(.result):not(.small):not(.lib-main) { background: var(--raise2); }
 .field { display: flex; flex-direction: column; gap: 5px; font-size: 14px; }
 .field > span { color: var(--muted); font-size: 13px; }
 .field.inline { flex-direction: row; align-items: center; justify-content: space-between; }
@@ -495,3 +495,16 @@ p.warn { background: color-mix(in srgb, var(--warn) 10%, transparent); border-ra
 .prow.open { background: var(--raise2); border-radius: var(--r-small); }
 .prow .qname { text-align: left; align-items: flex-start; }
 .field .dd { background: var(--raise); }
+
+/* Plugins screen */
+.udot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); margin-left: 6px; vertical-align: middle; flex: none; }
+.lib-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; min-height: 44px; text-align: left; background: none; padding: 0; }
+.lib-main .grow { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lib-main .grow b { overflow-wrap: anywhere; }
+.lib-row .svg { width: 18px; height: 18px; color: var(--muted); flex: none; }
+.kind { color: var(--muted); font-size: var(--fs-meta); white-space: nowrap; }
+.badge { margin-left: 8px; padding: 1px 8px; border-radius: var(--r-pill); background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); font-size: var(--fs-meta); }
+.src-row .grow { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.src-row b { overflow-wrap: anywhere; }
+.chip .udot { margin-left: 8px; background: currentColor; }
+.chip.current .udot { background: var(--on-accent); }

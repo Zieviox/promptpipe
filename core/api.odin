@@ -122,10 +122,16 @@ api_route :: proc(req: ^Request) -> Response {
 	case "/api/plugins":
 		return json_res(200, fmt.tprintf(`{{"plugins":%s,"folder":%s}}`, list_plugins(q["builtin"] == "1"), quote(plugins_dir())))
 	case "/api/plugins/install":
-		// {url} for a link, or {name, base64} for a picked file's bytes
+		// {url} for a link, {files: {path: text}} for a plugin's files, or {name, base64} for a picked file's bytes
 		id, err: string
 		if url := get_str(body, "url"); url != "" {
 			id, err = install_url(url)
+		} else if fobj, is_obj := body["files"].(json.Object); is_obj {
+			files := make([dynamic]File_Data)
+			for path, v in fobj {
+				if text, is_text := v.(json.String); is_text do append(&files, File_Data{path, transmute([]byte)string(text)})
+			}
+			id, err = install_files(files[:])
 		} else {
 			data, derr := base64.decode(get_str(body, "base64"))
 			if derr != nil || len(data) == 0 do return json_error(400, "give a url, or a file as base64")
@@ -150,6 +156,9 @@ api_route :: proc(req: ^Request) -> Response {
 		path := join(dir, name)
 		why := write_bytes_why(path, transmute([]byte)get_str(body, "text"))
 		return why == "" ? json_res(200, fmt.tprintf(`{{"path":%s}}`, quote(path))) : json_error(500, fmt.tprintf("could not save %s (%s)", name, why))
+	case "/api/storage/check":
+		// Try what chats need (a folder, a file in it, a file beside it) and say what the phone answers.
+		return json_res(200, storage_check())
 	case "/api/plugins/bundle": return json_res(200, bundle_info())
 	case "/api/plugins/fork":
 		path, err := fork_plugin(get_str(body, "id"))
@@ -160,7 +169,11 @@ api_route :: proc(req: ^Request) -> Response {
 		dir := join(plugins_dir(), id)
 		if !safe_name(id) || !has_manifest(dir) do return json_error(400, "no plugin of yours with that id")
 		os_remove_all(dir)
+		os_remove_all(join(previous_dir(), id))
 		return json_res(200, `{"ok":true}`)
+	case "/api/plugins/rollback":
+		v, err := rollback_plugin(get_str(body, "id"))
+		return err == "" ? json_res(200, fmt.tprintf(`{{"version":%s}}`, quote(v))) : json_error(400, err)
 	case "/api/site":
 		timeout := time.Duration(get_int(body, "timeout", 31 * 60_000)) * time.Millisecond
 		return relay("site", to_json(body), timeout)

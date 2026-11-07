@@ -36,12 +36,13 @@ const commands = () => [
   ...profile().plugins
     .filter((e) => isStep(S.plugins.get(e.id)))
     .map((e) => ({ name: `Toggle ${pluginName(e.id)} (${stepOn(e.id) ? "on" : "off"})`, path: "Profile", key: "", run: () => (setStepOn(e.id, !stepOn(e.id)), render()) })),
-  { name: "Plugins", path: "Settings", key: "Ctrl+Shift+P", run: openPlugins },
+  { name: "Plugins", path: "Settings", key: "Ctrl+Shift+P", run: () => openPlugins() },
   { name: "Reload plugins", path: "Settings › Plugins", key: "Ctrl+Shift+R", run: reloadPlugins },
   { name: "Plugin guide", path: "Settings › Plugins", key: "", run: openGuide },
   ...[...S.plugins.values()].flatMap((p) =>
     (p.def?.menu || []).map((m) => ({ name: m.label, path: "Plugins › " + (p.manifest?.name || p.id), key: "", run: () => Promise.resolve().then(() => m.run()).catch((e) => toast(e.message, "error")) })),
   ),
+  { name: "Storage check", path: "Settings › Chats and storage", key: "", run: openStorageCheck },
   { name: "Git history", path: "Settings › Chats and storage", key: "", run: openGit },
   { name: "Settings", path: "Settings", key: "Ctrl+,", run: openSettings },
   { name: "Look: scale and theme", path: "Settings › Look", key: "", run: () => openSheet("Look", lookControls) },
@@ -56,7 +57,7 @@ const commands = () => [
 const SETTING_CONTROLS = [
   ["Look", "Light or dark"], ["Look", "Accent"], ["Look", "Text size"], ["Look", "UI scale"], ["Look", "Theme"],
   ["Look", "Stay at the bottom while a reply comes in"], ["Look", "Enter sends"],
-  ["Chats and storage", "Where chats are saved"], ["Chats and storage", "Git history and backup"],
+  ["Chats and storage", "Where chats are saved"], ["Chats and storage", "Git history and backup"], ["Chats and storage", "Storage check"],
   ["Sites", "Get site plugins"], ["Sites", "Site pages at once"], ["Sites", "Waiting for replies"],
   ["Import and export", "Export all profiles"], ["Import and export", "Import a profile"], ["Import and export", "Importing a name you already have"],
   ["Local API", "API token"], ["Local API", "Folder for chats made through the API"],

@@ -12,6 +12,8 @@ import "core:sync"
 history_dir :: proc() -> string {return join(S.data_dir, "history")}
 plugins_dir :: proc() -> string {return join(S.data_dir, "plugins")}
 updates_dir :: proc() -> string {return join(S.private_dir, "plugin-updates")}
+// The copy of a plugin of yours that an install replaced, kept so it can be rolled back to.
+previous_dir :: proc() -> string {return join(S.data_dir, "plugins-previous")}
 
 // ---------- config ----------
 
@@ -118,6 +120,10 @@ list_plugins :: proc(builtin_only: bool) -> string {
 		if is_user && (has_manifest(builtin) || os.is_dir(join(updates_dir(), id))) do strings.write_string(&b, `,"overrides":true`)
 		if is_upd do strings.write_string(&b, `,"updated":true`)
 		if is_user {
+			if v, ok := manifest_version(join(previous_dir(), id)); ok {
+				strings.write_string(&b, `,"previous":`)
+				jstr(&b, v)
+			}
 			// The version a plugin of yours hides: the app's own, or its newer downloaded one.
 			shadow := builtin
 			if u, ok := update_dir(id); ok do shadow = u
@@ -161,11 +167,50 @@ fork_plugin :: proc(id: string) -> (string, string) {
 	return dest, ""
 }
 
+// Swap your plugin with the copy the last install replaced (swapping again goes forward).
+rollback_plugin :: proc(id: string) -> (version: string, err: string) {
+	if !safe_name(id) do return "", "bad plugin id"
+	cur, prev, tmp := join(plugins_dir(), id), join(previous_dir(), id), join(previous_dir(), strings.concatenate({".swap-", id}))
+	if !has_manifest(prev) do return "", "there is no earlier version of this plugin to go back to"
+	os_remove_all(tmp)
+	if has_manifest(cur) && !os_rename(cur, tmp) do return "", "couldn't move the current version aside"
+	os_remove_all(cur)
+	if !os_rename(prev, cur) do return "", "couldn't put the earlier version back"
+	if os.exists(tmp) do os_rename(tmp, prev)
+	v, _ := manifest_version(cur)
+	return v, ""
+}
+
 bundle_info :: proc() -> string {
 	return read_text(join(updates_dir(), "bundle.json")) or_else "{}"
 }
 
 // ---------- chat history ----------
+
+// What the history folder allows right now, step by step, with the system's own reason.
+storage_check :: proc() -> string {
+	dir := join(history_dir(), ".pp-check")
+	top := join(history_dir(), ".pp-check.txt")
+	os_remove_all(dir)
+	os_remove_all(top)
+	b := strings.builder_make()
+	fmt.sbprintf(&b, `{{"path":%s,"steps":[`, quote(history_dir()))
+	step :: proc(b: ^strings.Builder, first: bool, name, why: string) {
+		if !first do strings.write_byte(b, ',')
+		fmt.sbprintf(b, `{{"name":%s,"ok":%v,"why":%s}}`, quote(name), why == "", quote(why))
+	}
+	ferr := os.make_directory(dir)
+	step(&b, true, "make a folder", ferr == nil ? "" : fmt.tprintf("%v", ferr))
+	if ferr == nil {
+		step(&b, false, "write a file in it", write_bytes_why(join(dir, "a.txt"), transmute([]byte)string("ok")))
+	}
+	step(&b, false, "write a file beside the chats", write_bytes_why(top, transmute([]byte)string("ok")))
+	os_remove_all(dir)
+	os_remove_all(top)
+	strings.write_string(&b, "]}")
+	return strings.to_string(b)
+}
+
 
 history_path :: proc(rel: string) -> (string, bool) {
 	if !safe_rel(rel) do return "", false

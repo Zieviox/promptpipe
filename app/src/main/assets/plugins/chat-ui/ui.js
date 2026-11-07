@@ -442,95 +442,7 @@ const siteButton = (prof = profile()) => {
     st.key === "off" ? h("span", { class: "site-words" }, " · not open") : null);
 };
 
-// ---------- getting site plugins ----------
-// The catalogue (index.json) of the public site plugins repo: { plugins: [{ id,
-// name, path, version, default, note }] }. Default ones come ticked; the others
-// are listed to opt in. Each installs from its folder (plugin.json + files).
-const sitesRepo = () => S.config.sites?.repo || "Zieviox/promptpipe-plugins";
-const sitesBranch = () => S.config.sites?.branch || "main";
-const rawUrl = (path) => `https://raw.githubusercontent.com/${sitesRepo()}/${sitesBranch()}/${path}`;
-const fetchText = async (url) => {
-  const r = await api("/api/fetch", { url });
-  if (r.status && (r.status < 200 || r.status > 299)) throw new Error(`HTTP ${r.status} for ${url}`);
-  const bin = atob(r.base64 || "");
-  return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
-};
 const SAFETY = "Use a separate account on the AI site (a throwaway Gmail works), not an important one: promptpipe drives the site for you and isn't built for account security. You can also sign in by hand on the site.";
-let catalogue = null; // { plugins, error, busy, ticked: Set, done: {id: "ok"|error} }
-const loadCatalogue = async () => {
-  catalogue = { plugins: [], error: "", busy: true, ticked: new Set(), done: {} };
-  rerenderSheet();
-  try {
-    const j = JSON.parse(await fetchText(rawUrl("index.json")));
-    catalogue.plugins = (j.plugins || []).filter((p) => p && p.id && p.path);
-    for (const p of catalogue.plugins) if (p.default) catalogue.ticked.add(p.id);
-  } catch (e) {
-    catalogue.error = e.message;
-  }
-  catalogue.busy = false;
-  rerenderSheet();
-};
-const installTicked = async () => {
-  const list = catalogue.plugins.filter((p) => catalogue.ticked.has(p.id));
-  catalogue.busy = true;
-  for (const p of list) {
-    catalogue.done[p.id] = "…";
-    rerenderSheet();
-    try {
-      await api("/api/plugins/install", { url: rawUrl(p.path.replace(/\/$/, "") + "/plugin.json") });
-      catalogue.done[p.id] = "ok";
-    } catch (e) {
-      catalogue.done[p.id] = e.message;
-    }
-    rerenderSheet();
-  }
-  await loadPlugins();
-  syncProfiles();
-  saveConfig();
-  catalogue.busy = false;
-  const ok = list.filter((p) => catalogue.done[p.id] === "ok").length;
-  toast(ok === list.length ? `Installed ${ok} site plugin${ok === 1 ? "" : "s"}` : `Installed ${ok} of ${list.length}; the others say why`, ok === list.length ? "info" : "error");
-  render();
-  rerenderSheet();
-  warmSite();
-  return ok;
-};
-const installed = (id) => S.plugins.get(id);
-const catalogueView = () => {
-  if (!catalogue) return [h("p", { class: "muted" }, "Loading the list…")];
-  if (catalogue.busy && !catalogue.plugins.length) return [h("p", { class: "muted" }, "Loading the list of site plugins…")];
-  if (catalogue.error)
-    return [
-      h("p", { class: "error" }, "Couldn't load the list: " + catalogue.error),
-      h("p", { class: "muted" }, `From ${sitesRepo()}. Without a connection, download a site plugin's zip and use Install from a file.`),
-      h("div", { class: "row" }, h("button", { class: "small primary", onclick: loadCatalogue }, "Try again"), h("button", { class: "small", onclick: () => api("/api/app/action", { action: "pickPlugin" }) }, "Install from a file")),
-    ];
-  const any = catalogue.ticked.size > 0;
-  return [
-    ...catalogue.plugins.map((p) => {
-      const have = installed(p.id);
-      const done = catalogue.done[p.id];
-      return h("label", { class: "plugin-row" },
-        h("input", { type: "checkbox", checked: catalogue.ticked.has(p.id), disabled: catalogue.busy, onchange: (e) => (e.target.checked ? catalogue.ticked.add(p.id) : catalogue.ticked.delete(p.id), rerenderSheet()) }),
-        h("div", { class: "grow" },
-          h("b", {}, p.name || p.id), " ", h("small", { class: "muted" }, (p.version ? "v" + p.version : "") + (p.default ? "" : " · opt in") + (have ? ` · installed v${have.manifest?.version || "?"}` : "")),
-          p.note ? h("div", { class: "muted" }, p.note) : null,
-          done && done !== "ok" && done !== "…" ? h("div", { class: "error" }, done) : null),
-        done === "ok" ? h("span", { class: "ok-mark" }, "✓") : done === "…" ? h("span", { class: "muted" }, "…") : null);
-    }),
-    h("div", { class: "row" }, h("button", { class: "primary", disabled: !any || catalogue.busy, onclick: installTicked }, catalogue.busy ? "Installing…" : "Get the ticked ones")),
-  ];
-};
-const openGetSites = () => {
-  if (!catalogue || catalogue.error) loadCatalogue();
-  openSheet("Get site plugins", () => [
-    h("p", { class: "warn" }, SAFETY),
-    ...catalogueView(),
-    h("details", { class: "advanced-settings" }, h("summary", {}, "Where they come from"),
-      h("label", { class: "field" }, h("span", {}, "GitHub repo (owner/name)"), h("input", { value: sitesRepo(), onchange: (e) => ((S.config.sites = { ...(S.config.sites || {}), repo: e.target.value.trim() }), saveConfig(), loadCatalogue()) })),
-      h("label", { class: "field" }, h("span", {}, "Branch"), h("input", { value: sitesBranch(), onchange: (e) => ((S.config.sites = { ...(S.config.sites || {}), branch: e.target.value.trim() }), saveConfig(), loadCatalogue()) }))),
-  ]);
-};
 
 // ---------- first run ----------
 // Welcome, the account warning, where chats go, site plugins, log in. Each
@@ -557,12 +469,12 @@ const openWelcome = () => {
         : h("p", { class: "muted" }, "They're in the app's own folder now. Allow all files access to keep them where other apps (a file manager, Termux) can reach them; restart the app after."),
       h("div", { class: "row" },
         S.app.allFiles ? null : h("button", { onclick: () => api("/api/app/action", { action: "grantFiles" }).catch((e) => toast(e.message, "error")) }, "Allow all files access"),
-        h("button", { class: "primary grow", onclick: () => (next(), loadCatalogue()) }, "Continue")),
+        h("button", { class: "primary grow", onclick: next }, "Continue")),
     ],
     () => [
       h("h3", {}, "AI sites"),
       h("p", { class: "muted" }, "Each AI site comes as a site plugin. The ticked ones are the tested ones."),
-      ...catalogueView(),
+      ...siteTickView(),
       h("div", { class: "row" }, h("button", { class: "grow", onclick: next }, [...S.plugins.values()].some(isSite) ? "Continue" : "Skip for now")),
     ],
     () => {
@@ -1279,79 +1191,6 @@ const openPluginSettings = (id) => {
   ]);
 };
 
-// The pipeline: the profile's preset, its rows in the order they are sent,
-// groups with one switch each, and a preview of what goes out.
-const openPlugins = () =>
-  openSheet("Plugins", () => {
-    const prof = profile();
-    const url = h("input", { placeholder: "Plugin URL: GitHub folder, plugin.json or .zip" });
-    const install = async () => {
-      try {
-        const r = await api("/api/plugins/install", { url: url.value });
-        if (r.id.startsWith("bundle:")) return emit("pluginBundle", { version: r.id.slice(7) });
-        toast("Installed " + r.id);
-        await loadPlugins();
-        setStepOn(r.id, true);
-        rerenderSheet();
-      } catch (e) {
-        toast("Install failed: " + e.message, "error");
-      }
-    };
-    const badge = (p) => (p.source === "builtin" ? (p.updated ? "updated" : "built-in") : p.overrides ? "your copy (overrides built-in)" : "your folder");
-    return [
-      h("div", { class: "row" }, h("button", { class: "primary", onclick: reloadPlugins, title: "Ctrl+Shift+R" }, "Reload plugins"), h("button", { onclick: openGuide }, "How to write one")),
-      h("p", { class: "muted" }, "Your plugin folder: ", h("code", {}, S.pluginFolder || "?")),
-      h("div", { class: "row" }, url, h("button", { onclick: install }, "Install")),
-      h("div", { class: "row" }, h("button", { class: "primary", onclick: openGetSites }, "Get site plugins"), h("button", { class: "primary", onclick: () => api("/api/app/action", { action: "pickPlugin" }) }, "Install from a file (.zip or plugin.json)")),
-      h("h3", {}, `Plugins · switches of the profile “${prof.name}”`),
-      h("div", { class: "row" }, h("p", { class: "muted grow" }, "The order they run in, and your system prompts, are in the profile."), h("button", { class: "small primary", onclick: () => openProfileEditor() }, "Edit profile")),
-      ...prof.plugins.map((e, i) => {
-        if (S.plugins.get(e.id) && !isStep(S.plugins.get(e.id))) return null;
-        const p = S.plugins.get(e.id);
-        if (!p) return h("div", { class: "plugin-row missing" }, `${e.id} (not installed)`);
-        return h(
-          "div",
-          { class: "plugin-row" },
-          h("input", { type: "checkbox", checked: stepOn(e.id, prof), "aria-label": "On", onchange: (ev) => (setStepOn(e.id, ev.target.checked, prof), render()) }),
-          h(
-            "div",
-            { class: "grow" },
-            h("b", {}, p.manifest?.name || p.id),
-            " ",
-            h("small", { class: "muted" }, `v${p.manifest?.version || "?"} · ${badge(p)}${p.manifest?.advanced ? " · advanced" : ""}`),
-            p.error ? h("div", { class: "error" }, "✕ " + p.error) : null,
-            staleNote(p),
-          ),
-          h("button", { class: "small", onclick: () => openPluginSettings(e.id), "aria-label": "Settings" }, "⚙"),
-          p.source === "builtin" ? h("button", { class: "small", title: "Copy into your plugin folder to edit it", onclick: () => forkPlugin(p.id) }, "Copy") : null,
-        );
-      }),
-      h("h3", {}, "Themes"),
-      ...[...S.plugins.values()].filter(isTheme).map((p) =>
-        h(
-          "div",
-          { class: "plugin-row" },
-          h("input", { type: "radio", name: "theme", checked: S.config.ui.theme === p.id, onchange: () => setTheme(p.id) }),
-          h("div", { class: "grow" }, h("b", {}, p.manifest.name), " ", h("small", { class: "muted" }, `v${p.manifest.version || "?"} · ${badge(p)}`)),
-          p.source === "builtin" ? h("button", { class: "small", onclick: () => forkPlugin(p.id) }, "Copy") : null,
-        ),
-      ),
-      h("h3", {}, "AI sites"),
-      ...[...S.plugins.values()].filter(isSite).map((p) =>
-        h(
-          "div",
-          { class: "plugin-row" },
-          h("input", { type: "radio", name: "site", checked: prof.site === p.id, onchange: () => ((prof.site = p.id), saveConfig(), render()) }),
-          h("div", { class: "grow" }, h("b", {}, p.manifest.name), " ", h("small", { class: "muted" }, `${p.manifest.site?.url || ""} · ${badge(p)}`)),
-          h("button", { class: "small", onclick: () => openPluginSettings(p.id) }, "⚙"),
-          p.source === "builtin" ? h("button", { class: "small", onclick: () => forkPlugin(p.id) }, "Copy") : null,
-        ),
-      ),
-      h("h3", {}, "App parts"),
-      ...appPartsControls(),
-    ];
-  });
-
 // A copy of yours with the same id replaces the app's plugin. When the app's own
 // (or downloaded) one is newer, say so and offer to switch back to it.
 const verNewer = (a, b) => {
@@ -1582,6 +1421,26 @@ const appPartsControls = () => {
   ];
 };
 
+// Tries what chats need (a folder, a file in it, a file beside it) and shows the phone's own answer.
+const openStorageCheck = async () => {
+  let r = null;
+  const run = async () => {
+    r = null;
+    rerenderSheet();
+    r = await api("/api/storage/check").catch((e) => ({ path: "", steps: [{ name: "reach the app's core", ok: false, why: e.message }] }));
+    rerenderSheet();
+  };
+  const text = () => `Chats folder: ${r.path}\n` + r.steps.map((x) => `${x.ok ? "ok" : "FAILED"}: ${x.name}${x.why ? " (" + x.why + ")" : ""}`).join("\n");
+  openSheet("Storage check", () => [
+    backRow("Settings", openSettings),
+    r ? h("p", {}, h("code", {}, r.path)) : h("p", { class: "muted" }, "Checking…"),
+    ...(r ? r.steps.map((x) => h("p", { class: x.ok ? "" : "error" }, (x.ok ? "✓ " : "✕ ") + x.name + (x.why ? ": " + x.why : ""))) : []),
+    r && r.steps.some((x) => !x.ok) ? h("p", { class: "muted" }, "The phone said no. If Allow all files access isn't on for this app, turn it on in Settings › Chats and storage and restart the app. Otherwise copy this and send it to whoever helps you.") : null,
+    r ? h("div", { class: "row" }, h("button", { class: "primary", onclick: () => copyText(text(), "Copied") }, "Copy"), h("button", { onclick: run }, "Check again")) : null,
+  ]);
+  run();
+};
+
 // The end of the core's log, to read or copy (Termux can't reach the app's files).
 const openCoreLog = async () => {
   const read = () => api("/api/log").catch((e) => ({ exists: false, path: "", error: e.message }));
@@ -1615,6 +1474,7 @@ const SETTINGS = [
     S.app.allFiles
       ? h("p", { class: "muted" }, "Plugins, config and history live here, so Termux and Neovim can reach them.")
       : h("p", { class: "warn" }, "The app can't use /sdcard yet, so files are in its own folder. ", h("button", { onclick: () => api("/api/app/action", { action: "grantFiles" }) }, "Allow all files access"), " then restart the app."),
+    h("div", { class: "row" }, h("button", { onclick: openStorageCheck }, "Storage check")),
     h("h3", {}, "Git"),
     h("div", { class: "row" }, h("button", { onclick: openGit }, "Git history and backup")),
   ]],
@@ -1633,7 +1493,7 @@ const SETTINGS = [
       h("label", { class: "field inline" }, h("span", {}, label), h("input", { type: "number", min: "0", step: "1", style: "width:5em", value: String((S.config.wait || {})[k] || 0), oninput: (e) => ((S.config.wait = { ...(S.config.wait || {}), [k]: Math.max(0, +e.target.value || 0) }), saveConfig()) }))),
   ]],
   ["Plugins", "All plugins, install, updates, the profile", () => [
-    h("div", { class: "row" }, h("button", { class: "primary", onclick: openPlugins }, "Plugins"), h("button", { onclick: () => openProfileEditor() }, "Edit profile")),
+    h("div", { class: "row" }, h("button", { class: "primary", onclick: () => openPlugins() }, "Plugins"), h("button", { onclick: () => openProfileEditor() }, "Edit profile")),
   ]],
   ["Import and export", "Profiles, system prompts, names that already exist", () => {
     const menu = (label) => [...S.plugins.values()].flatMap((p) => p.def?.menu || []).find((m) => m.label === label);
@@ -1806,7 +1666,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "ArrowUp" && !e.altKey && !ctrl && e.target.matches?.(".composer textarea") && !e.target.value) return run(editLast);
   if (ctrl && !e.shiftKey && k === "b") return run(() => (S.drawer ? closeDrawer() : openDrawer()));
   if (ctrl && !e.shiftKey && k === "p") return run(nextProfile);
-  if (ctrl && e.shiftKey && k === "p") return run(openPlugins);
+  if (ctrl && e.shiftKey && k === "p") return run(() => openPlugins());
   if (ctrl && e.shiftKey && k === "l") return run(() => openProfileEditor());
   if (ctrl && e.shiftKey && k === "r") return run(reloadPlugins);
   if (ctrl && !e.shiftKey && k === "t") return run(() => (openChatSheet(), setTimeout(() => document.querySelector(".in-sheet .tag-input")?.focus(), 50)));

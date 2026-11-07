@@ -103,16 +103,19 @@ Check and "Add the page's newest reply" use the page on screen. More pages use
 more memory, and many messages at once can look like a bot to the site.
 
 ### Writing your own plugins
-⋯ → **Writing plugins** (the guide), or `docs/PLUGINS.md` in the repo.
+Settings › Plugins › Library › **Plugin guide** (copy the instructions for an AI, then install its answer), or `docs/PLUGINS.md` in the repo.
 A plugin is a folder with `plugin.json` (+ `main.js`); site plugins are mostly
-CSS selectors. When a site changes, ⋯ → **Page report** shows what to fix.
+CSS selectors. When a site changes, the Page report plugin shows what to fix.
 The app itself is plugins too: Settings › App parts lists them, with **Copy**
 to change one and **Restart in safe mode** if one of yours breaks.
 
 ### Plugin updates
-Settings › App parts › **Update plugins** gets the latest plugins without a new
-APK (the app also checks once a day). If that fails, **Download the zip** and
-**Install the zip**. Restart the app after an update.
+Settings › **Plugins** (top right: **Update all**) gets the latest plugins without
+a new APK. A dot marks a plugin with an update; the app checks once a day. Each
+plugin has its own page with **Update**, **Roll back** and **Remove**. Library
+sources: the official one is always there; add others by their GitHub link.
+If the download fails, use Settings › App parts › **Download the zip** and
+**Install the zip**. Restart the app after an app update.
 
 ### Keyboard (optional)
 Ctrl+Enter send · Ctrl+K commands · Ctrl+B chats · Ctrl+F search · Ctrl+M model ·

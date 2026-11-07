@@ -124,7 +124,7 @@ Not started. Same statuses as above. Fixes first, then the release items.
 
 | # | Item | Status | Notes |
 |---|---|---|---|
-| 65 | Adding a folder still gives an error | open | Gtex still gets an error (probably on alpha6/7). Alpha8's fix made errors visible and fixed three causes, but this one is not understood. **Need the exact error text** (it shows in a red toast). Check on alpha8 first. |
+| 65 | Adding a folder still gives an error | open | alpha11 shows the real reason: "could not make the folder (Permission_Denied)": the phone refuses to create folders in the chats folder. Next build adds **Settings › Chats and storage › Storage check** and a pop-up asking for all files access. (Earlier: Gtex still gets an error.) Alpha8's fix made errors visible and fixed three causes, but this one is not understood. **Need the exact error text** (it shows in a red toast). Check on alpha8 first. |
 | 66 | Can't switch sites under the profile dropdown | open | Not looked at yet. Reproduce in the browser first. |
 | 67 | Can't even switch profile from the dropdown | open | Not looked at yet. Likely the same cause as #66. Reproduce first. |
 | 68 | Menu holds duplicates and items that belong in the main UI | fixed (waiting for Gtex phone check) | Alpha9 (UI redesign step 1): the ⋯ menu is gone. Find (magnifier, Ctrl+K, F3) lists every function and setting once, with its path and shortcut, and flashes the control. |
@@ -138,7 +138,7 @@ Not started. Same statuses as above. Fixes first, then the release items.
 | 71 | Website page with quick guides | open | Release blocker. Separate thread later. |
 | 72 | Easy download button | open | Release blocker. Separate thread later. |
 | 73 | Error when clicking Update plugins | open | Related to #5 (could not write system-prompt/main.js). Alpha8 now says why; need that text. |
-| 74 | Update plugins is hidden and minimized too far | open | Make it a visible control (Plugins sheet, top), not buried in Settings. |
+| 74 | Update plugins is hidden and minimized too far | fixed (waiting for Gtex phone check) | Plugins sheet now has **Update all** at the top (with a dot count) and a dot on the Settings pill (step 4). |
 | 75 | Profile export, one profile and all | open | New. |
 | 76 | A button to reset the app to a first launch without losing data | open | New. First-run welcome again; chats, settings and plugins stay. |
 | 77 | A new git push with updates to check | open | APP self-update (not only plugins). The app checks the repo for new pushes and offers the update (as the plugin bundle update does). Confirmed by Gtex. | Gtex (15:15) approved the full design: the app checks GitHub releases on Zieviox/promptpipe for a newer version, downloads the APK, and opens the Android installer. The user taps Install; "install unknown apps" permission needed once. Needs builds published as GitHub releases, so also add a simple way to publish the local build as a release (a script and a step on the PP commands page). Distinct from the plugin bundle update. Do not start before Gtex says go.

@@ -135,6 +135,16 @@ const planDeleteFolder = (m, f) => {
 };
 
 // ---------- applying a plan (the edge) ----------
+// The phone said no to a folder or file change in the chats folder: ask for the
+// permission it needs (or point to the storage check). True when it was that.
+const askStorageAccess = async (e) => {
+  if (!/permission|denied/i.test((e && e.message) || "")) return false;
+  if (!S.app.allFiles) {
+    if (await askUser("The phone won't let PromptPipe change your chats folder. Allow all files access? Android opens its settings page: switch it on, come back, then restart the app.", { ok: "Allow" })) api("/api/app/action", { action: "grantFiles" });
+  } else if (await askUser("The phone still refuses, even with all files access on. Run the storage check to see which step it refuses?", { ok: "Run the check" })) openStorageCheck();
+  return true;
+};
+
 const applyPlan = async (plan, message) => {
   if (!plan) return false;
   if (plan.error) return toast(plan.error, "error"), false;
@@ -142,7 +152,7 @@ const applyPlan = async (plan, message) => {
     const r = await api("/api/history/save", { moves: plan.moves, mkdir: plan.mkdir, files: plan.files, delete: plan.delete, message });
     if (r.gitError) toast("Not saved to git: " + r.gitError, "error");
   } catch (e) {
-    toast("Couldn't do that: " + e.message, "error");
+    if (!(await askStorageAccess(e))) toast("Couldn't do that: " + e.message, "error");
     await loadTree().catch(() => {});
     render();
     return false;
@@ -457,7 +467,7 @@ const makeFolderBox = () => {
         render();
       }
     } catch (e) {
-      toast("Couldn't create the folder: " + e.message, "error");
+      if (!(await askStorageAccess(e))) toast("Couldn't create the folder: " + e.message, "error");
     } finally {
       busy = false;
     }
@@ -570,7 +580,7 @@ const renderDrawer = () => {
     tagFilter(),
     h("div", { class: "chat-list" }, rows, searching ? null : siteSection()),
     S.selMode ? selectBar(m) : null,
-    h("button", { class: "settings-pill", "aria-label": "Settings", onclick: () => (closeDrawer(), openSettings()) }, svgIcon("settings"), "Settings"),
+    h("button", { class: "settings-pill", "aria-label": "Settings", onclick: () => (closeDrawer(), openSettings()) }, svgIcon("settings"), "Settings", updateCount() ? h("span", { class: "udot", title: "Plugin updates", "aria-label": "Plugin updates are available" }) : null),
   );
 };
 
