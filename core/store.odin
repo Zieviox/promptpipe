@@ -243,7 +243,7 @@ choose_history_folder :: proc(path: string, copy: bool) -> (copied: int, err: st
 		if strings.has_prefix(target, plugins_dir()) || strings.has_prefix(target, S.private_dir) do return 0, "that folder is the app's own"
 	}
 	if os.is_file(target) do return 0, "that is a file, not a folder"
-	if merr := os.make_directory_all(target); merr != nil && !os.is_dir(target) do return 0, fmt.tprintf("could not make %s (%v)", target, merr)
+	if merr := make_dirs(target); merr != nil && !os.is_dir(target) do return 0, fmt.tprintf("could not make %s (%v)", target, merr)
 	if report, ok := storage_check(target); !ok do return 0, fmt.tprintf("the phone won't let the app write in %s: %s", target, report)
 	old := history_dir()
 	if copy && old != target && os.is_dir(old) {
@@ -340,7 +340,7 @@ history_save :: proc(body: json.Object) -> (touched: [dynamic]string, err: strin
 		rel := string(d.(json.String) or_else "")
 		p, ok := history_path(rel)
 		if !ok do return touched, "bad folder path"
-		if err := os.make_directory_all(p); err != nil && !os.is_dir(p) {
+		if err := make_dirs(p); err != nil && !os.is_dir(p) {
 			return touched, fmt.tprintf("could not make the folder %s (%v)", rel, err)
 		}
 	}
@@ -351,14 +351,14 @@ history_save :: proc(body: json.Object) -> (touched: [dynamic]string, err: strin
 		to, ok2 := history_path(to_rel)
 		if !ok1 || !ok2 do return touched, "bad move path"
 		if os.exists(to) do return touched, strings.concatenate({to_rel, " already exists"})
-		os.make_directory_all(parent(to))
+		make_dirs(parent(to))
 		if os.rename(from, to) != nil do return touched, strings.concatenate({"could not move ", from_rel})
 		append(&touched, to_rel)
 		// A chat's companion files (e.g. Memory's summaries) move with it.
 		cf, okf := companion(from_rel)
 		ct, okt := companion(to_rel)
 		if okf && okt && os.is_dir(cf) && !os.exists(ct) {
-			os.make_directory_all(parent(ct))
+			make_dirs(parent(ct))
 			if os.rename(cf, ct) == nil do append(&touched, ct[len(history_dir()) + 1:])
 		}
 	}

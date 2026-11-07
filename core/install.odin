@@ -116,7 +116,7 @@ install_plugins :: proc(plugins: []Plugin_Files, target: string, bundle_json := 
 			if has_manifest(dir) {
 				prev := join(previous_dir(), p.id)
 				os_remove_all(prev)
-				os.make_directory_all(previous_dir())
+				make_dirs(previous_dir())
 				if !os_rename(dir, prev) do os_remove_all(dir)
 			}
 			os_remove_all(dir)

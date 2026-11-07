@@ -152,7 +152,7 @@ api_route :: proc(req: ^Request) -> Response {
 		name := get_str(body, "name")
 		if !safe_name(name) do return json_error(400, "bad file name")
 		dir := join(S.data_dir, "export")
-		os.make_directory_all(dir)
+		make_dirs(dir)
 		path := join(dir, name)
 		why := write_bytes_why(path, transmute([]byte)get_str(body, "text"))
 		return why == "" ? json_res(200, fmt.tprintf(`{{"path":%s}}`, quote(path))) : json_error(500, fmt.tprintf("could not save %s (%s)", name, why))

@@ -212,6 +212,29 @@ st, js, _, _ = call("POST", "/v1/chat/completions", {"chat": "../x.md", "message
 st, js, _, _ = api("POST", "/api/v1/chat", {"prompt": "x"}); check("simple API gone, points to /v1", st == 404 and "/v1" in js["error"])
 scr.join(timeout=5)
 
+# Android lets an app make folders but not open the ones above its own (/data, /storage):
+# new folders must not depend on opening them. Needs root + setpriv to act as another user.
+import shutil
+if os.geteuid() == 0 and shutil.which("setpriv"):
+    print("folders under folders the app can't open")
+    top = tempfile.mkdtemp(prefix="ppandroid-")
+    for d in (top, top + "/a"): os.makedirs(d, exist_ok=True); os.chmod(d, 0o711)
+    for d in (top + "/a/data", top + "/a/priv"): os.makedirs(d, exist_ok=True); shutil.chown(d, 65534, 65534)
+    sock = socket.socket(); sock.bind(("127.0.0.1", 0)); P2 = sock.getsockname()[1]; sock.close()
+    os.chmod(BIN, 0o755)
+    p2 = subprocess.Popen(["setpriv", "--reuid=65534", "--regid=65534", "--clear-groups", BIN, "--data", top + "/a/data", "--private", top + "/a/priv", "--assets", assets, "--port", str(P2)],
+                          env={**os.environ, "PP_KEY": KEY}, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    for _ in range(50):
+        try: socket.create_connection(("127.0.0.1", P2), 0.1).close(); break
+        except OSError: time.sleep(0.1)
+    def call2(path, body):
+        c = http.client.HTTPConnection("127.0.0.1", P2, timeout=20)
+        c.request("POST", path, body=json.dumps(body), headers={"Host": f"127.0.0.1:{P2}", "X-PP-Key": KEY, "Content-Type": "application/json"})
+        r = c.getresponse(); return r.status, json.loads(r.read().decode())
+    st, js = call2("/api/plugins/install", {"files": {"plugin.json": '{"id":"t1","version":"1"}'}}); check("plugin folder made under a folder the app can't open", st == 200 and os.path.exists(top + "/a/data/plugins/t1/plugin.json"), js)
+    st, js = call2("/api/history/save", {"mkdir": ["x/y"], "message": "t"}); check("chat folder made likewise", st == 200 and os.path.isdir(top + "/a/data/history/x/y"), js)
+    p2.terminate()
+
 proc.terminate()
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

@@ -36,6 +36,19 @@ parent :: proc(path: string) -> string {
 	return i > 0 ? path[:i] : path
 }
 
+// Make a folder and the ones missing above it. Not os.make_directory_all: that opens every
+// folder from "/" down, and Android refuses an app to open /data or /storage ("Permission_Denied"
+// for any new folder, even in the app's own). This walks up to the first folder that exists
+// (a stat, which is allowed) and makes the rest one at a time.
+make_dirs :: proc(path: string) -> os.Error {
+	if path == "" || os.is_dir(path) do return nil
+	if up := parent(path); up != path {
+		if err := make_dirs(up); err != nil do return err
+	}
+	err := os.make_directory(path)
+	return os.is_dir(path) ? nil : err
+}
+
 read_text :: proc(path: string) -> (string, bool) {
 	data, err := os.read_entire_file(path, context.allocator)
 	if err != nil do return "", false
@@ -43,7 +56,7 @@ read_text :: proc(path: string) -> (string, bool) {
 }
 
 write_text :: proc(path: string, s: string, private := false) -> bool {
-	os.make_directory_all(parent(path))
+	make_dirs(parent(path))
 	perm := private ? os.Permissions{.Read_User, .Write_User} : os.Permissions_Read_All + {.Write_User}
 	return os.write_entire_file(path, transmute([]byte)s, perm) == nil
 }
@@ -59,7 +72,7 @@ write_bytes :: proc(path: string, data: []byte) -> bool {
 
 // Like write_bytes; on failure returns the OS's reason, so errors can say why.
 write_bytes_why :: proc(path: string, data: []byte) -> string {
-	mk := os.make_directory_all(parent(path))
+	mk := make_dirs(parent(path))
 	err := os.write_entire_file(path, data)
 	if err == nil do return ""
 	return fmt.tprintf("%v, folder: %v", err, mk)
@@ -100,7 +113,7 @@ list_dirs :: proc(base: string) -> []string {
 }
 
 copy_tree :: proc(from, to: string) -> bool {
-	os.make_directory_all(to)
+	make_dirs(to)
 	infos, err := os.read_all_directory_by_path(from, context.allocator)
 	if err != nil do return false
 	for fi in infos {
