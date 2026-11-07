@@ -106,11 +106,11 @@ const resetFirstLaunch = async () => {
 };
 const settingsBody = (title) => SETTINGS.find((g) => g[0] === title)[2];
 const SETTINGS = [
-  ["Plugins", "Install, update, roll back, sources, the profile", () => [
+  ["Plugins", "Profile order and the plugin library", () => [
     h("div", { class: "row" }, h("button", { class: "primary", onclick: () => openPlugins() }, "Plugins", updateCount() ? h("span", { class: "udot", "aria-label": "Updates available" }) : null), h("button", { onclick: () => openProfileEditor() }, "Edit profile")),
     h("p", { class: "muted" }, updateCount() ? `${updateCount()} plugin update${updateCount() === 1 ? "" : "s"} waiting. Open Plugins, then Update all.` : "Plugins are up to date as far as the app knows (it checks the sources when it starts)."),
   ]],
-  ["System prompts", "Your library of prompts, import and export", () => {
+  ["System prompts", "Write, order, import, export", () => {
     const menu = (label) => [...S.plugins.values()].flatMap((p) => p.def?.menu || []).find((m) => m.label === label);
     const lib = menu("System prompts"), imp = menu("Import system prompts…"), exp = menu("Export all system prompts");
     return lib ? [
@@ -119,14 +119,15 @@ const SETTINGS = [
       h("div", { class: "row" }, imp ? h("button", { onclick: () => imp.run() }, "Import…") : null, exp ? h("button", { onclick: () => exp.run() }, "Export all") : null),
     ] : [h("p", { class: "muted" }, "The System prompt plugin isn't installed. Get it in Plugins.")];
   }],
-  ["Look", "Light or dark, accent, text size, UI scale, theme, Enter sends", () => [
+  ["Look", "Theme, accent, quick actions", () => [
     ...lookControls(),
     h("h3", {}, "Chat"),
+    item({ id: "look.qa", label: "Quick actions under replies", sub: { newest: "Newest reply only", every: "Every reply", off: "Collapsed" }[S.config.quickActions || "newest"], onclick: () => ((S.config.quickActions = { newest: "every", every: "off", off: "newest" }[S.config.quickActions || "newest"]), saveConfig(), rerenderSheet(), render()) }),
     h("label", { class: "field inline" }, h("span", {}, "Stay at the bottom while a reply comes in (only if you were already there; scrolled up, your place never moves)"), h("input", { type: "checkbox", checked: followOn(), onchange: (e) => ((S.config.ui.follow = e.target.checked), saveConfig()) })),
     h("h3", {}, "Keyboard"),
     h("label", { class: "field inline" }, h("span", {}, "Enter sends (Shift+Enter for a new line)"), h("input", { type: "checkbox", checked: !!S.config.ui.enterSends, onchange: (e) => ((S.config.ui.enterSends = e.target.checked), saveConfig()) })),
   ]],
-  ["Sites", "Site plugins, pages at once, waiting for replies", () => [
+  ["Sites", "Pages at once, waiting for replies", () => [
     h("div", { class: "row" }, h("button", { class: "primary", onclick: openGetSites }, "Get site plugins"), h("button", { onclick: openSiteSheet }, "This profile's site")),
     ...maxRepliesControls(),
     h("h3", {}, "Waiting for replies"),
@@ -134,7 +135,7 @@ const SETTINGS = [
     ...[["idleMin", "Give up after this long with no activity on the page"], ["maxMin", "Give up after this long in total"]].map(([k, label]) =>
       h("label", { class: "field inline" }, h("span", {}, label), h("input", { type: "number", min: "0", step: "1", style: "width:5em", value: String((S.config.wait || {})[k] || 0), oninput: (e) => ((S.config.wait = { ...(S.config.wait || {}), [k]: Math.max(0, +e.target.value || 0) }), saveConfig()) }))),
   ]],
-  ["Chats and storage", "The chats folder, where files are, git history and backup", () => {
+  ["Chats and storage", "Chat folder, move chats, Git", () => {
     if (!FOLDER.info && !FOLDER.loading) loadFolderInfo();
     const f = FOLDER.info;
     return [
@@ -160,7 +161,7 @@ const SETTINGS = [
       h("div", { class: "row" }, h("button", { onclick: openGit }, "Git history and backup")),
     ];
   }],
-  ["Import and export", "Profiles, system prompts, names that already exist", () => {
+  ["Import and export", "Profiles, prompts, name clashes", () => {
     const menu = (label) => [...S.plugins.values()].flatMap((p) => p.def?.menu || []).find((m) => m.label === label);
     const spImport = menu("Import system prompts…"), spExport = menu("Export all system prompts");
     return [
@@ -175,7 +176,7 @@ const SETTINGS = [
         dropdown({ id: "clash", label: "Importing a name you already have", value: importMode(), options: [{ value: "ask", label: "Ask each time (keep both is preselected)" }, { value: "both", label: "Always keep both" }, { value: "replace", label: "Always replace" }], onPick: (v) => ((S.config.importClash = v), saveConfig(), rerenderSheet()) })),
     ];
   }],
-  ["Local API", "For other apps: address, token, folder", () => [
+  ["Local API", "Address, token, folder", () => [
     h("p", { class: "muted" }, "Apps that take an OpenAI API key: base URL below, model = a profile name, API key = the token below (always required). Each request becomes one new chat on the site, unless it adds \"chat\": \"<path>.md\" to continue a saved chat (then only its last message is sent). Every reply also says, under \"promptpipe\", which chat it went to and what was sent. Requests at the same time run in parallel on the site pages (see Sites), the rest wait their turn."),
     h("div", { class: "row" }, h("pre", { class: "grow" }, `http://127.0.0.1:${S.app.port}/v1`), h("button", { class: "small", onclick: () => copyText(`http://127.0.0.1:${S.app.port}/v1`, "Copied") }, "Copy")),
     h("label", { class: "field" }, h("span", {}, "API token (send it as: Authorization: Bearer <token>)"), h("div", { class: "row" },
@@ -190,7 +191,7 @@ const SETTINGS = [
     h("pre", {}, `curl -s 127.0.0.1:${S.app.port}/v1/chat/completions -H "Authorization: Bearer ${S.app.apiTokenValue || "TOKEN"}" -d '{"model":"${profile().name}","messages":[{"role":"user","content":"hi"}]}'`),
     h("label", { class: "field" }, h("span", {}, "Folder for chats made through the API"), h("input", { value: S.config.api.folder, oninput: (e) => ((S.config.api.folder = e.target.value), saveConfig()) })),
   ]],
-  ["Advanced", "App parts, safe mode, background, core log", () => [
+  ["Advanced", "Reset, safe mode, core log", () => [
     h("h3", {}, "App parts"),
     ...appPartsControls(),
     h("h3", {}, "Background"),
@@ -203,15 +204,18 @@ const SETTINGS = [
     h("p", { class: "muted" }, "Shows the welcome again, as on the very first start. Your chats, profiles, plugins and settings stay."),
     h("button", { onclick: resetFirstLaunch }, "Reset to first launch"),
   ]],
-  ["Help", "Shortcuts, gestures and what each control does", () => [
-    h("div", { class: "row" }, h("button", { class: "primary", onclick: openHelp }, "Shortcuts and help")),
+  ["Help", "Shortcuts, quick start", () => [
+    item({ id: "help.q", label: "Show the ? button", sub: "Tap ?, then tap anything to see what it does", toggle: S.config.helpButton !== false, onclick: () => ((S.config.helpButton = S.config.helpButton === false), saveConfig(), rerenderSheet(), render()) }),
+    item({ id: "help.keys", label: "Shortcuts", sub: "Keyboard and touch", chev: true, onclick: openHelp }),
+    item({ id: "help.qs", label: "Quick start", sub: "Short guides. Replay any time.", chev: true, onclick: openQuickStart }),
+    item({ id: "help.pg", label: "Plugin guide", chev: true, onclick: openPluginGuide }),
     h("p", { class: "muted" }, "Everything has a button or a gesture; keys are extras for a hardware keyboard."),
   ]],
 ];
+const SETTING_ICONS = { Plugins: "plugins", "System prompts": "prompt", Look: "look", Sites: "sites", "Chats and storage": "storage", "Import and export": "impexp", "Local API": "api", Advanced: "adv", Help: "help" };
 const openSettings = () =>
   openSheet("Settings", () => [
-    h("div", { class: "results" }, SETTINGS.map(([title, sub, body]) =>
-      h("button", { class: "menu-item settings-row", onclick: () => settingsPage(title, body) }, h("span", { class: "grow" }, h("b", {}, title), h("small", { class: "muted" }, sub)), h("span", { class: "chev", "aria-hidden": "true" }, "›")))),
+    ...SETTINGS.map(([title, sub, body]) =>
+      item({ id: "settings." + title, icon: SETTING_ICONS[title], label: title, sub, chev: title !== "Plugins" || !updateCount(), badge: title === "Plugins" && updateCount() ? String(updateCount()) : null, onclick: () => settingsPage(title, body) })),
     h("p", { class: "muted" }, "Version " + (S.app.version || "?") + (S.app.coreVersion ? " · core " + S.app.coreVersion : "")),
   ]);
-

@@ -118,8 +118,8 @@ const S = {
   advOpen: !!local("advOpen"),
   query: "",
   traces: new WeakMap(), // turn -> full trace (this session only)
-  openTurns: new WeakSet(), // turns whose options are unfolded
-  openYou: new WeakSet(), // your own messages whose Copy / Send again row is showing
+  openSent: new WeakSet(), // replies whose "Thought for / sent with" is unfolded
+  qaSet: new WeakMap(), // replies whose action row was opened or closed by hand
 };
 
 // S.site = the page the site view shows (most commands act on it).

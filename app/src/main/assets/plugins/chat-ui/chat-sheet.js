@@ -5,14 +5,11 @@
 // back row to here.
 
 // One tappable row of a sheet: icon, label, a line under it, and a right side.
-const sheetRow = ({ icon, label, sub, right, onclick, danger, cls = "" }) =>
-  h(
-    "button",
-    { class: "menu-item sheet-row " + cls + (danger ? " danger" : ""), onclick },
-    icon ? svgIcon(icon) : null,
-    h("span", { class: "grow" }, h("b", {}, label), sub ? h("small", { class: "muted" }, sub) : null),
-    right ? (typeof right === "string" ? h("span", { class: "muted" }, right) : right) : null,
-  );
+const sheetRow = ({ icon, label, sub, right, onclick, danger, cls = "" }) => {
+  const row = item({ icon: null, label, sub, onclick, cls: (cls + (danger ? " danger" : "")).trim() });
+  if (right) row.append(typeof right === "string" ? h("span", { class: "ch on" }, right) : h("span", { class: "ch" }, right));
+  return row;
+};
 const backRow = (label, to) => h("button", { class: "ghost back", onclick: to }, "‹ " + label);
 
 const subChatsAction = () => [...S.plugins.values()].flatMap((p) => p.def?.menu || []).find((m) => m.label === "Sub-chats");
@@ -34,9 +31,7 @@ const openChatSheet = () => {
     const sub = subChatsAction();
     const where = c.path ? (dFolderOf(c.path) ? "In " + dFolderOf(c.path) : "Top level") : S.chat.folder ? "Will be saved in " + S.chat.folder : "Not saved yet";
     return [
-      input,
-      h("h3", {}, "Tags"),
-      h("p", { class: "muted" }, "Every message in this chat gets these. name# gives each new message the next number."),
+      h("div", { class: "it rename" }, h("div", { class: "g" }, input, h("small", {}, "Rename"))),
       h(
         "div",
         { class: "tags-row in-sheet" },
@@ -44,7 +39,8 @@ const openChatSheet = () => {
         tagInput("+ tag", (v) => addChatTag(c, v).then(rerenderSheet), "sheet-tag"),
         h("datalist", { id: "known-tags" }, knownTags().map((t) => h("option", { value: t }))),
       ),
-      h("h3", {}, "This chat"),
+      h("p", { class: "muted small-note" }, "Every message in this chat gets these tags. name# gives each new message the next number."),
+      h("h3", {}, "Actions"),
       sheetRow({ icon: "copy", label: "Copy the whole chat", sub: "As Markdown", onclick: () => copyChat() }),
       sheetRow({ icon: "share", label: "Share or export…", onclick: () => shareChat() }),
       sheetRow({ icon: "pin", label: "Pin to top", sub: c.path ? (isPinned(c.path) ? "Pinned" : "Not pinned") : "Send a message first", onclick: () => (c.path ? (togglePin(c.path), rerenderSheet()) : toast("Send a message first")), right: c.path && isPinned(c.path) ? svgIcon("check") : null }),

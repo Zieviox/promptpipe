@@ -28,11 +28,12 @@ const dropdown = ({ id, value, options, onPick, label }) => {
 
 // The profile dropdown: the current one with Edit; opened, every profile with its
 // own Edit, then New, Import, Export this, Export all.
-const profileDropdown = ({ id, current, pick }) => {
+const profileDropdown = ({ id, current, pick, sub, showEdit = true }) => {
   const open = !!S.dd[id];
   const head = h("div", { class: "dd-head" },
-    h("button", { class: "dd-main", "aria-expanded": String(open), "aria-label": "Profile", onclick: () => ddToggle(id) }, h("span", { class: "grow" }, current.name), svgIcon(open ? "up" : "down")),
-    open ? null : h("button", { class: "chip", onclick: () => openProfileEditor(current.id) }, svgIcon("edit"), "Edit"));
+    h("button", { class: "dd-main", "aria-expanded": String(open), "aria-label": "Profile", onclick: () => ddToggle(id) },
+      h("span", { class: "grow g" }, current.name, h("small", {}, sub || (current === profile() ? "Active profile · tap to switch or edit" : "Not the active profile"))), svgIcon(open ? "up" : "down")),
+    open || !showEdit ? null : h("button", { class: "chip", onclick: () => openProfileEditor(current.id) }, svgIcon("edit"), "Edit"));
   if (!open) return h("div", { class: "dd" }, head);
   return h(
     "div",
@@ -98,10 +99,11 @@ const openNewProfile = () => {
 S.editProfile = "";
 S.openRow = null; // the row whose details are unfolded (an object of the profile's rows)
 
+// The Profile tab of the Plugins screen is the editor (as in the wireframe).
 const openProfileEditor = (id, row = null) => {
   S.editProfile = id || S.editProfile || profile().id;
   S.openRow = row;
-  openSheet("Edit profile", editorBody);
+  openPlugins("profile");
 };
 
 const editorBody = () => {
@@ -175,8 +177,11 @@ const editorBody = () => {
   const showPreview = () => (preview.textContent = P.previewMessage(prof, { first }) || "(nothing)");
   const isActive = prof === profile();
   return [
-    h("p", { class: "muted" }, "Profile: its rows are sent top to bottom, with your message where “Your message” is."),
-    profileDropdown({ id: "edit", current: prof, pick: (p) => ((S.editProfile = p.id), (S.openRow = null), rerenderSheet()) }),
+    profileDropdown({ id: "edit", current: prof, sub: prof === profile() ? "Editing the active profile · tap to change" : "Editing · not the active profile", showEdit: false, pick: (p) => ((S.editProfile = p.id), (S.openRow = null), rerenderSheet()) }),
+    h("h3", {}, "Sent top to bottom"),
+    h("div", { class: "quick-list" }, pre.rows.map(rowEl)),
+    item({ id: "profile.add", label: "Add a row", sub: "System prompts and message plugins", chev: true, onclick: openAddRow }),
+    h("h3", {}, "This profile"),
     h("label", { class: "field" }, h("span", {}, "Name"), h("input", { value: prof.name, "aria-label": "Profile name", oninput: (e) => ((prof.name = e.target.value || prof.name), saveConfig()), onblur: () => render() })),
     h("div", { class: "row" },
       isActive ? h("span", { class: "muted grow" }, "This is the profile in use.") : h("button", { class: "small primary", onclick: () => (switchProfile(prof.id), rerenderSheet()) }, "Use this profile"),
@@ -188,9 +193,6 @@ const editorBody = () => {
         S.editProfile = S.config.activeProfile;
         redraw();
       } }, "Delete")),
-    h("h3", {}, "Sent top to bottom"),
-    h("div", { class: "quick-list" }, pre.rows.map(rowEl)),
-    h("div", { class: "row" }, h("button", { class: "primary", onclick: openAddRow }, "Add a row")),
     h("h3", {}, "Groups"),
     (pre.groups || []).length ? null : h("p", { class: "muted" }, "A group's switch turns all its rows on or off. Put a row in a group from its details."),
     ...(pre.groups || []).map((g) => h("div", { class: "plugin-row" },

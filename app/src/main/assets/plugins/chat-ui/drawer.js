@@ -539,7 +539,7 @@ const renderDrawer = () => {
         "div",
         { class: "crow frow phead", "data-ck": "P" },
         h("button", { class: "cmain", "aria-expanded": String(S.pinOpen), onclick: () => ((S.pinOpen = !S.pinOpen), local("pinOpen", S.pinOpen), render()) },
-          h("span", { class: "chev" }, svgIcon(S.pinOpen ? "down" : "right")), h("span", { class: "ct" }, "Pinned"), h("span", { class: "ccount" }, String(pins.length))),
+          h("span", { class: "chev" }, svgIcon(S.pinOpen ? "down" : "right")), h("span", { class: "ct" }, "Pinned"), h("span", { class: "ccount" }, String(pins.length)), svgIcon("pin")),
       ),
     );
     if (S.pinOpen) {
@@ -556,6 +556,7 @@ const renderDrawer = () => {
       { class: "drawer-head" },
       h("h2", {}, "Chats"),
       rbtn("check", S.selMode ? "Done selecting" : "Select chats", () => (S.selMode ? (endSelect(), render()) : beginSelect()), S.selMode ? "on" : ""),
+      helpBtn(),
       rbtn("close", "Close", closeDrawer),
     ),
     h(
@@ -566,7 +567,7 @@ const renderDrawer = () => {
     ),
     S.folder ? h("div", { class: "row muted" }, "New chats go to ", h("b", {}, S.folder), h("button", { class: "small", onclick: () => ((S.folder = ""), render()) }, "use top level")) : null,
     S.newFolderBox ? makeFolderBox() : null,
-    h("input", {
+    h("label", { class: "search" }, svgIcon("search"), h("input", {
       type: "search",
       "data-keep": "search",
       placeholder: "Search chats, #tag",
@@ -576,11 +577,13 @@ const renderDrawer = () => {
         if (e.key === "Enter") document.querySelector(".chat-list .cmain")?.click();
         if (e.key === "ArrowDown") (e.preventDefault(), document.querySelector(".chat-list button")?.focus());
       },
-    }),
+    })),
     tagFilter(),
     h("div", { class: "chat-list" }, rows, searching ? null : siteSection()),
     S.selMode ? selectBar(m) : null,
-    h("button", { class: "settings-pill", "aria-label": "Settings", onclick: () => (closeDrawer(), openSettings()) }, svgIcon("settings"), "Settings", updateCount() ? h("span", { class: "udot", title: "Plugin updates", "aria-label": "Plugin updates are available" }) : null),
+    h("div", { class: "drawer-foot" },
+      h("button", { class: "settings-pill", "aria-label": "Settings", onclick: () => (closeDrawer(), openSettings()) }, svgIcon("settings"), "Settings", updateCount() ? h("span", { class: "badge", title: "Plugin updates", "aria-label": "Plugin updates are available" }, String(updateCount())) : null),
+      h("button", { class: "settings-pill", "aria-label": "Quick start", onclick: () => (closeDrawer(), openQuickStart()) }, svgIcon("play"), "Quick start")),
   );
 };
 

@@ -175,14 +175,15 @@ const dot = (title) => h("span", { class: "udot", title, "aria-label": title });
 
 const libRow = (it) => {
   const mark = LIB.done[it.offer ? doneKey(it.offer) : ""];
-  const sub = it.plugin
-    ? [`v${it.version || "?"}`, it.plugin.source === "builtin" ? (it.plugin.updated ? "updated with the app" : "built in") : fromKey(it.id) ? "from " + srcName(fromKey(it.id)) : it.plugin.overrides ? "your copy" : "yours", it.update ? `v${it.update.entry.version} is out` : ""].filter(Boolean).join(" · ")
-    : [it.version ? "v" + it.version : "", "from " + srcName(srcKey(it.offer.src)), it.installedElsewhere ? "same name is installed" : ""].filter(Boolean).join(" · ");
-  return h("div", { class: "plugin-row lib-row" },
-    h("button", { class: "lib-main", onclick: () => (it.plugin ? openPluginPage(it.id) : openOfferPage(it.offer)) },
-      h("span", { class: "grow" }, h("b", {}, it.name), it.update ? dot("Update available") : null, h("small", { class: "muted" }, sub)),
-      h("small", { class: "kind" }, KIND_WORDS[it.kind] || "")),
-    it.plugin ? svgIcon("right") : h("button", { class: "small primary", disabled: LIB.busy, onclick: () => installOffers([it.offer]) }, mark === "…" ? "…" : mark === "ok" ? "✓" : "Get"));
+  const kind = KIND_WORDS[it.kind] || "Plugin";
+  const origin = it.plugin
+    ? it.plugin.source === "builtin" ? (it.plugin.updated ? "updated with the app" : "built in") : fromKey(it.id) ? "from " + srcName(fromKey(it.id)) : it.plugin.overrides ? "your copy" : "yours"
+    : "from " + srcName(srcKey(it.offer.src)) + (it.installedElsewhere ? " · same name is installed" : "");
+  const ver = it.update ? `v${it.version || "?"} → v${it.update.entry.version}` : it.version ? "v" + it.version : "";
+  const sub = [kind, ver, origin].filter(Boolean).join(" · ");
+  const row = item({ id: "lib." + it.id, cls: "lib-row", label: it.name, sub, badge: it.update ? "Update" : null, chev: !!it.plugin, onclick: () => (it.plugin ? openPluginPage(it.id) : openOfferPage(it.offer)) });
+  if (!it.plugin) row.append(h("button", { class: "small primary", disabled: LIB.busy, onclick: (e) => (e.stopPropagation(), installOffers([it.offer])) }, mark === "…" ? "…" : mark === "ok" ? "✓" : "Get"));
+  return row;
 };
 
 const openOfferPage = (offer) =>
@@ -199,27 +200,21 @@ const openOfferPage = (offer) =>
 const THIRD_PARTY = "This source isn't checked by PromptPipe. A plugin can read your chats and run code in the AI site pages you are logged in to. Only use sources you trust.";
 
 const tabs = () =>
-  h("div", { class: "chips" },
-    ["profile", "library"].map((t) => h("button", { class: "chip" + (LIB.tab === t ? " current" : ""), "aria-pressed": String(LIB.tab === t), onclick: () => ((LIB.tab = t), t === "library" && loadSources(), rerenderSheet()) },
-      t === "profile" ? "Profile" : "Library", t === "library" && updateCount() ? dot(`${updateCount()} updates`) : null)));
+  h("div", { class: "tabs" },
+    ["profile", "library"].map((t) => h("button", { class: LIB.tab === t ? "on" : "", "aria-pressed": String(LIB.tab === t), onclick: () => ((LIB.tab = t), t === "library" && loadSources(), rerenderSheet()) },
+      t === "profile" ? "Profile" : "Library", t === "library" && updateCount() ? h("span", { class: "badge" }, String(updateCount())) : null)));
 
 const profileTab = () => {
-  const prof = profile();
+  S.editProfile = S.editProfile && S.config.profiles.some((x) => x.id === S.editProfile) ? S.editProfile : profile().id;
+  const prof = profileById(S.editProfile);
   const sites = [...S.plugins.values()].filter(isSite);
-  const steps = prof.plugins.map((e) => S.plugins.get(e.id)).filter((p) => p && isStep(p) && p.manifest.block !== false);
   return [
-    h("div", { class: "row" }, h("p", { class: "muted grow" }, `What goes with your message in “${prof.name}”. The order, and your system prompts, are in the profile.`), h("button", { class: "small primary", onclick: () => openProfileEditor() }, "Edit profile")),
-    h("h3", {}, "Message plugins"),
-    steps.length ? null : h("p", { class: "muted" }, "None yet. Get some in the Library."),
-    ...steps.map((p) => h("div", { class: "plugin-row" },
-      switchBtn(stepOn(p.id, prof), "On in this profile", (on) => (setStepOn(p.id, on, prof), render())),
-      h("button", { class: "lib-main", onclick: () => openPluginPage(p.id) }, h("span", { class: "grow" }, h("b", {}, p.manifest.name || p.id), libUpdate(p.id) ? dot("Update available") : null, p.error ? h("small", { class: "error" }, "✕ " + p.error) : null)),
-      h("button", { class: "small", "aria-label": "Settings", onclick: () => openPluginSettings(p.id) }, svgIcon("settings")))),
+    ...editorBody(),
     h("h3", {}, "AI site of this profile"),
     sites.length ? null : h("p", { class: "muted" }, "No site plugin yet."),
     ...sites.map((p) => h("div", { class: "plugin-row" },
       h("input", { type: "radio", name: "site", checked: prof.site === p.id, "aria-label": "Use " + (p.manifest.name || p.id), onchange: () => ((prof.site = p.id), saveConfig(), render()) }),
-      h("button", { class: "lib-main", onclick: () => openPluginPage(p.id) }, h("span", { class: "grow" }, h("b", {}, p.manifest.name || p.id), libUpdate(p.id) ? dot("Update available") : null, h("small", { class: "muted" }, p.manifest.site?.url || ""))),
+      h("button", { class: "lib-main", onclick: () => openPluginPage(p.id) }, h("span", { class: "grow" }, h("b", {}, p.manifest.name || p.id), libUpdate(p.id) ? dot("Update available") : null)),
       h("button", { class: "small", "aria-label": "Settings", onclick: () => openPluginSettings(p.id) }, svgIcon("settings")))),
     h("div", { class: "row" }, h("button", { onclick: () => ((LIB.tab = "library"), (LIB.filter = "site"), loadSources(), rerenderSheet()) }, "Get more AI sites")),
   ];
@@ -242,7 +237,6 @@ const libraryTab = () => {
     }
   };
   return [
-    h("div", { class: "chips" }, KINDS.map(([k, l]) => h("button", { class: "chip" + (LIB.filter === k ? " current" : ""), "aria-pressed": String(LIB.filter === k), onclick: () => ((LIB.filter = k), rerenderSheet()) }, l))),
     items.length ? null : h("p", { class: "muted" }, LIB.filter === "all" ? "Nothing here yet." : "Nothing of this kind yet."),
     ...items.map(libRow),
     h("h3", {}, "Install your own"),
@@ -296,8 +290,12 @@ const openPlugins = (tab, filter) => {
   openSheet("Plugins", () => {
     const n = updateCount();
     return [
-      h("div", { class: "row" }, tabs(), h("span", { class: "grow" }),
-        h("button", { class: "small" + (n ? " primary" : ""), disabled: LIB.busy || !!(S.updates || {}).busy || SAFE, onclick: updateAll }, (S.updates || {}).busy ? "Checking…" : n ? `Update all (${n})` : "Update all")),
+      backRow("Settings", openSettings),
+      tabs(),
+      LIB.tab === "library" ? h("div", { class: "chips" }, KINDS.map(([k, l]) => h("button", { class: "chip" + (LIB.filter === k ? " current" : ""), "aria-pressed": String(LIB.filter === k), onclick: () => ((LIB.filter = k), rerenderSheet()) }, l))) : null,
+      LIB.tab === "library" && (n || (S.updates || {}).busy)
+        ? item({ id: "updall", prim: true, label: (S.updates || {}).busy ? "Checking…" : "Update all", sub: n + " update" + (n === 1 ? "" : "s") + " available", onclick: LIB.busy || SAFE ? null : updateAll })
+        : null,
       (S.updates || {}).error ? h("p", { class: "error" }, "✕ " + S.updates.error + ". Download the zip, then install it from the file.") : null,
       ...(LIB.tab === "profile" ? profileTab() : libraryTab()),
     ];

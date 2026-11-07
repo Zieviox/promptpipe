@@ -12,7 +12,8 @@
     "chat-sheet.js",
     "find.js",
     "plugins-screen.js",
-    "settings.js"
+    "settings.js",
+    "help.js"
   ],
   "css": [
     "ui.css"

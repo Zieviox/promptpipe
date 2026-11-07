@@ -189,11 +189,12 @@ const goToMessage = async (e) => {
 const openFind = (initial) => {
   if (initial != null) S.lastFind = initial;
   openSheet("Find", () => {
-    const input = h("input", { type: "search", "aria-label": "Find", placeholder: 'Chats, messages, functions, settings. Also "phrase", #tag, in:folder, is:you', value: S.lastFind || "", "data-keep": "find" });
+    const input = h("input", { type: "search", "aria-label": "Find", placeholder: "Find chats and functions", title: 'Also "phrase", #tag, in:folder, is:you', value: S.lastFind || "", "data-keep": "find" });
     const list = h("div", { class: "results" });
     let sel = 0;
     let picks = []; // { run } in the order shown
     const pick = (e) => {
+      if (!e.chat && e.name && e.run) S.config.findRecent = [e.name, ...(S.config.findRecent || []).filter((n) => n !== e.name)].slice(0, 3), saveConfig();
       const flash = e.flash;
       runFromSheet(e);
       if (flash) flashControl(flash);
@@ -205,6 +206,18 @@ const openFind = (initial) => {
     const draw = async () => {
       const q = input.value;
       S.lastFind = q;
+      if (!q.trim()) {
+        // Nothing typed: the functions used lately, and words to try (as in the wireframe).
+        const all = findEntries();
+        const recent = (S.config.findRecent || []).map((n) => all.find((e) => e.name === n)).filter(Boolean);
+        picks = recent;
+        return list.replaceChildren(...[
+          recent.length ? h("h3", {}, "Recent") : null,
+          recent.length ? h("div", { class: "chips" }, recent.map((e) => h("button", { class: "chip", onclick: () => pick(e) }, e.name))) : null,
+          h("h3", {}, "Try"),
+          h("div", { class: "chips" }, ["model", "profile", "plugin", "prompt", "export", "folder"].map((w) => h("button", { class: "chip", onclick: () => ((input.value = w), (sel = 0), draw(), input.focus()) }, w))),
+        ].filter(Boolean));
+      }
       const things = q.trim() ? rankEntries(findEntries(), q).slice(0, 25) : findEntries().filter((e) => !e.chat).slice(0, 8);
       const wantsMessages = q.trim().length >= 2;
       let hits = [];
@@ -253,6 +266,6 @@ const openFind = (initial) => {
     };
     draw();
     autofocus(input, true);
-    return [input, list];
+    return [h("label", { class: "search" }, svgIcon("search"), input), list];
   });
 };

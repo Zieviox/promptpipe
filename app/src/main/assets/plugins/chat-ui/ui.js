@@ -277,12 +277,14 @@ render = () => {
   const composer = renderComposer(draft);
   // Floats just above the composer; shows once you scroll up.
   composer.prepend(jumpButton());
-  app.replaceChildren(...[safeBanner(), renderTop(), renderTagsRow(), renderMessages(), composer].filter(Boolean));
+  app.replaceChildren(...[safeBanner(), renderTop(), renderMessages(), composer].filter(Boolean));
   // A layer slides in only when it opens, never again on a redraw (that read as it
   // tucking away and reopening on every tap).
   const enter = (was) => (was ? "" : " enter");
   if (S.drawer) app.append(h("div", { class: "scrim" + enter(hadDrawer), onclick: closeDrawer }), withClass(renderDrawer(), enter(hadDrawer)));
   if (S.sheet) app.append(h("div", { class: "scrim" + enter(hadSheet), onclick: closeSheet }), withClass(renderSheet(), enter(hadSheet)));
+  if (S.siteMenu) app.append(siteMenu());
+  if (S.help || S.helpCard) app.append(helpLayer());
   restoreView(view, hadSheet);
   // Reading at the very bottom, you stay at the bottom as the chat grows; anywhere
   // above it, your place is never moved (new replies show on the jump button).
@@ -440,11 +442,26 @@ const siteButton = (prof = profile()) => {
   const onPage = S.site.model || "";
   const model = onPage || want;
   const mismatch = want && onPage && !onPage.toLowerCase().includes(want.toLowerCase());
-  return h("button", { class: "site-btn " + st.key + (mismatch ? " mismatch" : ""), title: `${st.words}${mismatch ? ` · the page shows ${onPage}, you picked ${want}` : ""} · site, model and profile`, "aria-label": `Site: ${siteFor()?.name || "none"}, ${st.words}`, onclick: openSiteSheet },
+  return h("button", { class: "site-btn " + st.key + (mismatch ? " mismatch" : ""), title: `${st.words}${mismatch ? ` · the page shows ${onPage}, you picked ${want}` : ""} · site, model and profile`, "aria-label": `Site: ${siteFor()?.name || "none"}, ${st.words}`, "aria-haspopup": "menu", "aria-expanded": String(!!S.siteMenu), onclick: () => ((S.siteMenu = !S.siteMenu), render()) },
     h("span", { class: "dot", "aria-hidden": "true" }),
-    h("span", { class: "site-name" }, siteFor()?.name || "No site"),
-    model ? h("span", { class: "site-model" }, " · " + model + (mismatch ? " ⚠" : "")) : null,
-    st.key === "off" ? h("span", { class: "site-words" }, " · not open") : null);
+    h("span", { class: "site-name" }, siteFor() ? siteFor().name.split(" ")[0] : "No site"),
+    model ? h("span", { class: "site-model" }, " · " + shortModel(model) + (mismatch ? " ⚠" : "")) : null,
+    st.key === "off" ? h("span", { class: "site-words" }, " · not open") : null,
+    h("span", { class: "ch" }, svgIcon("down")));
+};
+// "Qwen3-Max" -> "Max": the part after the name's own digits.
+const shortModel = (m) => m.replace(/^[A-Za-z]+\d*[.\d]*-?/, "") || m;
+// The pill's menu: switch the site of this profile, or open Profile and site.
+const siteMenu = () => {
+  const prof = profile();
+  const sites = [...S.plugins.values()].filter(isSite);
+  const close = () => ((S.siteMenu = false), render());
+  return h("div", { class: "layer sitemenu-layer" },
+    h("div", { class: "sitemenu-back", onclick: close }),
+    h("div", { class: "sitemenu", role: "menu" },
+      ...sites.map((x) => item({ id: "sitemenu." + x.id, cls: "plain", label: x.manifest.name, sub: choicesFor(prof).model || "", radio: x.id === prof.site, onclick: () => ((S.siteMenu = false), (prof.site = x.id), saveConfig(), render(), warmSite()) })),
+      sites.length ? h("div", { class: "sep" }) : null,
+      item({ id: "sitemenu.more", cls: "plain", label: "Site, model and profile…", onclick: () => ((S.siteMenu = false), openSiteSheet()) })));
 };
 
 const SAFETY = "Use a separate account on the AI site (a throwaway Gmail works), not an important one: promptpipe drives the site for you and isn't built for account security. You can also sign in by hand on the site.";
@@ -509,41 +526,38 @@ const presetPicker = () =>
 
 // The site sheet: everything about the site in one place.
 const openSiteSheet = () =>
-  openSheet("Site", () => {
+  openSheet("Profile and site", () => {
     const prof = profile();
     const site = siteFor(prof);
     const st = siteState();
     const want = choicesFor(prof).model;
     const sites = [...S.plugins.values()].filter(isSite);
     const pr = S.plugins.get("page-report");
+    const pageItem = (label, sub, fn, id) => item({ id: "site." + id, label, sub, onclick: fn });
     return [
-      h("div", { class: "site-status " + st.key },
-        h("span", { class: "dot", "aria-hidden": "true" }),
-        h("div", { class: "grow" }, h("b", {}, site ? site.name : "No AI site yet"), h("div", { class: "muted" }, st.words + (S.site.url ? " · " + S.site.url : ""))),
-        site ? h("button", { class: "primary", onclick: showSite }, st.key === "off" ? "Open the page" : "Show the page") : h("button", { class: "primary", onclick: openGetSites }, "Get site plugins")),
+      !site ? item({ id: "site.get", prim: true, label: "Get site plugins", sub: "No AI site yet", onclick: openGetSites }) : null,
       h("h3", {}, "Profile"),
       profileDropdown({ id: "site", current: prof, pick: (p) => (switchProfile(p.id), rerenderSheet()) }),
-      sites.length > 1 ? h("label", { class: "field" }, h("span", {}, "Site of this profile"),
-        dropdown({ id: "sitepick", label: "Site of this profile", value: prof.site, options: sites.map((x) => ({ value: x.id, label: x.manifest.name })), onPick: (v) => ((prof.site = v), saveConfig(), render(), rerenderSheet(), warmSite()) })) : null,
-      site ? h("h3", {}, "Model") : null,
-      site ? h("div", { class: "row" },
-        h("div", { class: "grow" }, h("div", {}, S.site.model ? "On the page: " + S.site.model : "The page hasn't shown its model yet"), want ? h("div", { class: "muted" }, "You picked: " + want + (S.site.model && !S.site.model.toLowerCase().includes(want.toLowerCase()) ? " (not what the page shows)" : "")) : null),
-        h("button", { class: "small", onclick: openModels }, "Model and switches")) : null,
+      site ? h("h3", {}, "AI site (for this chat)") : null,
+      site ? item({ id: "site.switch", label: site.name, sub: sites.length > 1 ? "Switch site" : "The only site plugin installed", onclick: sites.length > 1 ? () => ddToggle("sitepick") : openGetSites }) : null,
+      site && sites.length > 1 && S.dd.sitepick
+        ? h("div", { class: "dd open" }, h("div", { class: "dd-list" }, sites.map((x) =>
+            h("button", { class: "dd-pick" + (x.id === prof.site ? " current" : ""), onclick: () => ((S.dd.sitepick = false), (prof.site = x.id), saveConfig(), render(), rerenderSheet(), warmSite()) }, x.id === prof.site ? svgIcon("check") : h("span", { class: "svg" }), x.manifest.name))))
+        : null,
+      site ? pageItem("Show the page", `${st.words}${S.site.url ? " · " + S.site.url : ""}`, showSite, "show") : null,
+      site ? item({ id: "site.model", label: S.site.model || want || "Choose a model", sub: "Model and switches" + (want && S.site.model && !S.site.model.toLowerCase().includes(want.toLowerCase()) ? " · you picked " + want : ""), key: "Ctrl+M", onclick: openModels }) : null,
       h("h3", {}, "This chat and the page"),
-      h("div", { class: "row" },
-        h("button", { class: "small", onclick: linkToSite }, "Link to the open page"),
-        h("button", { class: "small", onclick: addFromPage }, "Take the newest reply"),
-        h("button", { class: "small", onclick: importHistory }, "Import the site chat")),
+      pageItem("Link this chat to the open page", null, linkToSite, "link"),
+      pageItem("Import messages from the site chat", null, importHistory, "import"),
+      pageItem("Add the page's newest reply", null, addFromPage, "newest"),
       h("h3", {}, "Pages"),
-      h("div", { class: "row" }, h("span", { class: "grow" }, `${maxReplies()} replies at once at most; ${pageCount()} ${pageCount() === 1 ? "page is" : "pages are"} open`), h("button", { class: "small", onclick: () => settingsPage("Sites", settingsBody("Sites")) }, "Change")),
+      item({ id: "site.pages", label: `${maxReplies()} replies at once at most`, sub: `${pageCount()} ${pageCount() === 1 ? "page is" : "pages are"} open`, right: "Change", onclick: () => settingsPage("Sites", settingsBody("Sites")) }),
       h("h3", {}, "Site plugins"),
-      h("div", { class: "row" },
-        h("button", { class: "small", onclick: openGetSites }, "Get site plugins"),
-        site ? h("button", { class: "small", onclick: () => openPluginSettings(prof.site) }, "Site plugin settings") : null),
+      item({ id: "site.getsites", label: "Get site plugins", chev: true, onclick: openGetSites }),
+      site ? item({ id: "site.plugset", label: "Site plugin settings", chev: true, onclick: () => openPluginSettings(prof.site) }) : null,
       h("h3", {}, "Developer"),
-      h("div", { class: "row" },
-        ...((pr && pr.def && pr.def.menu) || []).map((m) => h("button", { class: "small", onclick: () => Promise.resolve().then(() => m.run()).catch((e) => toast(e.message, "error")) }, m.label)),
-        h("button", { class: "small", onclick: decodeLast }, "Decode the newest reply (preview)")),
+      ...((pr && pr.def && pr.def.menu) || []).map((m) => item({ id: "site.dev." + m.label, label: m.label, onclick: () => Promise.resolve().then(() => m.run()).catch((e) => toast(e.message, "error")) })),
+      item({ id: "site.decode", label: "Decode the newest reply (preview)", onclick: decodeLast }),
     ];
   });
 
@@ -562,6 +576,7 @@ const renderTop = () => {
     siteButton(prof),
     ...topBlocks(),
     h("button", { class: "icon find-btn", title: "Find chats, messages, functions and settings · Ctrl+K or F3", "aria-label": "Find", onclick: () => openFind() }, svgIcon("search")),
+    helpBtn(),
   );
 };
 
@@ -592,11 +607,42 @@ const ICONS = {
   share: '<path d="M12 15V4M8 8l4-4 4 4M5 13v6h14v-6"/>',
   chat: '<path d="M5 6h14v9H10l-4 4v-4H5z"/>',
   history: '<path d="M4 12a8 8 0 1 0 2.5-5.8M4 5v4h4M12 8v4l3 2"/>',
+  back: '<path d="M15 5l-7 7 7 7"/>',
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01"/>',
+  play: '<path d="M8 5l11 7-11 7z"/>',
+  plugins: '<path d="M9 4v4M15 4v4M7 8h10v4a5 5 0 0 1-10 0zM12 17v3"/>',
+  prompt: '<path d="M5 6h14v10H9l-4 4z"/><path d="M9 10h6"/>',
+  look: '<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/>',
+  sites: '<circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c3 3 3 13 0 16M12 4c-3 3-3 13 0 16"/>',
+  storage: '<path d="M4 7a8 3 0 0 1 16 0v10a8 3 0 0 1-16 0zM4 7a8 3 0 0 0 16 0M4 12a8 3 0 0 0 16 0"/>',
+  impexp: '<path d="M12 4v10M8 10l4 4 4-4M5 19h14"/>',
+  api: '<path d="M8 8l-4 4 4 4M16 8l4 4-4 4M13.5 6l-3 12"/>',
+  adv: '<path d="M12 4l7 4v8l-7 4-7-4V8z"/><circle cx="12" cy="12" r="2"/>',
+  retry: '<path d="M19 12a7 7 0 1 1-2.1-5M19 5v4h-4"/>',
+  select: '<path d="M5 7h14M5 12h9M5 17h12"/>',
 };
 const svgIcon = (name) => {
   const span = h("span", { class: "svg", "aria-hidden": "true" });
   span.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]}</svg>`;
   return span;
+};
+
+// One row of a sheet, as in the wireframe: a card with an optional icon, a label with a small
+// second line, and at the end a key, a badge, a value, a switch, a dot or a chevron.
+const item = (o) => {
+  const on = (v) => (v == null ? null : v);
+  return h(
+    o.onclick ? "button" : "div",
+    { class: "it" + (o.prim ? " prim" : "") + (o.cls ? " " + o.cls : ""), onclick: o.onclick, "data-row": o.id, "aria-label": o.aria },
+    o.icon ? svgIcon(o.icon) : null,
+    h("div", { class: "g" }, o.label, o.sub ? h("small", {}, o.sub) : null),
+    o.key ? h("kbd", {}, o.key) : null,
+    o.badge ? h("span", { class: "badge" }, o.badge) : null,
+    o.right ? h("span", { class: "ch on" }, o.right) : null,
+    on(o.toggle) != null ? h("span", { class: "sw" + (o.toggle ? " on" : "") }) : null,
+    on(o.radio) != null ? h("span", { class: "on" }, o.radio ? "●" : "○") : null,
+    o.chev ? h("span", { class: "ch" }, "›") : null,
+  );
 };
 
 const tagChip = (t, { onRemove, onBump, dim } = {}) =>
@@ -607,18 +653,6 @@ const tagChip = (t, { onRemove, onBump, dim } = {}) =>
     onBump && h("button", { title: "Next number", onclick: () => onBump().catch((e) => toast(e.message, "error")) }, "+1"),
     onRemove && h("button", { title: "Remove tag", "aria-label": "Remove " + t, onclick: () => onRemove().catch((e) => toast(e.message, "error")) }, "✕"),
   );
-
-const renderTagsRow = () => {
-  const c = S.chat;
-  if (!c.meta.tags.length) return h("div", { class: "tags-row empty-row" });
-  return h(
-    "div",
-    { class: "tags-row" },
-    c.meta.tags.map((t) => tagChip(t, { onRemove: () => removeChatTag(c, t) })),
-    tagInput("+ tag", (v) => addChatTag(c, v), "tag"),
-    h("datalist", { id: "known-tags" }, knownTags().map((t) => h("option", { value: t }))),
-  );
-};
 
 const renderMessages = () => {
   const c = S.chat;
@@ -778,38 +812,56 @@ const openMessageMenu = (c, t, i) => {
   });
 };
 
+// Quick actions under a reply: "newest" (default), "every" or "off" (collapsed). A tap on the
+// toggle overrides it for that reply.
+const qaMode = () => S.config.quickActions || "newest";
+const qaOpen = (t, newest) => (S.qaSet.has(t) ? S.qaSet.get(t) : qaMode() === "every" || (qaMode() === "newest" && newest));
+// What went out with a reply: the profile's rows that were on, then your message.
+const sentWith = (t) => {
+  const prof = S.config.profiles.find((p) => p.name === t.profile);
+  const rows = prof ? prof.pipe.rows.filter((r) => r.type !== "message" && r.on !== false && PP.pipeline.rowLive(prof.pipe, r)).map((r) => PP.pipeline.rowName(r)) : [];
+  return { prof, rows };
+};
+
 const renderTurn = (c, t, i) => {
-  const transformed = t.sent !== t.you || t.raw !== t.reply;
   const own = t.tags || [];
   const inherited = ChatFile.messageTags(c.meta, t).filter((x) => !own.includes(x));
-  // The footer: tags and time; Copy and Quote on the newest reply and on one you tap; ⋯ for the menu.
   const newest = i === c.turns.findLastIndex((x) => !x.pending);
-  const open = newest || S.openTurns.has(t);
+  const open = qaOpen(t, newest);
   const menu = () => openMessageMenu(c, t, i);
+  const act = (icon, label, run) => h("button", { class: "act", "aria-label": label, title: label, onclick: run }, svgIcon(icon));
+  const toggleQa = () => (S.qaSet.set(t, !open), render());
+  // The footer: ⋯ and the time (and how many tags); opened: Copy, Quote, Send again, Select text, More, and the tags.
   const foot = t.pending
     ? null
-    : h(
-        "div",
-        { class: "msg-foot" },
-        own.map((x) => h("span", { class: "tag-text" + (counterOf(x) ? " counter" : "") }, "#" + x)),
-        inherited.map((x) => h("span", { class: "tag-text dim", title: "From the chat tags" }, "#" + x)),
-        h("span", { class: "time" }, ChatFile.stamp(t.at)),
-        open ? h("button", { class: "ghost foot-btn", onclick: () => copyText(t.reply, "Copied") }, "Copy") : null,
-        open ? h("button", { class: "ghost foot-btn", onclick: () => fillComposer(quote(t.reply), "append") }, "Quote") : null,
-        h("button", { class: "ghost more", title: "Message menu", "aria-label": "Message menu", onclick: menu }, svgIcon("more")),
-      );
-  // Your own message: tap it for Copy and Send again (a long-press is left to text selection).
-  const youOpen = S.openYou.has(t);
-  const you = h("div", { class: "msg you", title: ChatFile.stamp(t.at) }, h("div", { class: "text" }, t.you),
-    youOpen ? h("div", { class: "msg-foot you-foot" },
-      h("button", { class: "ghost foot-btn", onclick: () => copyText(t.you, "Copied") }, "Copy"),
-      h("button", { class: "ghost foot-btn", onclick: () => send(t.you) }, "Send again"),
-      h("button", { class: "ghost foot-btn", onclick: () => fillComposer(t.you) }, "Edit")) : null);
-  you.addEventListener("click", (e) => {
-    if (e.target.closest("a, button") || String(window.getSelection() || "").trim()) return;
-    S.openYou.has(t) ? S.openYou.delete(t) : S.openYou.add(t);
-    render();
-  });
+    : !open
+      ? h("div", { class: "foot" }, act("more", "Show actions", toggleQa), h("span", { class: "time" }, ChatFile.stamp(t.at).slice(11)), own.length ? h("span", { class: "tg", title: "Message tags" }, "#" + own.length) : null)
+      : h("div", { class: "exp" },
+          h("div", { class: "foot" }, act("up", "Hide actions", toggleQa), h("span", { class: "time" }, ChatFile.stamp(t.at).slice(11))),
+          h("div", { class: "acts" },
+            act("copy", "Copy", () => copyText(t.reply, "Copied")),
+            act("quote", "Quote", () => fillComposer(quote(t.reply), "append")),
+            act("retry", "Send again", () => send(t.you)),
+            act("select", "Select text", () => openSelect(t)),
+            act("more", "More: tags, what was sent, plugin actions", menu)),
+          h("div", { class: "chips" },
+            own.map((x) => h("span", { class: "tag" + (counterOf(x) ? " counter" : "") }, "#" + x)),
+            inherited.map((x) => h("span", { class: "tag dim", title: "From the chat tags" }, "#" + x)),
+            h("button", { class: "chip", onclick: menu }, "+ tag")));
+  // Your own message, with Copy and Edit and send again under it.
+  const you = h("div", { class: "youwrap" },
+    h("div", { class: "msg you", title: ChatFile.stamp(t.at) }, h("div", { class: "text" }, t.you)),
+    h("div", { class: "acts right" }, act("copy", "Copy your message", () => copyText(t.you, "Copied")), act("edit", "Edit and send again", () => fillComposer(t.you))));
+  // "Thought for N s · sent with N": folded; opened it shows the thinking, what was sent with it, and the full trace.
+  const sw = sentWith(t);
+  const sentOpen = S.openSent.has(t);
+  const thin = t.pending ? null : h("button", { class: "thin", "aria-expanded": String(sentOpen), onclick: () => (S.openSent.has(t) ? S.openSent.delete(t) : S.openSent.add(t), render()) },
+    svgIcon(sentOpen ? "up" : "down"), t.thinking ? (t.secs != null ? `Thought for ${t.secs} s` : "Thought") : "Sent with", h("span", { class: "dim2" }, (t.thinking ? " · sent with " : " ") + (sw.rows.length + 1)));
+  const thinBox = !sentOpen || t.pending ? null : h("div", { class: "thinbox" },
+    t.thinking ? [h("div", { class: "lbl" }, "Thinking"), h("div", { class: "md", html: mdToHtml(t.thinking) })] : null,
+    h("div", { class: "lbl" }, "Sent with"),
+    h("div", { class: "sentlist" }, h("div", {}, "Profile: " + (t.profile || "?") + (c.meta.model ? " · " + c.meta.model : "")), ...sw.rows.map((r) => h("div", {}, "· " + r)), h("div", {}, "· Your message")),
+    h("details", { class: "trace" }, h("summary", {}, "Show the full text that was sent"), ...traceOf(t)));
   const art = h(
     "article",
     { class: "turn" + (S.highlight === i ? " hit" : ""), id: "turn-" + i },
@@ -817,26 +869,19 @@ const renderTurn = (c, t, i) => {
     h(
       "div",
       { class: "msg ai" + (t.error ? " has-error" : "") },
-      h("div", { class: "who" }, c.meta.ai || "AI", transformed ? h("span", { class: "piped", title: "Went through the pipeline; the message menu shows what was sent" }, "piped") : null, t.profile ? h("span", { class: "faint" }, t.profile) : null),
-      t.thinking
-        ? h("details", { class: "thinking", open: S.thinkingOpen }, h("summary", { title: "Tap to fold or unfold · Ctrl+/ for all" }, t.secs != null ? `Thought for ${t.secs} s` : "Thought"), h("div", { class: "md", html: mdToHtml(t.thinking) }))
-        : null,
+      h("div", { class: "who" }, [c.meta.ai || "AI", c.meta.model].filter(Boolean).join(" · ")),
       t.pending
         ? (() => { const box = h("div", { class: "live-box", "data-turn": i }); syncLive(box, t); return box; })()
         : h("div", { class: "text md", html: mdToHtml(t.reply) }),
       t.error ? h("div", { class: "error" }, "✕ " + t.error) : null,
+      thin,
+      thinBox,
       foot,
     ),
   );
   const ai = art.querySelector(".msg.ai");
   if (!t.pending) {
-    // Tap a reply (not a link or a selection) to show its Copy and Quote.
-    ai.addEventListener("click", (e) => {
-      if (newest || e.target.closest("a, button, details, pre") || String(window.getSelection() || "").trim()) return;
-      S.openTurns.has(t) ? S.openTurns.delete(t) : S.openTurns.add(t);
-      render();
-    });
-    // Desktop right-click opens the menu. On a phone a long-press selects text, so the menu is the ⋯ button.
+    // Desktop right-click opens the menu. On a phone a long-press selects text, so the menu is the ⋯ buttons.
     ai.addEventListener("contextmenu", (e) => {
       if (!matchMedia("(pointer: fine)").matches) return;
       e.preventDefault();
@@ -1087,8 +1132,8 @@ PP.confirm = askConfirm;
 PP.askText = askText;
 
 // ---------- sheets ----------
-openSheet = (title, renderFn) => {
-  S.sheet = { title, render: renderFn };
+openSheet = (title, renderFn, opts = {}) => {
+  S.sheet = { title, render: renderFn, short: !!opts.short };
   S.dd = {}; // dropdowns close when another screen opens
   syncLayer();
   render();
@@ -1136,13 +1181,25 @@ window.addEventListener("popstate", () => {
   render();
 });
 
-const renderSheet = () =>
-  h(
+// The sheet: ‹ back (when the screen has a ‹ row, which moves up here), title, ? and ✕.
+const renderSheet = () => {
+  const body = h("div", { class: "sheet-body" }, S.sheet.render());
+  const back = body.firstElementChild?.classList.contains("back") ? body.firstElementChild : null;
+  if (back) back.remove();
+  return h(
     "section",
-    { class: "sheet", role: "dialog", "aria-label": S.sheet.title },
-    h("div", { class: "row sheet-head" }, h("h2", {}, S.sheet.title), h("button", { class: "icon", onclick: closeSheet, "aria-label": "Close (Esc)" }, "✕")),
-    h("div", { class: "sheet-body" }, S.sheet.render()),
+    { class: "sheet" + (S.sheet.short ? " short" : ""), role: "dialog", "aria-label": S.sheet.title },
+    h(
+      "div",
+      { class: "row sheet-head" },
+      back ? h("button", { class: "icon", onclick: () => back.click(), "aria-label": "Back to " + back.textContent.replace(/^‹\s*/, "") }, svgIcon("back")) : null,
+      h("h2", {}, S.sheet.title),
+      helpBtn(),
+      h("button", { class: "icon", onclick: closeSheet, "aria-label": "Close (Esc)", title: "Close" }, svgIcon("close")),
+    ),
+    body,
   );
+};
 
 rerenderSheet = () => S.sheet && render();
 
@@ -1555,6 +1612,9 @@ document.addEventListener("keydown", (e) => {
   const ctrl = e.ctrlKey || e.metaKey;
   const run = (fn) => (e.preventDefault(), fn());
   if (e.key === "Escape") {
+    if (S.helpCard) return run(() => ((S.helpCard = null), render()));
+    if (S.help) return run(() => ((S.help = false), render()));
+    if (S.siteMenu) return run(() => ((S.siteMenu = false), render()));
     if (S.sheet) return run(closeSheet);
     if (S.drawer) return run(closeDrawer);
     const b = document.querySelector(".composer .send.stop");

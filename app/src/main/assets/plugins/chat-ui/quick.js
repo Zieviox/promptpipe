@@ -87,7 +87,7 @@ const openQuick = () => {
       sheetRow({ icon: many ? "copy" : "quote", label: many ? "Several text files" : "Text file", sub: many ? "One after another, in the box" : "Put its text in the box", onclick: () => pickTextFiles(many) });
     return [
       h("div", { class: "row quick-head" },
-        h("span", { class: "grow muted" }, "Quick edit: switch on or off, drag to reorder."),
+        h("span", { class: "grow muted" }, "Switch on or off, drag to reorder."),
         h("button", { class: "chip", onclick: () => openProfileEditor(prof.id) }, svgIcon("edit"), "Edit profile")),
       pre ? h("div", { class: "quick-list" }, pre.rows.map(row)) : h("p", { class: "muted" }, "This profile has no rows yet."),
       h("h3", {}, "Add to your message"),
@@ -95,5 +95,5 @@ const openQuick = () => {
       fileRow(true),
       ...[...S.plugins.values()].flatMap((p) => (p.def?.menu || []).filter((m) => m.plus).map((m) => sheetRow({ label: m.label, onclick: () => (closeSheet(), Promise.resolve().then(() => m.run()).catch((e) => toast(e.message, "error"))) }))),
     ];
-  });
+  }, { short: true });
 };
