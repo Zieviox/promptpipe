@@ -26,29 +26,29 @@ const dropdown = ({ id, value, options, onPick, label }) => {
   );
 };
 
-// The profile dropdown: the current one with Edit; opened, every profile with its
-// own Edit, then New, Import, Export this, Export all.
+// The profile dropdown, as in the wireframe. Closed: the profile (and Edit
+// beside it). Open: every profile (● is this one) with Edit, or Use where it
+// isn't the active one, then + New, Import…, Export this, Export all.
 const profileDropdown = ({ id, current, pick, sub, showEdit = true }) => {
   const open = !!S.dd[id];
-  const head = h("div", { class: "dd-head" },
-    h("button", { class: "dd-main", "aria-expanded": String(open), "aria-label": "Profile", onclick: () => ddToggle(id) },
-      h("span", { class: "grow g" }, current.name, h("small", {}, sub || (current === profile() ? "Active profile · tap to switch or edit" : "Not the active profile"))), svgIcon(open ? "up" : "down")),
-    open || !showEdit ? null : h("button", { class: "chip", onclick: () => openProfileEditor(current.id) }, svgIcon("edit"), "Edit"));
-  if (!open) return h("div", { class: "dd" }, head);
-  return h(
-    "div",
-    { class: "dd open" },
+  const head = h("button", { class: "it", "data-row": id === "edit" ? "plugins.cur" : "site.profile", "aria-expanded": String(open), onclick: () => ddToggle(id) },
+    h("div", { class: "g" }, current.name, h("small", {}, sub || (current === profile() ? "Active profile · tap to switch or edit" : "Not the active profile"))),
+    h("span", { class: "ch" }, svgIcon(open ? "up" : "down")));
+  if (!open) return showEdit ? h("div", { class: "ddrow" }, head, h("button", { class: "pill", "aria-label": "Edit " + current.name, onclick: () => openProfileEditor(current.id) }, svgIcon("edit"), "Edit")) : head;
+  const choose = (p) => ((S.dd[id] = false), pick(p));
+  return h("div", { class: "dd" },
     head,
-    h("div", { class: "dd-list" }, S.config.profiles.map((p) =>
-      h("div", { class: "dd-item" },
-        h("button", { class: "dd-pick" + (p === current ? " current" : ""), onclick: () => ((S.dd[id] = false), pick(p)) }, p === current ? svgIcon("check") : h("span", { class: "svg" }), p.name),
-        h("button", { class: "chip", "aria-label": "Edit " + p.name, onclick: () => openProfileEditor(p.id) }, svgIcon("edit"), "Edit")))),
+    h("div", { class: "dd-list", role: "listbox" }, S.config.profiles.map((p) =>
+      h("div", { class: "it", role: "option", "aria-selected": String(p === current) },
+        h("button", { onclick: () => choose(p) }, h("span", { class: "on" }, p === current ? "●" : "○"), h("span", { class: "g" }, p.name, p === profile() ? h("small", {}, "Active") : null)),
+        showEdit
+          ? h("button", { class: "pill", "aria-label": "Edit " + p.name, onclick: () => openProfileEditor(p.id) }, svgIcon("edit"), "Edit")
+          : p !== profile() ? h("button", { class: "pill", onclick: () => (switchProfile(p.id), rerenderSheet()) }, "Use") : null))),
     h("div", { class: "chips" },
-      h("button", { class: "chip", onclick: openNewProfile }, "+ New"),
-      h("button", { class: "chip", onclick: openImportProfile }, "Import…"),
-      h("button", { class: "chip", onclick: () => exportProfiles([current]) }, "Export this"),
-      h("button", { class: "chip", onclick: () => exportProfiles(S.config.profiles) }, "Export all")),
-  );
+      h("button", { class: "pill", onclick: openNewProfile }, "+ New"),
+      h("button", { class: "pill", onclick: openImportProfile }, "Import…"),
+      h("button", { class: "pill", onclick: () => exportProfiles([current]) }, "Export this"),
+      h("button", { class: "pill", onclick: () => exportProfiles(S.config.profiles) }, "Export all")));
 };
 
 // ---------- switching, making, removing ----------
@@ -76,165 +76,199 @@ const openNewProfile = () => {
   let name = "";
   let starter = "plain";
   openSheet("New profile", () => {
-    const input = h("input", { placeholder: "Name", value: name, "aria-label": "Profile name", oninput: (e) => (name = e.target.value) });
-    autofocus(input);
-    const starters = PP.pipeline.presets();
     const go = () => {
       const p = PP.pipeline.makeProfile(uniqueName(name.trim() || "New profile"), starter);
       saveConfig();
       S.dd = {};
       openProfileEditor(p.id);
     };
-    input.onkeydown = (e) => e.key === "Enter" && go();
+    const input = h("input", { placeholder: "Name", value: name, "aria-label": "Profile name", oninput: (e) => (name = e.target.value), onkeydown: (e) => e.key === "Enter" && go() });
+    autofocus(input);
     return [
-      input,
-      h("h3", {}, "Start from"),
-      ...starters.map((t) => sheetRow({ label: t.name, sub: t.rows.filter((r) => r.type !== "message").length + " rows", onclick: () => ((starter = t.id), rerenderSheet()), right: starter === t.id ? svgIcon("check") : null })),
-      h("div", { class: "row" }, h("button", { class: "primary grow", onclick: go }, "Make the profile")),
+      h("div", { class: "lbl" }, "Name"),
+      h("label", { class: "search" }, input),
+      h("div", { class: "lbl" }, "Start from"),
+      ...PP.pipeline.presets().map((t) => item({ label: t.name, sub: t.rows.filter((r) => r.type !== "message").length + " rows", radio: starter === t.id, onclick: () => ((starter = t.id), rerenderSheet()) })),
+      item({ prim: true, label: "Make the profile", onclick: go }),
     ];
-  });
+  }, { back: () => openPlugins("profile") });
 };
 
 // ---------- the editor ----------
 S.editProfile = "";
-S.openRow = null; // the row whose details are unfolded (an object of the profile's rows)
 
 // The Profile tab of the Plugins screen is the editor (as in the wireframe).
+// row: open that row's page.
 const openProfileEditor = (id, row = null) => {
   S.editProfile = id || S.editProfile || profile().id;
-  S.openRow = row;
+  if (row) return openRowPage(row);
   openPlugins("profile");
 };
+const editedProfile = () => profileById(S.editProfile);
+const rowTitle = (r) => (r.type === "piece" ? "System prompt: " : "") + PP.pipeline.rowName(r);
 
+// The rows top to bottom (grip, name, move, switch), then Add a row, then
+// what else a profile has: use it, rename, duplicate, delete, groups, preview.
 const editorBody = () => {
-  const prof = profileById(S.editProfile);
+  const prof = editedProfile();
   const pre = prof.pipe;
   const P = PP.pipeline;
   const redraw = () => (saveConfig(), rerenderSheet(), render());
-  const rowEls = () => [...document.querySelectorAll(".quick-list .qrow")];
-  const groupSelect = (r) =>
-    h("label", { class: "field" }, h("span", {}, "Group"),
-      dropdown({ id: "grp" + (r.id || r.plugin + (r.part || "")), label: "Group", value: r.group || "", options: [{ value: "", label: "No group" }, ...(pre.groups || []).map((g) => ({ value: g.id, label: g.name }))], onPick: (v) => ((r.group = v), redraw()) }));
-
-  const details = (r, i) => {
-    if (r.type === "piece")
-      return h("div", { class: "pipe-details" },
-        h("label", { class: "field" }, h("span", {}, "Name"), h("input", { value: r.name || "", oninput: (e) => ((r.name = e.target.value), saveConfig()) })),
-        h("label", { class: "field" }, h("span", {}, "Text"), h("textarea", { rows: 6, value: r.text || "", placeholder: "What to send. Empty rows aren't sent.", oninput: (e) => ((r.text = e.target.value), saveConfig()) })),
-        h("label", { class: "field" }, h("span", {}, "Send it"),
-          dropdown({ id: "when" + r.id, label: "Send it", value: r.when || "every", options: Object.entries(P.WHEN).map(([v, l]) => ({ value: v, label: l })), onPick: (v) => ((r.when = v), redraw()) })),
-        r.when === "everyN" ? h("label", { class: "field" }, h("span", {}, "N (the first message of a site chat always gets it)"), h("input", { type: "number", min: 1, value: r.n || 5, oninput: (e) => ((r.n = Math.max(1, +e.target.value || 1)), saveConfig()) })) : null,
-        r.when === "depth" ? h("label", { class: "field" }, h("span", {}, "N: how many messages up from the newest, inside the earlier chat Memory sends (0 = right after it). Without Memory's earlier messages it goes just before your message, and its place in this list doesn't matter."), h("input", { type: "number", min: 0, value: r.n ?? 0, oninput: (e) => ((r.n = Math.max(0, Math.round(+e.target.value || 0))), saveConfig()) })) : null,
-        groupSelect(r),
-        h("div", { class: "row" },
-          h("button", { class: "small", onclick: () => copyText(r.text || "", "Copied") }, "Copy text"),
-          h("button", { class: "small danger", onclick: async () => {
-            if (!(await askConfirm(`Delete the system prompt “${P.rowName(r)}” from this profile?`))) return;
-            pre.rows.splice(i, 1);
-            S.openRow = null;
-            redraw();
-          } }, "Delete row")));
-    if (r.type === "step") {
-      const p = S.plugins.get(r.plugin);
-      const own = r.part ? !!P.partOf(r) : p?.def && typeof p.def.piece === "function";
-      return h("div", { class: "pipe-details" },
-        h("p", { class: "muted" }, p ? p.manifest.description || "" : "This plugin isn't installed, so the row is skipped."),
-        !r.part && p?.def && typeof p.def.beforeSend === "function" && !own
-          ? h("label", { class: "field" }, h("span", {}, "It changes"),
-              dropdown({ id: "scope" + r.plugin, label: "It changes", value: r.scope === "message" ? "message" : "above", options: [{ value: "above", label: "Everything above it" }, { value: "message", label: "Only your message" }], onPick: (v) => ((r.scope = v), redraw()) }))
-          : own ? h("p", { class: "muted" }, "Its text goes where this row is.") : h("p", { class: "muted" }, "It doesn't change the message (it works on replies or chats), so its place doesn't matter."),
-        groupSelect(r),
-        h("div", { class: "row" },
-          p ? h("button", { class: "small", onclick: () => openPluginSettings(r.plugin) }, "Plugin settings") : null,
-          r.part ? h("button", { class: "small danger", onclick: async () => {
-            if (!(await askConfirm(`Take “${P.rowName(r)}” out of this profile?`, "Take out"))) return;
-            pre.rows.splice(i, 1);
-            S.openRow = null;
-            redraw();
-          } }, "Take out") : null));
-    }
-    return h("div", { class: "pipe-details" }, h("p", { class: "muted" }, "Your message goes here. Move it to put rows before or after it."));
-  };
-
+  const rowEls = () => [...document.querySelectorAll("[data-pipe]")];
   const rowEl = (r, i) => {
     const live = r.type === "message" || P.rowLive(pre, r);
     const g = r.group && (pre.groups || []).find((x) => x.id === r.group);
-    const open = S.openRow === r;
-    const sub = plainKind(r) + (r.type === "piece" ? " · " + P.whenLabel(r) + (!(r.text || "").trim() ? " · empty, not sent" : "") : "") + (g ? ` · ${g.name}${g.on === false ? " (off)" : ""}` : "");
-    return h("div", { class: "prow" + (open ? " open" : "") },
-      h("div", { class: "qrow" + (live ? "" : " off") + (r.type === "message" ? " anchor" : "") },
-        h("button", { class: "rbtn grip", "aria-label": "Drag to reorder", title: "Drag to reorder", onpointerdown: (e) => reorderDrag(e, rowEls, i, (from, to) => (P.moveRowTo(pre, from, to), rerenderSheet(), render())), onclick: (e) => e.stopPropagation() }, svgIcon("grip")),
-        h("button", { class: "ghost grow qname", "aria-expanded": String(open), onclick: () => ((S.openRow = open ? null : r), rerenderSheet()) }, h("b", {}, P.rowName(r)), h("small", { class: "muted" }, sub)),
-        h("span", { class: "mv" },
-          rbtn("up", "Move up", () => (P.moveRow(pre, i, -1), rerenderSheet(), render()), i === 0 ? "dis" : ""),
-          rbtn("down", "Move down", () => (P.moveRow(pre, i, 1), rerenderSheet(), render()), i === pre.rows.length - 1 ? "dis" : "")),
-        r.type === "message" ? h("span", { class: "sw-gap" }) : switchBtn(r.on !== false, P.rowName(r) + " on or off", (v) => ((r.on = v), redraw()))),
-      open ? details(r, i) : null);
+    const extra = [r.type === "piece" && r.when && r.when !== "every" ? P.whenLabel(r) : "", r.type === "piece" && !(r.text || "").trim() ? "empty, not sent" : "", g ? g.name + (g.on === false ? " (off)" : "") : ""].filter(Boolean);
+    return h("div", { class: "it" + (live ? "" : " off"), "data-pipe": i, "data-row": "plugins.row" + i },
+      h("button", { class: "grip", "aria-label": "Drag to reorder", title: "Drag to reorder", onpointerdown: (e) => reorderDrag(e, rowEls, i, (from, to) => (P.moveRowTo(pre, from, to), redraw())), onclick: (e) => e.stopPropagation() }, svgIcon("grip")),
+      h("button", { class: "g", title: "Open this row", onclick: () => openRowPage(r) }, rowTitle(r), h("small", {}, [plainKind(r), ...extra].join(" · "))),
+      moveBtns(i, pre.rows.length, (d) => (P.moveRow(pre, i, d), redraw())),
+      r.type === "message" ? null : switchBtn(r.on !== false, rowTitle(r) + " on or off", (v) => ((r.on = v), redraw())));
   };
-
-  let first = true;
-  const preview = h("pre", { class: "pipe-preview" });
-  const showPreview = () => (preview.textContent = P.previewMessage(prof, { first }) || "(nothing)");
   const isActive = prof === profile();
   return [
-    profileDropdown({ id: "edit", current: prof, sub: prof === profile() ? "Editing the active profile · tap to change" : "Editing · not the active profile", showEdit: false, pick: (p) => ((S.editProfile = p.id), (S.openRow = null), rerenderSheet()) }),
-    h("h3", {}, "Sent top to bottom"),
-    h("div", { class: "quick-list" }, pre.rows.map(rowEl)),
-    item({ id: "profile.add", label: "Add a row", sub: "System prompts and message plugins", chev: true, onclick: openAddRow }),
-    h("h3", {}, "This profile"),
-    h("label", { class: "field" }, h("span", {}, "Name"), h("input", { value: prof.name, "aria-label": "Profile name", oninput: (e) => ((prof.name = e.target.value || prof.name), saveConfig()), onblur: () => render() })),
-    h("div", { class: "row" },
-      isActive ? h("span", { class: "muted grow" }, "This is the profile in use.") : h("button", { class: "small primary", onclick: () => (switchProfile(prof.id), rerenderSheet()) }, "Use this profile"),
-      h("button", { class: "small", onclick: () => { const c = PP.pipeline.copyProfile(prof, uniqueName(prof.name + " copy")); S.editProfile = c.id; S.openRow = null; rerenderSheet(); } }, "Duplicate"),
-      h("button", { class: "small danger", disabled: S.config.profiles.length < 2, onclick: async () => {
-        if (!(await askConfirm(`Delete the profile “${prof.name}”?`))) return;
-        S.config.profiles = S.config.profiles.filter((x) => x !== prof);
-        if (S.config.activeProfile === prof.id) S.config.activeProfile = S.config.profiles[0].id;
-        S.editProfile = S.config.activeProfile;
-        redraw();
-      } }, "Delete")),
-    h("h3", {}, "Groups"),
-    (pre.groups || []).length ? null : h("p", { class: "muted" }, "A group's switch turns all its rows on or off. Put a row in a group from its details."),
-    ...(pre.groups || []).map((g) => h("div", { class: "plugin-row" },
-      switchBtn(g.on !== false, g.name + " on or off", (v) => ((g.on = v), redraw())),
-      h("input", { class: "grow", value: g.name, "aria-label": "Group name", oninput: (e) => ((g.name = e.target.value), saveConfig(), render()) }),
-      h("small", { class: "muted" }, `${pre.rows.filter((r) => r.group === g.id).length} rows`),
-      h("button", { class: "small danger", "aria-label": "Delete group", onclick: async () => (await askConfirm(`Delete the group “${g.name}”? Its rows stay, without a group.`)) && (P.removeGroup(pre, g), rerenderSheet(), render()) }, "✕"))),
-    h("div", { class: "row" }, h("button", { class: "small", onclick: async () => { const n = await askText("Group name", "Group " + ((pre.groups || []).length + 1), "Add"); if (n) (P.addGroup(pre, n), rerenderSheet(), render()); } }, "Add group")),
-    h("h3", {}, "What will be sent"),
-    h("div", { class: "row" },
-      h("label", { class: "field inline" }, h("span", {}, "As the first message of a site chat"), h("input", { type: "checkbox", checked: first, onchange: (e) => ((first = e.target.checked), showPreview()) })),
-      h("button", { class: "small", onclick: showPreview }, "Show")),
-    (showPreview(), preview),
+    profileDropdown({ id: "edit", current: prof, showEdit: false, sub: isActive ? "Editing the active profile · tap to change" : "Editing · not the active profile", pick: (p) => ((S.editProfile = p.id), rerenderSheet()) }),
+    h("div", { class: "lbl" }, "Sent top to bottom"),
+    ...pre.rows.map(rowEl),
+    item({ id: "plugins.add", label: "Add a row", sub: "System prompts and message plugins", chev: true, onclick: openAddRow }),
+    h("div", { class: "lbl" }, "This profile"),
+    isActive ? null : item({ id: "plugins.use", label: "Use this profile", sub: "Make it the active one", onclick: () => (switchProfile(prof.id), rerenderSheet()) }),
+    item({ id: "plugins.rename", label: "Rename", sub: prof.name, onclick: async () => {
+      const n = await askText("Rename the profile", prof.name, "Rename");
+      if (n && n.trim()) ((prof.name = n.trim()), redraw());
+    } }),
+    item({ id: "plugins.dup", label: "Duplicate", sub: "A copy to change", onclick: () => ((S.editProfile = PP.pipeline.copyProfile(prof, uniqueName(prof.name + " copy")).id), rerenderSheet()) }),
+    item({ id: "plugins.groups", label: "Groups", sub: (pre.groups || []).length ? (pre.groups || []).map((g) => g.name).join(", ") : "One switch for several rows", chev: true, onclick: openGroups }),
+    item({ id: "plugins.preview", label: "What will be sent", sub: "The message with these rows", chev: true, onclick: openPreview }),
+    S.config.profiles.length > 1 ? item({ id: "plugins.delete", cls: "danger", label: "Delete this profile", onclick: async () => {
+      if (!(await askConfirm(`Delete the profile “${prof.name}”?`))) return;
+      S.config.profiles = S.config.profiles.filter((x) => x !== prof);
+      if (S.config.activeProfile === prof.id) S.config.activeProfile = S.config.profiles[0].id;
+      S.editProfile = S.config.activeProfile;
+      redraw();
+    } }) : null,
   ];
 };
 
-// "Add a row": a system prompt (new, or from the library) or a message plugin's part.
+// One row's page: what it is and its choices, as rows.
+const openRowPage = (r) =>
+  openSheet(rowTitle(r), () => {
+    const prof = editedProfile();
+    const pre = prof.pipe;
+    const P = PP.pipeline;
+    const i = pre.rows.indexOf(r);
+    if (i < 0) return [item({ label: "This row isn't in the profile any more" })];
+    const redraw = () => (saveConfig(), rerenderSheet(), render());
+    const groupRows = () => [
+      h("div", { class: "lbl" }, "Group"),
+      item({ label: "No group", radio: !r.group, onclick: () => ((r.group = ""), redraw()) }),
+      ...(pre.groups || []).map((g) => item({ label: g.name, sub: g.on === false ? "Off" : "", radio: r.group === g.id, onclick: () => ((r.group = g.id), redraw()) })),
+    ];
+    const takeOut = (what) => item({ cls: "danger", label: what, onclick: async () => {
+      if (!(await askConfirm(`Take “${P.rowName(r)}” out of this profile?`, "Take out"))) return;
+      pre.rows.splice(pre.rows.indexOf(r), 1);
+      saveConfig();
+      render();
+      openPlugins("profile");
+    } });
+    if (r.type === "message") return [item({ label: "Your message", sub: "Your text goes here. Move it to put rows before or after it." })];
+    const onRow = item({ label: "On", sub: P.rowLive(pre, r) || r.on === false ? "" : "Its group is off", toggle: r.on !== false, onclick: () => ((r.on = r.on === false), redraw()) });
+    if (r.type === "piece") {
+      const n = r.when === "depth" ? r.n ?? 0 : r.n || 5;
+      return [
+        onRow,
+        h("div", { class: "lbl" }, "Name"),
+        h("label", { class: "search" }, h("input", { value: r.name || "", "aria-label": "Name", oninput: (e) => ((r.name = e.target.value), saveConfig()), onblur: () => render() })),
+        h("div", { class: "lbl" }, "Text"),
+        h("textarea", { class: "box", rows: 7, value: r.text || "", "aria-label": "Text", placeholder: "What to send. Empty rows aren't sent.", oninput: (e) => ((r.text = e.target.value), saveConfig()) }),
+        h("div", { class: "lbl" }, "Send it"),
+        ...Object.entries(P.WHEN).map(([v, l]) => item({ label: l, radio: (r.when || "every") === v, onclick: () => ((r.when = v), redraw()) })),
+        r.when === "everyN" || r.when === "depth"
+          ? item({ label: r.when === "depth" ? "Messages up from the newest" : "Every how many messages", sub: r.when === "depth" ? "Inside the earlier chat Memory sends (0 = right after it). Without it, just before your message." : "The first message of a site chat always gets it.", right: String(n), onclick: async () => {
+              const v = await askText(r.when === "depth" ? "Messages up from the newest (0 or more)" : "Every how many messages (1 or more)", String(n), "Set");
+              if (v != null && v !== "") ((r.n = r.when === "depth" ? Math.max(0, Math.round(+v || 0)) : Math.max(1, Math.round(+v || 1))), redraw());
+            } })
+          : null,
+        ...groupRows(),
+        h("div", { class: "lbl" }, "More"),
+        item({ label: "Copy the text", onclick: () => copyText(r.text || "", "Copied") }),
+        takeOut("Delete this system prompt"),
+      ];
+    }
+    const p = S.plugins.get(r.plugin);
+    const own = r.part ? !!P.partOf(r) : p?.def && typeof p.def.piece === "function";
+    const scoped = !r.part && p?.def && typeof p.def.beforeSend === "function" && !own;
+    return [
+      onRow,
+      item({ label: p ? p.manifest.name || p.id : r.plugin, sub: p ? p.manifest.description || plainKind(r) : "This plugin isn't installed, so the row is skipped." }),
+      ...(scoped
+        ? [h("div", { class: "lbl" }, "It changes"),
+           item({ label: "Everything above it", radio: r.scope !== "message", onclick: () => ((r.scope = "above"), redraw()) }),
+           item({ label: "Only your message", radio: r.scope === "message", onclick: () => ((r.scope = "message"), redraw()) })]
+        : [item({ label: own ? "Its text goes where this row is." : "It doesn't change the message (it works on replies or chats), so its place doesn't matter." })]),
+      ...groupRows(),
+      h("div", { class: "lbl" }, "More"),
+      p ? item({ label: "Plugin settings", chev: true, onclick: () => openPluginSettings(r.plugin) }) : null,
+      takeOut("Take it out of this profile"),
+    ];
+  }, { back: () => openPlugins("profile") });
+
+// Groups: one switch turns all of a group's rows on or off.
+const openGroups = () =>
+  openSheet("Groups", () => {
+    const pre = editedProfile().pipe;
+    const P = PP.pipeline;
+    const redraw = () => (saveConfig(), rerenderSheet(), render());
+    return [
+      h("div", { class: "sub2" }, "A group's switch turns all its rows on or off. Put a row in a group from its page."),
+      ...(pre.groups || []).map((g) => h("div", { class: "it" },
+        h("button", { class: "g", onclick: async () => { const n = await askText("Group name", g.name, "Rename"); if (n) ((g.name = n), redraw()); } }, g.name, h("small", {}, `${pre.rows.filter((r) => r.group === g.id).length} rows · tap to rename`)),
+        h("button", { class: "act", "aria-label": "Delete group " + g.name, onclick: async () => (await askConfirm(`Delete the group “${g.name}”? Its rows stay, without a group.`)) && (P.removeGroup(pre, g), redraw()) }, svgIcon("close")),
+        switchBtn(g.on !== false, g.name + " on or off", (v) => ((g.on = v), redraw())))),
+      item({ label: "Add a group", onclick: async () => { const n = await askText("Group name", "Group " + ((pre.groups || []).length + 1), "Add"); if (n) (P.addGroup(pre, n), redraw()); } }),
+    ];
+  }, { back: () => openPlugins("profile") });
+
+// What the rows make of a message, first message of a site chat or a later one.
+const openPreview = () => {
+  let first = true;
+  openSheet("What will be sent", () => [
+    h("div", { class: "seg wide" },
+      h("button", { class: first ? "on" : "", onclick: () => ((first = true), rerenderSheet()) }, "First message"),
+      h("button", { class: first ? "" : "on", onclick: () => ((first = false), rerenderSheet()) }, "A later one")),
+    h("pre", { class: "pipe-preview" }, PP.pipeline.previewMessage(editedProfile(), { first }) || "(nothing)"),
+  ], { back: () => openPlugins("profile") });
+};
+
+// "Add a row": a system prompt (new, or from the library) or a message plugin.
 const openAddRow = () =>
   openSheet("Add a row", () => {
-    const prof = profileById(S.editProfile);
+    const prof = editedProfile();
     const pre = prof.pipe;
     const P = PP.pipeline;
     const lib = S.promptLib || [];
     if (!S.promptLib) P.promptLibrary().then((l) => ((S.promptLib = l), rerenderSheet()));
-    const put = (row) => {
-      const at = pre.rows.findIndex((r) => r.type === "message");
-      pre.rows.splice(Math.max(0, at), 0, row);
-      S.openRow = row;
+    const put = (row, open) => {
+      if (row.type === "piece") pre.rows.splice(Math.max(0, pre.rows.findIndex((r) => r.type === "message")), 0, row);
+      else pre.rows.push(row);
       saveConfig();
-      openProfileEditor(prof.id, row);
+      render();
+      if (open) openRowPage(row);
+      else (openPlugins("profile"), toast("Added to the profile"));
     };
+    const has = (id, part) => pre.rows.some((r) => r.type === "step" && r.plugin === id && (r.part || "") === (part || ""));
+    const steps = P.pipeSteps();
+    const parts = P.pluginPieces();
     return [
-      backRow("Edit profile", () => openProfileEditor(prof.id)),
-      h("h3", {}, "System prompts"),
-      sheetRow({ icon: "plus", label: "New system prompt", sub: "Write one for this profile", onclick: () => put(P.piece("New system prompt", "")) }),
-      ...lib.map((x) => sheetRow({ icon: "chat", label: x.name || x.text.trim().split("\n")[0].slice(0, 40), sub: "From your library. A copy goes in.", onclick: () => put(P.piece(x.name || "", x.text)) })),
-      h("h3", {}, "Message plugins"),
-      ...(P.pluginPieces().length
-        ? P.pluginPieces().map((x) => sheetRow({ icon: "layers", label: x.name, sub: pre.rows.some((r) => r.plugin === x.plugin && r.part === x.part) ? "Already in this profile" : "Adds text where it sits", onclick: () => put(P.partRow(x.plugin, x.part)) }))
-        : [h("p", { class: "muted" }, "No plugin gives rows of its own. Plugins you switch on or off are in the list above.")]),
+      h("div", { class: "lbl" }, "System prompts"),
+      item({ id: "addpiece.new", label: "New system prompt", sub: "Write one for this profile", onclick: () => put(P.piece("New system prompt", ""), true) }),
+      ...lib.map((x) => item({ label: x.name || x.text.trim().split("\n")[0].slice(0, 40), onclick: () => put(P.piece(x.name || "", x.text)) })),
+      h("div", { class: "lbl" }, "Message plugins"),
+      ...steps.map((p) => item({ label: p.manifest.name || p.id, sub: has(p.id) ? "Already in this profile" : "", onclick: () => (has(p.id) ? toast("Already in this profile") : put(P.step(p.id, true, p.id === "base64" ? "message" : "above"))) })),
+      ...parts.map((x) => item({ label: x.name, sub: has(x.plugin, x.part) ? "Already in this profile" : "", onclick: () => put(P.partRow(x.plugin, x.part)) })),
+      steps.length || parts.length ? null : item({ label: "No message plugins yet", sub: "Get them in the Library", chev: true, onclick: () => openPlugins("library") }),
     ];
-  });
+  }, { back: () => openPlugins("profile") });
 
 // ---------- export and import ----------
 const fileSlug = (s) => (s || "profile").toLowerCase().normalize("NFKD").replace(/[^\w\s-]/g, "").trim().replace(/[\s_]+/g, "-").slice(0, 40) || "profile";

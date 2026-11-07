@@ -344,6 +344,7 @@
     url: location.href,
     title: document.title,
     model: site ? textOf(first(site.model || [])) : "",
+    input: site ? !!first(site.input || []) : false, // the chat box shows (logged in, or a guest the site lets in)
   });
 
   const list = (site) => {

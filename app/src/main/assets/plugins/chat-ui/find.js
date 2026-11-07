@@ -33,9 +33,15 @@ const commands = () => [
   { name: "Quick edit and add", path: "Message bar", key: "", run: openQuick },
   { name: "Put a text file in the box", path: "Message bar", key: "", run: () => pickTextFiles(false) },
   { name: "Put several text files in the box", path: "Message bar", key: "", run: () => pickTextFiles(true) },
-  ...profile().plugins
-    .filter((e) => isStep(S.plugins.get(e.id)))
-    .map((e) => ({ name: `Toggle ${pluginName(e.id)} (${stepOn(e.id) ? "on" : "off"})`, path: "Profile", key: "", run: () => (setStepOn(e.id, !stepOn(e.id)), render()) })),
+  { name: "Open a chat from the site", path: "Chats", key: "", run: openSiteChats },
+  // The rows of the profile in use, and Add a row (as the wireframe finds them).
+  ...profile().pipe.rows.map((r) => ({ name: rowTitle(r), path: "Settings › Plugins › Profile", key: "", run: () => ((S.editProfile = profile().id), openRowPage(r)) })),
+  { name: "Add a row", path: "Settings › Plugins › Profile", key: "", run: () => ((S.editProfile = profile().id), openAddRow()) },
+  // Every installed plugin has its page.
+  ...[...S.plugins.values()].filter((p) => p.manifest && !isPart(p) && !isDriver(p)).map((p) => ({ name: (p.manifest.name || p.id) + " plugin", path: "Settings › Plugins › Library", key: "", run: () => openPluginPage(p.id) })),
+  { name: "Get plugins", path: "Settings › Plugins › Library", key: "", run: () => openGetPlugins() },
+  { name: "Add plugin source", path: "Settings › Plugins › Library", key: "", run: openAddSource },
+  { name: "Install a plugin from a file or link", path: "Settings › Plugins › Library", key: "", run: openInstall },
   { name: "Plugins", path: "Settings", key: "Ctrl+Shift+P", run: () => openPlugins() },
   { name: "Reload plugins", path: "Settings › Plugins", key: "Ctrl+Shift+R", run: reloadPlugins },
   { name: "Plugin guide", path: "Settings › Plugins", key: "", run: openPluginGuide },
@@ -46,35 +52,47 @@ const commands = () => [
   { name: "Storage check", path: "Settings › Chats and storage", key: "", run: openStorageCheck },
   { name: "Git history", path: "Settings › Chats and storage", key: "", run: openGit },
   { name: "Settings", path: "Settings", key: "Ctrl+,", run: openSettings },
-  { name: "Look: scale and theme", path: "Settings › Look", key: "", run: () => openSheet("Look", lookControls) },
+  { name: "Accent", path: "Settings › Look", key: "", run: openAccent },
+  { name: "Model and switches", path: "Profile and site", key: "", run: openModels },
   { name: "Bigger UI", path: "Settings › Look", key: "Ctrl+=", run: () => setScale(S.config.ui.scale + 0.05) },
   { name: "Smaller UI", path: "Settings › Look", key: "Ctrl+-", run: () => setScale(S.config.ui.scale - 0.05) },
   { name: "Shortcuts and help", path: "Help", key: "Ctrl+?", run: openHelp },
-  { name: "Quick start", path: "Help", key: "", run: openQuickStart },
+  { name: "Quick start", path: "Help", key: "", run: openQuickStartList },
 ];
 
 // Settings pages are found by name; the controls on them by these labels (the
 // text the control shows, flashed once its page is open).
 const SETTING_CONTROLS = [
-  ["Look", "Light or dark"], ["Look", "Accent"], ["Look", "Text size"], ["Look", "UI scale"], ["Look", "Theme"],
+  ["Look", "Light or dark"], ["Look", "Accent"], ["Look", "UI scale"], ["Look", "Quick actions under replies"],
   ["Look", "Stay at the bottom while a reply comes in"], ["Look", "Enter sends"],
-  ["Chats and storage", "Chats folder"], ["Chats and storage", "Choose a folder"], ["Chats and storage", "Git history and backup"], ["Chats and storage", "Storage check"],
-  ["Sites", "Get site plugins"], ["Sites", "Max replies at once"], ["Sites", "Waiting for replies"],
-  ["Import and export", "Export all profiles"], ["Import and export", "Import a profile"], ["Import and export", "Importing a name you already have"],
-  ["Local API", "API token"], ["Local API", "Folder for chats made through the API"],
-  ["Advanced", "App parts"], ["Advanced", "Stop background service"], ["Advanced", "Core log"], ["Advanced", "Reset to first launch"],
-  ["System prompts", "Open the library"], ["Help", "Shortcuts and help"],
+  ["Sites", "Max replies at once"], ["Sites", "Waiting for replies"],
+  ["Chats and storage", "Chat folder"], ["Chats and storage", "Move all chats to another folder…"], ["Chats and storage", "Git history and backup"], ["Chats and storage", "Allow all files access"], ["Chats and storage", "Storage check"],
+  ["Import and export", "Export all profiles"], ["Import and export", "Import a profile…"], ["Import and export", "Export all system prompts"], ["Import and export", "Import system prompts…"], ["Import and export", "Importing a name you already have"],
+  ["Local API", "Address"], ["Local API", "API token"], ["Local API", "How apps use it"], ["Local API", "Folder for chats made through the API"],
+  ["Advanced", "Reset to first launch"], ["Advanced", "App parts"], ["Advanced", "Safe mode"], ["Advanced", "Core log"], ["Advanced", "Stop background service"], ["Advanced", "Version"],
+  ["Help", "Show the ? button"], ["Help", "Shortcuts"], ["Help", "Plugin guide"],
 ];
 
-const findEntries = () => [
-  ...commands(),
-  ...SETTINGS.map(([title, sub, body]) => ({ name: title, path: "Settings", key: "", sub, run: () => settingsPage(title, body) })),
-  ...SETTING_CONTROLS.map(([page, label]) => {
-    const [title, , body] = SETTINGS.find((s) => s[0] === page);
-    return { name: label, path: "Settings › " + page, key: "", run: () => settingsPage(title, body), flash: label };
-  }),
-  ...S.chats.map((c) => ({ name: c.meta.title || c.path, path: "Chat" + (dFolderOf(c.path) ? " in " + dFolderOf(c.path) : ""), key: "", chat: true, run: () => openChat(c.path).catch((e) => toast(e.message, "error")) })),
-];
+// Everything once (a name in the same place is one entry).
+const findEntries = () => {
+  const all = [
+    ...commands(),
+    ...SETTINGS.map(([title, sub, body]) => ({ name: title, path: "Settings", key: "", sub, run: () => openSettingsGroup(title, body) })),
+    ...SETTING_CONTROLS.map(([page, label]) => {
+      const [title, , body] = SETTINGS.find((s) => s[0] === page);
+      return { name: label, path: "Settings › " + page, key: "", run: () => openSettingsGroup(title, body), flash: label };
+    }),
+    ...S.chats.map((c) => ({ name: c.meta.title || c.path, path: "Chat" + (dFolderOf(c.path) ? " in " + dFolderOf(c.path) : ""), key: "", chat: true, run: () => openChat(c.path).catch((e) => toast(e.message, "error")) })),
+  ];
+  const seenAt = new Map();
+  for (const e of all) {
+    const k = e.name.toLowerCase() + "|" + e.path;
+    const had = seenAt.get(k);
+    if (!had) seenAt.set(k, e);
+    else if (!had.key && e.key) seenAt.set(k, { ...had, key: e.key });
+  }
+  return [...seenAt.values()];
+};
 
 // Every word must be in the name or the path; the name counts more.
 const scoreEntry = (e, words) => {
@@ -103,10 +121,10 @@ const rankEntries = (entries, q) => {
 // Flash the control a result points at, once its screen is on.
 const flashControl = (text) =>
   setTimeout(() => {
-    const body = document.querySelector(".sheet-body");
+    const body = document.querySelector(".sheet .body");
     if (!body) return;
     const hit = [...body.querySelectorAll("*")].filter((el) => el.textContent.toLowerCase().includes(text.toLowerCase()) && ![...el.children].some((k) => k.textContent.toLowerCase().includes(text.toLowerCase()))).pop();
-    const target = hit?.closest("label, .row, .menu-item, button, h3, p") || hit;
+    const target = hit?.closest(".it, label, .row, button, .lbl") || hit;
     if (!target) return;
     target.classList.add("flash");
     target.scrollIntoView({ block: "center" });
@@ -199,10 +217,10 @@ const openFind = (initial) => {
       runFromSheet(e);
       if (flash) flashControl(flash);
     };
+    let keys = false; // the arrows were used: show which row Enter opens
     const row = (e, i) =>
-      h("button", { class: "result find-row" + (i === sel ? " sel" : ""), onclick: () => pick(e) },
-        h("span", { class: "result-head" }, h("b", {}, e.name), e.key ? h("kbd", {}, e.key) : null),
-        h("span", { class: "result-path" }, e.path));
+      h("button", { class: "it" + (keys && i === sel ? " sel" : ""), onclick: () => pick(e) },
+        h("div", { class: "g" }, e.name, h("small", {}, e.path)), e.key ? h("kbd", {}, e.key) : null);
     const draw = async () => {
       const q = input.value;
       S.lastFind = q;
@@ -212,22 +230,23 @@ const openFind = (initial) => {
         const recent = (S.config.findRecent || []).map((n) => all.find((e) => e.name === n)).filter(Boolean);
         picks = recent;
         return list.replaceChildren(...[
-          recent.length ? h("h3", {}, "Recent") : null,
-          recent.length ? h("div", { class: "chips" }, recent.map((e) => h("button", { class: "chip", onclick: () => pick(e) }, e.name))) : null,
-          h("h3", {}, "Try"),
-          h("div", { class: "chips" }, ["model", "profile", "plugin", "prompt", "export", "folder"].map((w) => h("button", { class: "chip", onclick: () => ((input.value = w), (sel = 0), draw(), input.focus()) }, w))),
+          recent.length ? h("div", { class: "lbl" }, "Recent") : null,
+          recent.length ? h("div", { class: "chips" }, recent.map((e) => h("button", { class: "pill", onclick: () => pick(e) }, e.name))) : null,
+          h("div", { class: "lbl" }, "Try"),
+          h("div", { class: "chips" }, ["model", "profile", "plugin", "prompt", "export", "folder"].map((w) => h("button", { class: "pill", onclick: () => ((input.value = w), (sel = 0), draw(), input.focus()) }, w))),
         ].filter(Boolean));
       }
-      const things = q.trim() ? rankEntries(findEntries(), q).slice(0, 25) : findEntries().filter((e) => !e.chat).slice(0, 8);
+      const ranked = rankEntries(findEntries(), q);
+      const things = [...ranked.filter((e) => e.chat).slice(0, 8), ...ranked.filter((e) => !e.chat).slice(0, 25)]; // chats first, then functions
       const wantsMessages = q.trim().length >= 2;
       let hits = [];
       if (wantsMessages) {
         if (!S.index) {
-          list.replaceChildren(...things.map(row), h("p", { class: "muted" }, "Reading chats…"));
+          list.replaceChildren(...things.map(row), item({ label: "Reading chats…" }));
           try {
             await buildIndex();
           } catch (e) {
-            return list.replaceChildren(h("p", { class: "error" }, e.message));
+            return list.replaceChildren(item({ cls: "danger", label: "Couldn't read the chats", sub: e.message }));
           }
           if (input.value !== q) return; // typed on meanwhile; that draw handles it
         }
@@ -237,15 +256,14 @@ const openFind = (initial) => {
       const words = parseQuery(q).words;
       picks = [...things, ...hits.slice(0, 200).map((e) => ({ run: () => goToMessage(e) }))];
       list.replaceChildren(...[
-        things.length ? h("h3", {}, q.trim() ? "Chats, functions and settings" : "Try") : null,
-        ...things.map(row),
-        wantsMessages ? h("h3", {}, `Messages${hits.length ? " (" + hits.length + ")" : ""}`) : null,
-        wantsMessages && !hits.length ? h("p", { class: "muted" }, "No message matches.") : null,
+        things.some((e) => e.chat) ? h("div", { class: "lbl" }, "Chats") : null,
+        ...things.map((e, i) => [e.chat ? null : i === things.findIndex((x) => !x.chat) ? h("div", { class: "lbl" }, "Functions") : null, row(e, i)]).flat(),
+        wantsMessages ? h("div", { class: "lbl" }, `Messages${hits.length ? " (" + hits.length + ")" : ""}`) : null,
+        wantsMessages && !hits.length ? item({ label: "No message matches" }) : null,
         ...hits.slice(0, 200).map((e, j) => {
           const i = things.length + j;
-          return h("button", { class: "result" + (i === sel ? " sel" : ""), onclick: () => goToMessage(e) },
-            h("span", { class: "result-head" }, h("b", {}, e.title), e.n >= 0 ? ` · #${e.n + 1}` : "", " · ", ChatFile.stamp(e.at), e.tags.length ? "  " + e.tags.map((t) => "#" + t).join(" ") : ""),
-            h("span", { class: "result-text" }, snippet(e, words)));
+          return h("button", { class: "it" + (keys && i === sel ? " sel" : ""), onclick: () => goToMessage(e) },
+            h("div", { class: "g" }, h("span", {}, e.title, e.n >= 0 ? ` · #${e.n + 1}` : "", " · ", ChatFile.stamp(e.at), e.tags.length ? "  " + e.tags.map((t) => "#" + t).join(" ") : ""), h("small", {}, snippet(e, words))));
         }),
       ].filter(Boolean));
       list.querySelector(".sel")?.scrollIntoView({ block: "nearest" });
@@ -257,8 +275,8 @@ const openFind = (initial) => {
       timer = setTimeout(draw, 120);
     };
     input.onkeydown = (e) => {
-      if (e.key === "ArrowDown") sel = Math.min(sel + 1, picks.length - 1);
-      else if (e.key === "ArrowUp") sel = Math.max(sel - 1, 0);
+      if (e.key === "ArrowDown") ((sel = keys ? Math.min(sel + 1, picks.length - 1) : 0), (keys = true));
+      else if (e.key === "ArrowUp") ((sel = Math.max(sel - 1, 0)), (keys = true));
       else if (e.key === "Enter" && picks[sel]) return void pick(picks[sel]);
       else return;
       e.preventDefault();

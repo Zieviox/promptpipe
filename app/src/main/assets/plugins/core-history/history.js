@@ -61,7 +61,7 @@ const startNewChat = (folder) => {
   S.unseen = [];
   closeDrawer();
   render();
-  setTimeout(() => document.querySelector(".composer textarea")?.focus(), 0);
+  setTimeout(() => document.querySelector("#msg")?.focus(), 0);
 };
 
 const openSiteChat = async (c) => {

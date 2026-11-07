@@ -226,7 +226,7 @@ const selPaths = () => [...S.sel].map(kName);
 // Press and hold a row to start selecting.
 const holdToSelect = (el, k) => {
   el.addEventListener("pointerdown", (e) => {
-    if (S.selMode || e.target.closest("button.rbtn")) return;
+    if (S.selMode || e.target.closest(".pb, .grip")) return;
     const x = e.clientX, y = e.clientY;
     const timer = setTimeout(() => ((S.selMode = true), (S.sel = new Set()), toggleSel(k)), 450);
     const stop = () => {
@@ -250,7 +250,7 @@ const startDrag = (e, k) => {
   e.preventDefault();
   const grip = e.currentTarget;
   grip.setPointerCapture(e.pointerId);
-  const list = document.querySelector(".chat-list");
+  const list = document.querySelector("#clist");
   const rows = () => [...list.querySelectorAll("[data-ck]")];
   const src = list.querySelector(`[data-ck="${CSS.escape(k)}"]`);
   const y0 = e.clientY;
@@ -302,34 +302,36 @@ const startDrag = (e, k) => {
   grip.addEventListener("pointercancel", cancel);
 };
 
-// ---------- rows ----------
+// ---------- rows (the wireframe's compact rows) ----------
 const rbtn = (icon, label, onclick, extra = "") =>
-  h("button", { class: "rbtn " + extra, "aria-label": label, title: label, onpointerdown: (e) => e.stopPropagation(), onclick: (e) => (e.stopPropagation(), onclick(e)) }, svgIcon(icon));
-const gripBtn = (k) => h("button", { class: "rbtn grip", "aria-label": "Drag to move", title: "Drag to move", onpointerdown: (e) => (e.stopPropagation(), startDrag(e, k)), onclick: (e) => e.stopPropagation() }, svgIcon("grip"));
+  h("button", { class: "pb " + extra, "aria-label": label, title: label, onpointerdown: (e) => e.stopPropagation(), onclick: (e) => (e.stopPropagation(), onclick(e)) }, svgIcon(icon));
+const gripBtn = (k) => h("button", { class: "grip", "aria-label": "Drag to move", title: "Drag to move", onpointerdown: (e) => (e.stopPropagation(), startDrag(e, k)), onclick: (e) => e.stopPropagation() }, svgIcon("grip"));
 const checkBox = (on) => h("span", { class: "cb" + (on ? " on" : ""), "aria-hidden": "true" }, on ? svgIcon("check") : null);
+// A row you tap (and reach with the keyboard).
+const tapRow = (cls, k, onTap, kids, extra = {}) =>
+  h("div", { class: cls, "data-ck": k, role: "button", tabindex: "0", onclick: onTap, onkeydown: (e) => (e.key === "Enter" || e.key === " ") && e.target === e.currentTarget && (e.preventDefault(), onTap()), ...extra }, kids);
 
 // Whether a chat is being answered or has an answer you have not seen (parallel
-// chats fill this in; nothing yet).
+// chats fill this in).
 const chatStatus = (path) => (S.chatStatus && S.chatStatus[path]) || "";
 
-const chatRowFor = (c, { depth = 0, drag = true } = {}) => {
+const chatRowFor = (c, { depth = 0, drag = true, search = false } = {}) => {
   const k = cKey(c.path);
   const on = S.sel.has(k);
-  const tags = (c.meta.tags || []).filter((t) => !t.endsWith("#")).slice(0, 2).map((t) => "#" + t).join(" ");
   const status = chatStatus(c.path);
-  const row = h(
-    "div",
-    { class: "crow" + (S.chat.path === c.path ? " current" : "") + (on ? " sel" : ""), "data-ck": k, style: depth ? `padding-left:${depth * 16}px` : null },
-    S.selMode ? checkBox(on) : null,
-    h(
-      "button",
-      { class: "cmain", onclick: () => (S.selMode ? toggleSel(k) : openChat(c.path).catch((e) => toast(e.message, "error"))) },
+  const row = tapRow(
+    "cr" + (depth ? " ind" : "") + (S.chat.path === c.path ? " cur" : "") + (on ? " sel" : ""),
+    k,
+    () => (S.selMode ? toggleSel(k) : openChat(c.path).catch((e) => toast(e.message, "error"))),
+    [
+      S.selMode ? checkBox(on) : search && isPinned(c.path) ? h("span", { class: "ch" }, svgIcon("pin")) : null,
       h("span", { class: "ct" }, c.meta.title || dBase(c.path)),
-      tags ? h("span", { class: "ctag" }, tags) : null,
-      status ? h("span", { class: "cstat " + (status === "Reply ready" ? "ready" : "") }, status) : null,
-    ),
-    S.selMode ? null : rbtn("pin", isPinned(c.path) ? "Unpin" : "Pin to top", () => togglePin(c.path), isPinned(c.path) ? "on" : ""),
-    drag ? gripBtn(k) : null,
+      h("span", { class: "ctag" }, (c.meta.tags || []).filter((t) => !t.endsWith("#")).join(" ")),
+      status ? h("span", { class: "cstat" + (status === "Reply ready" ? " on" : "") }, status) : null,
+      S.selMode ? null : rbtn("pin", isPinned(c.path) ? "Unpin" : "Pin to top", () => togglePin(c.path), isPinned(c.path) ? "on" : ""),
+      drag ? gripBtn(k) : null,
+    ],
+    depth > 1 ? { style: `margin-left:${depth * 16}px` } : {},
   );
   holdToSelect(row, k);
   return row;
@@ -342,18 +344,18 @@ const folderPanel = (f) => {
   input.onkeydown = (e) => e.key === "Enter" && rename();
   return h(
     "div",
-    { class: "fpanel" },
+    { class: "search fpanel", style: "margin-left:16px" },
     input,
     h(
       "div",
-      { class: "row" },
-      h("button", { class: "small primary", onclick: rename }, "Rename"),
-      h("button", { class: "small danger", onclick: async () => {
+      { class: "chips" },
+      h("button", { class: "pill", onclick: rename }, "Rename"),
+      h("button", { class: "pill", onclick: async () => {
         if (await askConfirm(`Delete the folder "${f}"? ${inside ? `Its ${inside} chat${inside === 1 ? "" : "s"} move${inside === 1 ? "s" : ""} to the top level.` : "It is empty."}`, "Delete folder")) {
           if (await applyPlan(planDeleteFolder(dModel(), f), `delete folder: ${f}`)) (S.fedit = null), render();
         }
-      } }, "Delete"),
-      h("button", { class: "small", onclick: () => ((S.fedit = null), render()) }, "Cancel"),
+      } }, svgIcon("trash"), "Delete"),
+      h("button", { class: "pill", onclick: () => ((S.fedit = null), render()) }, "Cancel"),
     ),
   );
 };
@@ -364,29 +366,24 @@ const folderRowFor = (m, f, depth) => {
   const count = m.chats.filter((p) => under(p, f) && !m.pinned.includes(p)).length;
   const kids = S.chats.filter((c) => dFolderOf(c.path) === f && !isPinned(c.path)).map((c) => cKey(c.path));
   const all = kids.length && kids.every((x) => S.sel.has(x));
-  const row = h(
-    "div",
-    { class: "crow frow" + (S.folder === f ? " current" : ""), "data-ck": k, style: depth ? `padding-left:${depth * 16}px` : null },
-    S.selMode ? checkBox(all) : null,
-    h(
-      "button",
-      {
-        class: "cmain",
-        "aria-expanded": String(open),
-        onclick: () => {
-          if (S.selMode) return toggleSel(k);
-          open ? S.openFolders.delete(f) : S.openFolders.add(f);
-          S.folder = f;
-          local("openFolders", [...S.openFolders]);
-          render();
-        },
-      },
-      S.selMode ? null : h("span", { class: "chev" }, svgIcon(open ? "down" : "right")),
+  const row = tapRow(
+    "cr fr",
+    k,
+    () => {
+      if (S.selMode) return toggleSel(k);
+      open ? S.openFolders.delete(f) : S.openFolders.add(f);
+      S.folder = f;
+      local("openFolders", [...S.openFolders]);
+      render();
+    },
+    [
+      S.selMode ? checkBox(all) : h("span", { class: "ch" }, svgIcon(open ? "down" : "right")),
       h("span", { class: "ct" }, dBase(f)),
-      h("span", { class: "ccount" }, String(count)),
-    ),
-    S.selMode ? null : rbtn("edit", "Rename or delete the folder " + dBase(f), () => ((S.fedit = S.fedit === f ? null : f), render())),
-    gripBtn(k),
+      h("span", { class: "ch" }, String(count)),
+      S.selMode ? null : rbtn("edit", "Rename or delete folder " + dBase(f), () => ((S.fedit = S.fedit === f ? null : f), render())),
+      gripBtn(k),
+    ],
+    { "aria-expanded": String(open), ...(depth ? { style: `margin-left:${depth * 16}px` } : {}) },
   );
   holdToSelect(row, k);
   return row;
@@ -405,7 +402,7 @@ const treeRows = (m, level, depth, out) => {
     if (S.openFolders.has(f)) {
       const n = out.length;
       treeRows(m, f, depth + 1, out);
-      if (out.length === n) out.push(h("div", { class: "empty-note", style: `padding-left:${(depth + 1) * 16 + 8}px` }, "Empty. Drag chats here."));
+      if (out.length === n) out.push(h("div", { class: "sub2", style: `padding:2px 6px 2px ${(depth + 1) * 16 + 6}px` }, "Empty. Drag chats here."));
     }
   }
   return out;
@@ -420,20 +417,13 @@ const matches = (c) => {
   );
 };
 
-// Tag chips under the search, most used first: tap one to show only its chats.
+// Tag chips under the search, most used first: tap one to search for it.
 const tagFilter = () => {
   const count = new Map();
-  for (const c of S.chats) for (const t of c.meta.tags || []) count.set(t, (count.get(t) || 0) + 1);
+  for (const c of S.chats) for (const t of c.meta.tags || []) if (!t.endsWith("#")) count.set(t, (count.get(t) || 0) + 1);
   if (!count.size) return null;
-  const words = S.query.trim().split(/\s+/).filter(Boolean);
-  const on = (t) => words.includes("#" + t);
-  const toggle = (t) => {
-    S.query = (on(t) ? words.filter((w) => w !== "#" + t) : [...words, "#" + t]).join(" ");
-    render();
-  };
-  const tags = [...count.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 12);
-  return h("div", { class: "tag-filter", role: "group", "aria-label": "Filter by tag" },
-    tags.map(([t, n]) => h("button", { class: "tag-chip" + (on(t) ? " on" : ""), "aria-pressed": String(on(t)), onclick: () => toggle(t) }, "#" + t, h("span", { class: "n" }, String(n)))));
+  const tags = [...count.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 3).map(([t]) => t).sort();
+  return h("div", { class: "chips" }, tags.map((t) => h("button", { class: "pill" + (S.query.trim() === "#" + t ? " on" : ""), onclick: () => ((S.query = S.query.trim() === "#" + t ? "" : "#" + t), render()) }, "#" + t)));
 };
 
 // ---------- the drawer ----------
@@ -474,7 +464,7 @@ const makeFolderBox = () => {
   };
   input.onkeydown = (e) => e.key === "Enter" && go();
   setTimeout(() => input.focus(), 0);
-  return h("div", { class: "row folder-box" }, input, h("button", { class: "small primary", onclick: go }, "Create"), h("button", { class: "small", onclick: () => ((S.newFolderBox = false), render()) }, "Cancel"));
+  return h("div", { class: "search", style: "gap:6px" }, input, h("button", { class: "pill", onclick: go }, "Create"));
 };
 
 const selectBar = (m) => {
@@ -486,44 +476,39 @@ const selectBar = (m) => {
   return h(
     "div",
     { class: "selbar" },
-    h("div", { class: "muted" }, `${n} selected. Drag one to move them all.`),
+    h("div", { class: "sub2" }, `${n} selected. Drag one to move them all.`),
     S.selMove
       ? h("div", { class: "chips" },
-          h("button", { class: "chip", onclick: () => moveChats(paths, "").then((ok) => ok && done("Moved to the top level")) }, "Top level"),
-          folders.map((f) => h("button", { class: "chip", onclick: () => moveChats(paths, f).then((ok) => ok && done("Moved to " + f)) }, f)))
+          h("button", { class: "pill", onclick: () => moveChats(paths, "").then((ok) => ok && done("Moved to the top level")) }, "Top level"),
+          folders.map((f) => h("button", { class: "pill", onclick: () => moveChats(paths, f).then((ok) => ok && done("Moved to " + f)) }, f)))
       : null,
     h(
       "div",
       { class: "chips" },
-      h("button", { class: "chip", disabled: !n, onclick: () => (setPinned(paths, !allPinned), done()) }, svgIcon("pin"), allPinned ? "Unpin" : "Pin"),
-      h("button", { class: "chip", disabled: !n, onclick: () => ((S.selMove = !S.selMove), render()) }, svgIcon("folder"), "Move…"),
-      h("button", { class: "chip danger", disabled: !n, onclick: async () => {
+      h("button", { class: "pill", disabled: !n, onclick: () => (setPinned(paths, !allPinned), done()) }, svgIcon("pin"), allPinned ? "Unpin" : "Pin"),
+      h("button", { class: "pill", disabled: !n, onclick: () => ((S.selMove = !S.selMove), render()) }, svgIcon("folder"), "Move…"),
+      h("button", { class: "pill", disabled: !n, onclick: async () => {
         if (!(await askConfirm(`Delete ${n} chat${n === 1 ? "" : "s"}? They stay in git history.`))) return;
         await api("/api/history/save", { delete: paths, message: `delete: ${n} chats` }).catch((e) => toast(e.message, "error"));
         if (S.chat.path && paths.includes(S.chat.path)) S.chat = newChat();
         await loadTree();
         done(`Deleted ${n}`);
       } }, svgIcon("trash"), "Delete"),
-      h("button", { class: "chip", onclick: () => done() }, "Done"),
+      h("button", { class: "pill", onclick: () => done() }, "Done"),
     ),
   );
 };
 
-const siteSection = () =>
-  h(
-    "div",
-    { class: "site-list" },
-    h("button", { class: "site-head", "aria-expanded": String(!!S.siteListOpen), onclick: () => ((S.siteListOpen = !S.siteListOpen), render()) }, svgIcon(S.siteListOpen ? "down" : "right"), "On " + (siteFor()?.name || "the AI site")),
-    S.siteListOpen
-      ? [
-          h("div", { class: "row" }, h("button", { class: "small", onclick: refreshSiteChats }, "Refresh the list")),
-          S.siteChats.length
-            ? S.siteChats.map((c) => h("button", { class: "site-chat", onclick: () => openSiteChat(c) }, (S.chats.some((x) => sameUrl(x.meta.source, c.url)) ? "✓ " : "↗ ") + c.title))
-            : h("p", { class: "muted" }, "Tap Refresh to list the chats from the site's sidebar."),
-          siteLinkRow(),
-        ]
-      : null,
-  );
+// The chats in the AI site's own sidebar, to open here (Find: "Open a chat from the site").
+const openSiteChats = () =>
+  openSheet("Chats on " + (siteFor()?.name || "the AI site"), () => [
+    h("div", { class: "chips" }, h("button", { class: "pill", onclick: refreshSiteChats }, svgIcon("retry"), "Refresh the list")),
+    ...(S.siteChats.length
+      ? S.siteChats.map((c) => item({ label: c.title, sub: S.chats.some((x) => sameUrl(x.meta.source, c.url)) ? "Already here · opens it" : "Opens it here, linked to the site chat", onclick: () => (closeSheet(), openSiteChat(c)) }))
+      : [h("p", { class: "sub2" }, "Tap Refresh to list the chats from the site's sidebar.")]),
+    h("h3", {}, "Or paste a link"),
+    siteLinkRow(),
+  ]);
 
 const renderDrawer = () => {
   const m = dModel();
@@ -531,59 +516,49 @@ const renderDrawer = () => {
   const rows = [];
   if (searching) {
     const shown = S.chats.filter(matches);
-    rows.push(...(shown.length ? shown.map((c) => chatRowFor(c, { drag: false })) : [h("div", { class: "empty-note" }, "No chats match.")]));
+    rows.push(...(shown.length ? shown.map((c) => chatRowFor(c, { drag: false, search: true })) : [h("div", { class: "sub2" }, "No chats match.")]));
   } else {
     const pins = m.pinned.map((p) => S.chats.find((c) => c.path === p)).filter(Boolean);
-    rows.push(
-      h(
-        "div",
-        { class: "crow frow phead", "data-ck": "P" },
-        h("button", { class: "cmain", "aria-expanded": String(S.pinOpen), onclick: () => ((S.pinOpen = !S.pinOpen), local("pinOpen", S.pinOpen), render()) },
-          h("span", { class: "chev" }, svgIcon(S.pinOpen ? "down" : "right")), h("span", { class: "ct" }, "Pinned"), h("span", { class: "ccount" }, String(pins.length)), svgIcon("pin")),
-      ),
-    );
+    rows.push(tapRow("cr fr", "P", () => ((S.pinOpen = !S.pinOpen), local("pinOpen", S.pinOpen), render()),
+      [h("span", { class: "ch" }, svgIcon(S.pinOpen ? "down" : "right")), h("span", { class: "ct" }, "Pinned"), h("span", { class: "ch" }, String(pins.length)), h("span", { class: "ch" }, svgIcon("pin"))],
+      { "aria-expanded": String(S.pinOpen) }));
     if (S.pinOpen) {
       rows.push(...pins.map((c) => chatRowFor(c)));
-      if (!pins.length) rows.push(h("div", { class: "empty-note" }, "Drag chats here to pin them."));
+      if (!pins.length) rows.push(h("div", { class: "sub2", style: "padding:2px 6px 2px 22px" }, "Drag chats here to pin them."));
     }
     treeRows(m, "", 0, rows);
   }
   return h(
     "aside",
-    { class: "drawer" + (S.selMode ? " selecting" : ""), role: "dialog", "aria-label": "Chats" },
-    h(
-      "div",
-      { class: "drawer-head" },
-      h("h2", {}, "Chats"),
-      rbtn("check", S.selMode ? "Done selecting" : "Select chats", () => (S.selMode ? (endSelect(), render()) : beginSelect()), S.selMode ? "on" : ""),
+    { class: "drawer", role: "dialog", "aria-label": "Chats" },
+    h("div", { class: "sh" },
+      h("span", { class: "grow" }, "Chats"),
+      h("button", { class: "ic", "aria-label": S.selMode ? "Done selecting" : "Select chats", style: S.selMode ? "color:var(--accent)" : null, onclick: () => (S.selMode ? (endSelect(), render()) : beginSelect()) }, svgIcon("check")),
       helpBtn(),
-      rbtn("close", "Close", closeDrawer),
-    ),
-    h(
-      "div",
-      { class: "row" },
-      h("button", { class: "primary grow", onclick: () => startNewChat(), title: "Ctrl+N" }, "+ New chat" + (S.folder ? " in " + dBase(S.folder) : "")),
-      h("button", { "aria-label": "New folder", onclick: () => ((S.newFolderBox = !S.newFolderBox), render()) }, "+ Folder"),
-    ),
-    S.folder ? h("div", { class: "row muted" }, "New chats go to ", h("b", {}, S.folder), h("button", { class: "small", onclick: () => ((S.folder = ""), render()) }, "use top level")) : null,
+      h("button", { class: "ic", "aria-label": "Close", onclick: closeDrawer }, svgIcon("close"))),
+    h("div", { style: "display:flex;gap:6px" },
+      h("button", { class: "it newchat", onclick: () => startNewChat(), title: "Ctrl+N" }, "+ New chat" + (S.folder ? " in " + dBase(S.folder) : "")),
+      h("button", { class: "it newfolder", "aria-label": "New folder", onclick: () => ((S.newFolderBox = !S.newFolderBox), render()) }, "+ Folder")),
+    S.folder ? h("div", { class: "sub2" }, "New chats go to ", h("b", {}, S.folder), " · ", h("button", { style: "color:var(--accent)", onclick: () => ((S.folder = ""), render()) }, "use the top level")) : null,
     S.newFolderBox ? makeFolderBox() : null,
-    h("label", { class: "search" }, svgIcon("search"), h("input", {
-      type: "search",
+    h("label", { class: "search" }, h("span", { class: "ch" }, svgIcon("search")), h("input", {
+      id: "cs",
       "data-keep": "search",
       placeholder: "Search chats, #tag",
       value: S.query,
       oninput: (e) => ((S.query = e.target.value), render()),
       onkeydown: (e) => {
-        if (e.key === "Enter") document.querySelector(".chat-list .cmain")?.click();
-        if (e.key === "ArrowDown") (e.preventDefault(), document.querySelector(".chat-list button")?.focus());
+        if (e.key === "Enter") document.querySelector("#clist .cr:not(.fr)")?.click();
+        if (e.key === "ArrowDown") (e.preventDefault(), document.querySelector("#clist .cr")?.focus());
       },
     })),
     tagFilter(),
-    h("div", { class: "chat-list" }, rows, searching ? null : siteSection()),
+    h("div", { id: "clist" }, rows),
+    h("div", { style: "flex:1" }),
     S.selMode ? selectBar(m) : null,
-    h("div", { class: "drawer-foot" },
-      h("button", { class: "settings-pill", "aria-label": "Settings", onclick: () => (closeDrawer(), openSettings()) }, svgIcon("settings"), "Settings", updateCount() ? h("span", { class: "badge", title: "Plugin updates", "aria-label": "Plugin updates are available" }, String(updateCount())) : null),
-      h("button", { class: "settings-pill", "aria-label": "Quick start", onclick: () => (closeDrawer(), openQuickStart()) }, svgIcon("play"), "Quick start")),
+    h("div", { class: "tail" },
+      h("button", { class: "it foot-pill", "aria-label": "Settings", onclick: () => (closeDrawer(), openSettings()) }, svgIcon("settings"), "Settings", updateCount() ? h("span", { class: "badge" }, String(updateCount())) : null),
+      h("button", { class: "it foot-pill", "aria-label": "Quick start tutorial", title: "Quick start tutorial", onclick: () => (closeDrawer(), openQuickStartList()) }, svgIcon("play"), "Quick start")),
   );
 };
 

@@ -27,6 +27,8 @@ const isPipeStep = (p) => isStep(p) && !!p.def && HOOKS.some((k) => typeof p.def
 const changesText = (p) => !!p?.def && (typeof p.def.piece === "function" || typeof p.def.beforeSend === "function");
 const partOf = (r) => (r.part && S.plugins.get(r.plugin)?.def?.pieces?.[r.part]) || null;
 // Every plugin piece there is: [{ plugin, part, name }].
+// Every plugin that can be a row of its own (switched on or off in a profile).
+const pipeSteps = () => [...S.plugins.values()].filter(isPipeStep).sort((a, b) => (a.manifest.name || a.id).localeCompare(b.manifest.name || b.id));
 const pluginPieces = () =>
   [...S.plugins.values()].filter((p) => isStep(p) && p.def?.pieces).flatMap((p) => Object.entries(p.def.pieces).map(([part, d]) => ({ plugin: p.id, part, name: `${pluginName(p.id)} · ${d.name || part}` })));
 
@@ -273,10 +275,16 @@ const removeGroup = (pre, g) => {
 // ---------- set up and keep in step ----------
 // Every installed step plugin has a row in every preset (new ones come in
 // switched off, at the end); the message row is always there.
+// Every profile has its message row. Plugins join a profile only when the
+// person adds them (Add a row), so a profile lists what it uses.
 const syncRows = (pre) => {
   pre.groups = pre.groups || [];
   if (!pre.rows.some((r) => r.type === "message")) pre.rows.push(messageRow());
-  for (const p of S.plugins.values()) if (isPipeStep(p) && !stepRowOf(pre, p.id)) pre.rows.push(step(p.id, false, p.id === "base64" ? "message" : "above"));
+};
+// Older versions put every installed plugin in every profile, switched off.
+// Those rows go once; a plugin's settings stay, so adding it back restores them.
+const dropAutoRows = (pre) => {
+  pre.rows = pre.rows.filter((r) => r.type !== "step" || r.on);
 };
 
 // The system prompt library (history/system-prompts.json), for migration and "Add from library".
@@ -340,11 +348,15 @@ const setUp = async () => {
     delete prof.preset;
   }
   S.config.presets = presets().filter((p) => !made.has(p.id));
-  for (const prof of S.config.profiles) syncRows(prof.pipe);
-  for (const pre of presets()) syncRows(pre);
-  if (fresh || moved) saveConfig();
+  const prune = !S.config.rowsPruned;
+  for (const pre of [...S.config.profiles.map((p) => p.pipe), ...presets()]) {
+    if (prune) dropAutoRows(pre);
+    syncRows(pre);
+  }
+  S.config.rowsPruned = true;
+  if (fresh || moved || prune) saveConfig();
 };
 on("plugins", setUp, null);
 
 // Shared with the UI part and plugins.
-PP.pipeline = { partRow, pluginPieces, partOf, WHEN, presets, presetOf, rowLive, rowName, whenLabel, previewMessage, piece, promptLibrary, applyStarter, makeProfile, copyProfile, clonePipe, syncRows, moveRow, moveRowTo, addGroup, removeGroup };
+PP.pipeline = { step, pipeSteps, partRow, pluginPieces, partOf, WHEN, presets, presetOf, rowLive, rowName, whenLabel, previewMessage, piece, promptLibrary, applyStarter, makeProfile, copyProfile, clonePipe, syncRows, moveRow, moveRowTo, addGroup, removeGroup };

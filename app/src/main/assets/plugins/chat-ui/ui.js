@@ -9,14 +9,13 @@
 // ---------- look: UI scale and theme ----------
 // Themes are plugins too ("kind": "theme" with a CSS file of colour variables).
 // ui.mode: "" follows the system, "dark", "light". ui.accent: "" (warm orange)
-// or one of ACCENTS. ui.text: body text size in px. A theme plugin sets its own colours.
+// or one of ACCENTS. ui.scale: the size of text and controls. A theme plugin sets its own colours.
 const ACCENTS = { "": "Warm orange", blue: "Blue", green: "Green", rose: "Rose", violet: "Violet" };
 const applyLook = () => {
   const ui = S.config.ui;
   const root = document.documentElement;
   document.body.style.zoom = String(ui.scale);
   root.style.setProperty("--scale", String(ui.scale));
-  root.style.setProperty("--fs", (+ui.text || 16) + "px");
   let link = document.getElementById("theme-css");
   const p = S.plugins.get(ui.theme);
   const href = isTheme(p) && p.manifest.css ? pluginUrl(p.id, p.manifest.css) + "?t=" + Date.now() : "";
@@ -67,68 +66,62 @@ const setLook = (key, value) => {
 };
 const setTheme = (id) => setLook("theme", id);
 
-const openModels = () =>
-  openSheet("Model", () => {
-    const site = siteFor();
+// Model and switches, as in the wireframe: the site's models as a radio list,
+// then its switches. Read from the page; saved in the profile and set on the
+// page before each message.
+const MODELS = { r: null, error: "" }; // what the page said last
+const openModels = () => {
+  const load = () =>
+    siteCmd("models")
+      .then((r) => ((MODELS.r = r), (MODELS.error = "")))
+      .catch((e) => siteCmd("info").then((r) => (MODELS.r = { ...r, models: [], switches: (siteFor()?.switches || []).map((x) => ({ name: x.name, found: true, on: false })) }), () => (MODELS.error = e.message)))
+      .finally(rerenderSheet);
+  MODELS.r = null;
+  load();
+  openSheet("Model and switches", () => {
     const want = choicesFor();
-    const box = h("div", { class: "models" }, h("p", { class: "muted" }, "Reading the site's model list…"));
-    const draw = (r) => {
-      const pick = async (m) => {
-        want.model = m;
-        saveConfig();
-        try {
-          const res = await siteCmd("setModel", { model: m });
-          S.site.model = res.model;
-          toast("Model: " + m);
-        } catch (e) {
-          toast(e.message, "error");
-        }
-        render();
-      };
-      box.replaceChildren(
-        ...[r.models && r.models.length
-          ? h("div", { class: "results" }, r.models.map((m) => h("button", { class: "menu-item" + (want.model === m ? " sel" : ""), onclick: () => pick(m) }, h("span", {}, m), r.model && r.model.includes(m) ? h("kbd", {}, "on page") : null)))
-          : h("p", { class: "muted" }, "Couldn't read the model list from the site. Pick it on the site itself; the app then leaves the model alone."),
-        h("p", { class: "muted" }, "On the page now: " + (r.model || "unknown")),
-        h(
-          "div",
-          { class: "row" },
-          h("button", { class: "small", title: "Show the AI page and pick the model there", onclick: () => ((want.model = ""), saveConfig(), closeSheet(), showSite()) }, "Choose on the site"),
-          h("button", { class: "ghost", onclick: () => load() }, "Refresh"),
-        ),
-        want.model ? h("button", { class: "ghost", onclick: () => ((want.model = ""), saveConfig(), render()) }, "Don't choose a model (use whatever the site has)") : null,
-        (site.switches || []).length ? h("h3", {}, "Switches") : null,
-        ...(r.switches || []).map((sw) =>
-          h(
-            "label",
-            { class: "field inline" },
-            h("span", {}, sw.name + (sw.found ? "" : " (not found on page)")),
-            h("input", {
-              type: "checkbox",
-              checked: sw.name in want.switches ? want.switches[sw.name] : sw.on,
-              onchange: async (e) => {
-                want.switches[sw.name] = e.target.checked;
-                saveConfig();
-                try {
-                  await siteCmd("setSwitch", { name: sw.name, on: e.target.checked });
-                } catch (err) {
-                  toast(err.message, "error");
-                }
-              },
-            }),
-          ),
-        ),
-        h("p", { class: "muted" }, `Saved in profile “${profile().name}” and set on the page before each message.`),
-        ].filter((x) => x != null),
-      );
+    const r = MODELS.r;
+    const pick = async (m) => {
+      want.model = m;
+      saveConfig();
+      rerenderSheet();
+      try {
+        S.site.model = (await siteCmd("setModel", { model: m })).model;
+        toast("Model: " + m);
+      } catch (e) {
+        toast(e.message, "error");
+      }
+      render();
     };
-    const load = () =>
-      siteCmd("models")
-        .then(draw)
-        .catch((e) => siteCmd("info").then((r) => draw({ ...r, models: [], switches: (site.switches || []).map((x) => ({ name: x.name, found: true, on: false })) }), () => box.replaceChildren(h("p", { class: "error" }, e.message))));
-    load();
-    return [box];
-  });
+    const flip = async (sw, on) => {
+      want.switches[sw.name] = on;
+      saveConfig();
+      rerenderSheet();
+      try {
+        await siteCmd("setSwitch", { name: sw.name, on });
+      } catch (e) {
+        toast(e.message, "error");
+      }
+    };
+    const cur = want.model || r?.model || "";
+    if (MODELS.error) return [item({ cls: "danger", label: "Couldn't read the page", sub: MODELS.error + " · tap to try again", onclick: load })];
+    if (!r) return [item({ label: "Reading the site's model list…" })];
+    return [
+      ...(r.models || []).map((m) => item({ id: "models.m" + m, label: m, sub: r.model && r.model.includes(m) ? "On the page now" : "", radio: cur === m || (!want.model && !!r.model && r.model.includes(m)), onclick: () => pick(m) })),
+      (r.models || []).length ? null : item({ label: "Couldn't read the model list", sub: "Pick it on the site itself; the app then leaves the model alone. On the page now: " + (r.model || "unknown") }),
+      (r.switches || []).length ? h("div", { class: "lbl" }, "Switches") : null,
+      ...(r.switches || []).map((sw) => {
+        const on = sw.name in want.switches ? want.switches[sw.name] : sw.on;
+        return item({ id: "models.sw" + sw.name, label: sw.name, sub: sw.found ? "" : "Not found on the page", toggle: !!on, onclick: () => flip(sw, !on) });
+      }),
+      h("div", { class: "lbl" }, "More"),
+      item({ label: "Choose on the site", sub: "Show the page and pick the model there", onclick: () => ((want.model = ""), saveConfig(), closeSheet(), showSite()) }),
+      want.model ? item({ label: "Don't choose a model", sub: "Use whatever the site has", onclick: () => ((want.model = ""), saveConfig(), rerenderSheet(), render()) }) : null,
+      item({ label: "Read the page again", onclick: () => ((MODELS.r = null), load(), rerenderSheet()) }),
+      h("div", { class: "sub2" }, `Saved in the profile “${profile().name}” and set on the page before each message.`),
+    ];
+  }, { back: openSiteSheet });
+};
 
 
 // Open a chat that exists on the AI site: its local file if there is one,
@@ -168,7 +161,7 @@ const tagInput = (placeholder, onAdd, keep) =>
 // reworked this whole block should go. What is carried over: where each list is scrolled, and what they have typed into a
 // sheet's fields. Without this, lists jumped back to the top and sheets lost
 // their text whenever anything in the background redrew.
-const SCROLLERS = ".messages, .drawer, .chat-list, .sheet, .sheet-body, .pipe-preview, .core-log, .models, .tag-filter, .blocks";
+const SCROLLERS = ".chat, .drawer, .sheet, .body, .pipe-preview, .core-log, .dd-list";
 // A sheet's fields have no ids, so each is named by what it is (tag, type, placeholder,
 // label) plus its number among fields of the same name: it survives fields being added.
 const fieldKey = (f, all) => {
@@ -177,7 +170,7 @@ const fieldKey = (f, all) => {
 };
 const textLike = (f) => f.tagName === "TEXTAREA" || (f.tagName === "INPUT" && /^(text|search|url|password|email|number|)$/.test(f.type));
 // A selection inside one text block of a message: which block, and where in its text.
-const TEXT_BLOCK = ".msg .text, .msg .md, .thinking .md";
+const TEXT_BLOCK = ".you, .ai .md, .thinbox .md, .live-box .md";
 const selectionSpot = () => {
   const sel = window.getSelection();
   if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
@@ -243,7 +236,7 @@ const restoreView = (v, hadSheet) => {
     const k = el.className;
     const i = (seen[k] = (seen[k] ?? -1) + 1);
     // A different sheet opening starts at its top; the same sheet redrawn keeps its place.
-    if (/\bsheet(-body)?\b/.test(k) && !sameSheet) continue;
+    if (/\b(sheet|body)\b/.test(k) && !sameSheet) continue;
     const spot = v.spots.find((x) => x.k === k && x.i === i);
     if (spot) (el.scrollTop = spot.top), (el.scrollLeft = spot.left);
   }
@@ -270,22 +263,22 @@ document.addEventListener("input", (e) => {
 const withClass = (el, cls) => (cls && el.classList.add(cls.trim()), el);
 render = () => {
   const keepFocus = document.activeElement?.dataset?.keep;
-  const draft = document.querySelector(".composer textarea")?.value;
+  const draft = document.querySelector("#msg")?.value;
   const view = snapshotView();
   const hadSheet = !!document.querySelector(".sheet");
   const hadDrawer = !!document.querySelector(".drawer");
-  const composer = renderComposer(draft);
-  // Floats just above the composer; shows once you scroll up.
-  composer.prepend(jumpButton());
-  app.replaceChildren(...[safeBanner(), renderTop(), renderMessages(), composer].filter(Boolean));
+  app.replaceChildren(...[safeBanner(), renderTop(), renderMessages(), jumpButton(), ...renderComposer(draft)].filter(Boolean));
   // A layer slides in only when it opens, never again on a redraw (that read as it
   // tucking away and reopening on every tap).
   const enter = (was) => (was ? "" : " enter");
-  if (S.drawer) app.append(h("div", { class: "scrim" + enter(hadDrawer), onclick: closeDrawer }), withClass(renderDrawer(), enter(hadDrawer)));
-  if (S.sheet) app.append(h("div", { class: "scrim" + enter(hadSheet), onclick: closeSheet }), withClass(renderSheet(), enter(hadSheet)));
+  if (S.drawer) app.append(h("div", { class: "drawer-scrim", onclick: closeDrawer }), withClass(renderDrawer(), enter(hadDrawer)));
   if (S.siteMenu) app.append(siteMenu());
+  if (S.sheet) app.append(withClass(renderSheet(), enter(hadSheet)));
+  maybeTour();
+  if (S.tour) app.append(tourLayer());
   if (S.help || S.helpCard) app.append(helpLayer());
   restoreView(view, hadSheet);
+  if (S.tour) tourSpot();
   // Reading at the very bottom, you stay at the bottom as the chat grows; anywhere
   // above it, your place is never moved (new replies show on the jump button).
   if (view.pinned && followOn()) scrollDown();
@@ -296,11 +289,11 @@ const safeBanner = () =>
   SAFE ? h("div", { class: "safe-banner", role: "status" }, h("span", { class: "grow" }, "Safe mode: only built-in plugins are on."), h("button", { class: "small", onclick: () => restart(false) }, "Leave safe mode")) : null;
 
 scrollDown = (smooth = false) => {
-  const m = document.querySelector(".messages");
+  const m = document.querySelector(".chat");
   if (m) m.scrollTo({ top: m.scrollHeight, behavior: smooth ? "smooth" : "auto" });
 };
 const nearBottom = () => {
-  const m = document.querySelector(".messages");
+  const m = document.querySelector(".chat");
   return !m || m.scrollHeight - m.scrollTop - m.clientHeight < 80;
 };
 const followOn = () => S.config?.ui?.follow !== false;
@@ -308,6 +301,12 @@ const followOn = () => S.config?.ui?.follow !== false;
 // Replies never move the chat: you scroll. A new reply shows on the jump
 // button ("1 new reply"); tapping it goes to the start of that reply.
 S.unseen = [];
+S.openTrace = new WeakSet(); // replies whose full sent text is open
+// "+ tag" under a reply: a tag for that message only.
+const addTagPrompt = async (c, t) => {
+  const v = await askText("Tag for this message", "", "Add");
+  if (v) addMessageTag(c, t, v).catch((e) => toast(e.message, "error"));
+};
 markUnseen = (chat, turn) => {
   if (S.chat !== chat) return;
   const i = chat.turns.indexOf(turn);
@@ -315,12 +314,16 @@ markUnseen = (chat, turn) => {
 };
 const jumpButton = () => {
   const n = S.unseen.length;
+  const far = (() => {
+    const m = document.querySelector(".chat");
+    return !!m && m.scrollHeight - m.scrollTop - m.clientHeight > 60;
+  })();
   return h(
     "button",
     {
-      class: "jump" + (n ? " new show" : ""),
+      class: "jump" + (n ? " new" : ""),
+      hidden: !(n || far),
       title: n ? "Go to the new reply" : "Jump to the newest message",
-      "aria-label": n ? `${n} new ${n === 1 ? "reply" : "replies"}` : "Jump to bottom",
       onclick: () => {
         if (S.unseen.length) {
           const i = Math.min(...S.unseen);
@@ -330,7 +333,7 @@ const jumpButton = () => {
         } else scrollDown(true);
       },
     },
-    n ? `↓ ${n} new` : "↓",
+    n ? `${n} new ${n === 1 ? "reply" : "replies"} ↓` : "Jump to latest ↓",
   );
 };
 // Seen = scrolled into view.
@@ -339,16 +342,16 @@ const checkSeen = (box) => {
   const bottom = box.getBoundingClientRect().bottom;
   const before = S.unseen.length;
   S.unseen = S.unseen.filter((i) => {
-    const el = document.getElementById("turn-" + i)?.querySelector(".msg.ai");
+    const el = document.getElementById("turn-" + i)?.querySelector(".ai");
     return !el || el.getBoundingClientRect().top > bottom - 60;
   });
   if (S.unseen.length !== before) document.querySelector(".jump")?.replaceWith(jumpButton());
 };
 
 renderStatus = () => {
-  const el = document.querySelector(".top .site-btn");
+  const el = document.querySelector(".top .site-pill");
   if (el) el.replaceWith(siteButton());
-  const pr = document.querySelector(".composer .progress-text");
+  const pr = document.querySelector(".progress .progress-text");
   if (pr) pr.textContent = composerProgress();
   renderLive();
 };
@@ -442,87 +445,40 @@ const siteButton = (prof = profile()) => {
   const onPage = S.site.model || "";
   const model = onPage || want;
   const mismatch = want && onPage && !onPage.toLowerCase().includes(want.toLowerCase());
-  return h("button", { class: "site-btn " + st.key + (mismatch ? " mismatch" : ""), title: `${st.words}${mismatch ? ` · the page shows ${onPage}, you picked ${want}` : ""} · site, model and profile`, "aria-label": `Site: ${siteFor()?.name || "none"}, ${st.words}`, "aria-haspopup": "menu", "aria-expanded": String(!!S.siteMenu), onclick: () => ((S.siteMenu = !S.siteMenu), render()) },
+  const site = siteFor(prof);
+  const short = site ? site.name.split(" ")[0] : "No site";
+  const busy = Object.keys(S.pageTurns || {}).length;
+  return h("button", { class: "pill site-pill " + st.key, title: `${st.words}${mismatch ? ` · the page shows ${onPage}, you picked ${want}` : ""} · switch site`, "aria-label": "Switch site", "aria-haspopup": "menu", "aria-expanded": String(!!S.siteMenu), onclick: () => ((S.siteMenu = !S.siteMenu), render()) },
     h("span", { class: "dot", "aria-hidden": "true" }),
-    h("span", { class: "site-name" }, siteFor() ? siteFor().name.split(" ")[0] : "No site"),
-    model ? h("span", { class: "site-model" }, " · " + shortModel(model) + (mismatch ? " ⚠" : "")) : null,
-    st.key === "off" ? h("span", { class: "site-words" }, " · not open") : null,
-    h("span", { class: "ch" }, svgIcon("down")));
+    h("span", { class: "tx" }, short + (model ? " · " + shortModel(model) + (mismatch ? " ⚠" : "") : "") + (busy > 1 ? ` · ${busy} replying` : "")),
+    h("span", { class: "ch", style: "margin-left:4px" }, svgIcon("down")),
+    siteUpdate() ? h("span", { class: "pdot", title: "Update available" }) : null);
 };
 // "Qwen3-Max" -> "Max": the part after the name's own digits.
 const shortModel = (m) => m.replace(/^[A-Za-z]+\d*[.\d]*-?/, "") || m;
-// The pill's menu: switch the site of this profile, or open Profile and site.
+// A site plugin of this profile with an update waiting (the pill gets a dot).
+const siteUpdate = () => {
+  const id = profile().site;
+  return !!id && updateItems().some((i) => i.id === id);
+};
+// The pill's menu: each site with its model, then "Site, model and profile…".
 const siteMenu = () => {
   const prof = profile();
   const sites = [...S.plugins.values()].filter(isSite);
   const close = () => ((S.siteMenu = false), render());
-  return h("div", { class: "layer sitemenu-layer" },
-    h("div", { class: "sitemenu-back", onclick: close }),
+  return h("div", { class: "layer", style: "z-index:14" },
+    h("div", { style: "position:absolute;inset:0", onclick: close }),
     h("div", { class: "sitemenu", role: "menu" },
-      ...sites.map((x) => item({ id: "sitemenu." + x.id, cls: "plain", label: x.manifest.name, sub: choicesFor(prof).model || "", radio: x.id === prof.site, onclick: () => ((S.siteMenu = false), (prof.site = x.id), saveConfig(), render(), warmSite()) })),
+      ...sites.map((x) => h("button", { role: "menuitemradio", "aria-checked": String(x.id === prof.site), class: "it", "data-row": "sitemenu." + x.id, onclick: () => ((S.siteMenu = false), (prof.site = x.id), saveConfig(), render(), warmSite()) },
+        h("span", { class: "on" }, x.id === prof.site ? "●" : "○"),
+        h("div", { class: "g" }, x.manifest.name, h("small", {}, (x.id === prof.site ? S.site.model || choicesFor(prof).model : "") || "Model: as the site has it")),
+        h("span", { class: "dot", style: "margin:0" }))),
       sites.length ? h("div", { class: "sep" }) : null,
-      item({ id: "sitemenu.more", cls: "plain", label: "Site, model and profile…", onclick: () => ((S.siteMenu = false), openSiteSheet()) })));
+      h("button", { role: "menuitem", class: "it", "data-row": "sitemenu.more", onclick: () => ((S.siteMenu = false), openSiteSheet()) }, h("div", { class: "g" }, sites.length ? "Site, model and profile…" : "Get site plugins…"))));
 };
 
 const SAFETY = "Use a separate account on the AI site (a throwaway Gmail works), not an important one: promptpipe drives the site for you and isn't built for account security. You can also sign in by hand on the site.";
 
-// ---------- first run ----------
-// Welcome, the account warning, where chats go, site plugins, log in. Each
-// step can be skipped; it never comes back once done (Settings has it all).
-const openWelcome = () => {
-  let stepNo = 0;
-  const next = () => ((stepNo += 1), rerenderSheet());
-  const finish = () => {
-    S.config.welcomed = true;
-    saveConfig();
-    closeSheet();
-  };
-  const steps = [
-    () => [
-      h("p", {}, "promptpipe sends your messages to the free AI chat sites you log in to, puts your own pieces of text with them, and keeps every chat as a file of yours."),
-      h("p", { class: "warn" }, SAFETY),
-      h("div", { class: "row" }, h("button", { class: "primary grow", onclick: next }, "Continue")),
-    ],
-    () => [
-      h("h3", {}, "Where chats are saved"),
-      h("p", {}, h("code", {}, S.app.storage || "?")),
-      S.app.allFiles
-        ? h("p", { class: "muted" }, "Other apps (a file manager, Termux) can reach them there.")
-        : h("p", { class: "muted" }, "They're in the app's own folder now. Allow all files access to keep them where other apps (a file manager, Termux) can reach them; restart the app after."),
-      h("div", { class: "row" },
-        S.app.allFiles ? null : h("button", { onclick: () => api("/api/app/action", { action: "grantFiles" }).catch((e) => toast(e.message, "error")) }, "Allow all files access"),
-        h("button", { class: "primary grow", onclick: next }, "Continue")),
-    ],
-    () => [
-      h("h3", {}, "AI sites"),
-      h("p", { class: "muted" }, "Each AI site comes as a site plugin. The ticked ones are the tested ones."),
-      ...siteTickView(),
-      h("div", { class: "row" }, h("button", { class: "grow", onclick: next }, [...S.plugins.values()].some(isSite) ? "Continue" : "Skip for now")),
-    ],
-    () => {
-      const site = siteFor();
-      return [
-        h("h3", {}, "Log in"),
-        site
-          ? h("p", {}, `Open ${site.name} and log in once; promptpipe uses that login from then on. Come back with the back button.`)
-          : h("p", { class: "muted" }, "No site plugin yet: get one from the site button at the top (● No site) whenever you like."),
-        h("div", { class: "row" },
-          site ? h("button", { class: "primary", onclick: () => (showSite(), finish()) }, "Open " + site.name) : null,
-          h("button", { class: site ? "" : "primary", onclick: finish }, site ? "Later" : "Start")),
-        h("p", { class: "muted" }, "Then send a message. The layers button next to the box (Quick edit and add) is where you choose what goes with it; Profiles has the starters (RP, Story writing, Writing feedback, Plain)."),
-      ];
-    },
-  ];
-  openSheet("Welcome to promptpipe", () => [h("p", { class: "faint" }, `Step ${stepNo + 1} of ${steps.length}`), ...steps[stepNo]()]);
-};
-
-// In an empty chat: which profile is in use, and the way to its rows.
-const presetPicker = () =>
-  h("div", { class: "preset-picker" },
-    h("p", { class: "faint" }, "Profile: " + profile().name + " (what goes with your message)"),
-    h("div", { class: "row" },
-      h("button", { class: "chip", onclick: openQuick }, svgIcon("stackadd"), "Quick edit"),
-      h("button", { class: "chip ghost", onclick: () => openProfileEditor() }, "Edit profile")));
 
 // The site sheet: everything about the site in one place.
 const openSiteSheet = () =>
@@ -533,29 +489,27 @@ const openSiteSheet = () =>
     const want = choicesFor(prof).model;
     const sites = [...S.plugins.values()].filter(isSite);
     const pr = S.plugins.get("page-report");
+    const upd = site && updateItems().find((i) => i.id === prof.site);
     const pageItem = (label, sub, fn, id) => item({ id: "site." + id, label, sub, onclick: fn });
     return [
       !site ? item({ id: "site.get", prim: true, label: "Get site plugins", sub: "No AI site yet", onclick: openGetSites }) : null,
-      h("h3", {}, "Profile"),
+      upd ? item({ id: "site.upd", prim: true, label: `${site.name} ${upd.update.entry.version} is available`, sub: "Updates on its own; tap to do it now", onclick: LIB.busy ? null : () => installOffers([upd.update], { quiet: true }).then(() => toast(`${site.name} updated to ${upd.update.entry.version}`)) }) : null,
+      h("div", { class: "lbl" }, "Profile"),
       profileDropdown({ id: "site", current: prof, pick: (p) => (switchProfile(p.id), rerenderSheet()) }),
-      site ? h("h3", {}, "AI site (for this chat)") : null,
-      site ? item({ id: "site.switch", label: site.name, sub: sites.length > 1 ? "Switch site" : "The only site plugin installed", onclick: sites.length > 1 ? () => ddToggle("sitepick") : openGetSites }) : null,
-      site && sites.length > 1 && S.dd.sitepick
-        ? h("div", { class: "dd open" }, h("div", { class: "dd-list" }, sites.map((x) =>
-            h("button", { class: "dd-pick" + (x.id === prof.site ? " current" : ""), onclick: () => ((S.dd.sitepick = false), (prof.site = x.id), saveConfig(), render(), rerenderSheet(), warmSite()) }, x.id === prof.site ? svgIcon("check") : h("span", { class: "svg" }), x.manifest.name))))
-        : null,
-      site ? pageItem("Show the page", `${st.words}${S.site.url ? " · " + S.site.url : ""}`, showSite, "show") : null,
+      site ? h("div", { class: "lbl" }, "AI site (for this chat)") : null,
+      site ? item({ id: "site.sitesw", label: site.name, sub: sites.length > 1 ? "Switch site" : "The only site plugin installed", onclick: sites.length > 1 ? () => ((S.sheet = null), (S.siteMenu = true), syncLayer(), render()) : openGetSites }) : null,
+      site ? pageItem("Show the page", `${site.name} · ${st.words}${S.site.url ? " · " + S.site.url : ""}`, showSite, "show") : null,
       site ? item({ id: "site.model", label: S.site.model || want || "Choose a model", sub: "Model and switches" + (want && S.site.model && !S.site.model.toLowerCase().includes(want.toLowerCase()) ? " · you picked " + want : ""), key: "Ctrl+M", onclick: openModels }) : null,
-      h("h3", {}, "This chat and the page"),
+      h("div", { class: "lbl" }, "This chat and the page"),
       pageItem("Link this chat to the open page", null, linkToSite, "link"),
       pageItem("Import messages from the site chat", null, importHistory, "import"),
       pageItem("Add the page's newest reply", null, addFromPage, "newest"),
-      h("h3", {}, "Pages"),
+      h("div", { class: "lbl" }, "Pages"),
       item({ id: "site.pages", label: `${maxReplies()} replies at once at most`, sub: `${pageCount()} ${pageCount() === 1 ? "page is" : "pages are"} open`, right: "Change", onclick: () => settingsPage("Sites", settingsBody("Sites")) }),
-      h("h3", {}, "Site plugins"),
+      h("div", { class: "lbl" }, "Site plugins"),
       item({ id: "site.getsites", label: "Get site plugins", chev: true, onclick: openGetSites }),
       site ? item({ id: "site.plugset", label: "Site plugin settings", chev: true, onclick: () => openPluginSettings(prof.site) }) : null,
-      h("h3", {}, "Developer"),
+      h("div", { class: "lbl" }, "Developer"),
       ...((pr && pr.def && pr.def.menu) || []).map((m) => item({ id: "site.dev." + m.label, label: m.label, onclick: () => Promise.resolve().then(() => m.run()).catch((e) => toast(e.message, "error")) })),
       item({ id: "site.decode", label: "Decode the newest reply (preview)", onclick: decodeLast }),
     ];
@@ -563,25 +517,21 @@ const openSiteSheet = () =>
 
 const renderTop = () => {
   const c = S.chat;
-  const prof = profile();
   return h(
     "header",
     { class: "top" },
-    h("button", { class: "icon", title: "Chats · Ctrl+B", "aria-label": "Chats", onclick: openDrawer }, h("span", { class: "burger" })),
-    h(
-      "div",
-      { class: "titlebox" },
-      h("button", { class: "title", title: "Chat: name, tags, move, export · F2", onclick: openChatSheet }, h("span", { class: "title-text" }, c.meta.title || "New chat"), h("span", { class: "chev", "aria-hidden": "true" }, "▾")),
-    ),
-    siteButton(prof),
+    h("button", { class: "ic", title: "Chats · Ctrl+B", "aria-label": "Chats", onclick: openDrawer }, svgIcon("menu"), Object.keys(S.chatStatus || {}).some((k) => S.chatStatus[k] === "Reply ready") ? h("span", { class: "pdot", style: "top:2px;right:2px" }) : null),
+    h("button", { class: "t", title: "Chat actions · F2", "aria-label": "Chat title", onclick: openChatSheet }, (c.meta.title || "New chat") + " ▾"),
+    siteButton(profile()),
     ...topBlocks(),
-    h("button", { class: "icon find-btn", title: "Find chats, messages, functions and settings · Ctrl+K or F3", "aria-label": "Find", onclick: () => openFind() }, svgIcon("search")),
+    h("button", { class: "ic find", title: "Find chats and functions · Ctrl+K or F3", "aria-label": "Find chats and functions", onclick: () => openFind() }, svgIcon("search")),
     helpBtn(),
   );
 };
 
 // Line icons, drawn with the text colour.
 const ICONS = {
+  menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
   search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
   more: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
   send: '<path d="M12 19V5M5.5 11.5L12 5l6.5 6.5"/>',
@@ -623,7 +573,7 @@ const ICONS = {
 };
 const svgIcon = (name) => {
   const span = h("span", { class: "svg", "aria-hidden": "true" });
-  span.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]}</svg>`;
+  span.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]}</svg>`;
   return span;
 };
 
@@ -649,7 +599,7 @@ PP.item = (o) => item(o); // for plugins that draw sheets (same rows as the app)
 const tagChip = (t, { onRemove, onBump, dim } = {}) =>
   h(
     "span",
-    { class: "tag" + (counterOf(t) || t.endsWith("#") ? " counter" : "") + (dim ? " dim" : ""), title: dim ? "From the chat tags" : t.endsWith("#") ? "Each new message gets the next number" : "" },
+    { class: "tag" + (counterOf(t) || t.endsWith("#") ? " counter" : "") + (dim ? " inh" : ""), title: dim ? "From the chat tags" : t.endsWith("#") ? "Each new message gets the next number" : "" },
     "#" + (t.endsWith("#") ? t + "n" : t),
     onBump && h("button", { title: "Next number", onclick: () => onBump().catch((e) => toast(e.message, "error")) }, "+1"),
     onRemove && h("button", { title: "Remove tag", "aria-label": "Remove " + t, onclick: () => onRemove().catch((e) => toast(e.message, "error")) }, "✕"),
@@ -657,29 +607,17 @@ const tagChip = (t, { onRemove, onBump, dim } = {}) =>
 
 const renderMessages = () => {
   const c = S.chat;
-  const box = h("main", { class: "messages" });
+  const box = h("main", { class: "chat" });
   if (!c.turns.length) {
-    box.append(
-      h(
-        "div",
-        { class: "empty" },
-        siteFor()
-          ? null
-          : h(
-              "div",
-              { class: "no-site" },
-              h("p", {}, "No AI site plugin yet. promptpipe drives the AI chat site you log in to, through a site plugin."),
-              h("div", { class: "row" }, h("button", { class: "small primary", onclick: openGetSites }, "Get site plugins"), h("button", { class: "small", onclick: () => api("/api/app/action", { action: "pickPlugin" }) }, "Install from a file"), h("button", { class: "small", onclick: openQuickStart }, "Quick start")),
-            ),
-        presetPicker(),
-        h("p", {}, c.meta.source ? "Linked to " + c.meta.source + ". Your message continues that chat." : "New chat"),
-        c.meta.source ? h("button", { class: "small", onclick: importHistory }, "Import its earlier messages") : null,
-        (local("recent") || []).length
-          ? h("div", { class: "recent" }, h("p", { class: "faint" }, "Recent prompts"), (local("recent") || []).slice(0, 3).map((t) => h("button", { class: "recent-item", onclick: () => fillComposer(t) }, t.split("\n")[0].slice(0, 80))))
-          : null,
-        h("p", { class: "faint" }, "Keyboard: Ctrl+Enter send · Ctrl+K commands · Ctrl+B chats · Alt+S AI page"),
-      ),
-    );
+    // A new chat is empty, as in the wireframe. Only what you need to start is said here.
+    const lines = [];
+    if (!siteFor())
+      lines.push(
+        h("p", {}, "No AI site yet. PromptPipe talks to the AI chat site you log in to, through a site plugin."),
+        h("div", { class: "row" }, h("button", { class: "it prim", style: "width:auto", onclick: openGetSites }, "Get site plugins"), h("button", { class: "pill", onclick: () => api("/api/app/action", { action: "pickPlugin" }) }, "Install from a file")),
+      );
+    if (c.meta.source) lines.push(h("p", {}, "Linked to " + c.meta.source + ". Your message continues that chat."), h("div", { class: "row" }, h("button", { class: "pill", onclick: importHistory }, "Import its earlier messages")));
+    if (lines.length) box.append(h("div", { class: "empty" }, lines));
   }
   c.turns.forEach((t, i) => {
     const extra = pluginTurnParts(c, t, i);
@@ -687,48 +625,34 @@ const renderMessages = () => {
   });
   (c.failed || []).forEach((f, i) =>
     box.append(
-      h(
-        "article",
-        { class: "turn failed" },
-        h("div", { class: "msg you" }, h("div", { class: "text" }, f.you)),
-        h(
-          "div",
-          { class: "msg ai has-error" },
+      h("article", { class: "turn failed" },
+        h("div", { class: "youwrap" }, h("div", { class: "you" }, f.you)),
+        h("div", { class: "ai" },
           h("div", { class: "error" }, "✕ Not sent: " + f.error),
-          h(
-            "div",
-            { class: "msg-actions" },
-            h("button", { class: "small primary", title: "The site may be answering anyway: wait for that reply and keep it", onclick: () => (c.failed.splice(i, 1), checkFailed(c, f)) }, "Check"),
-            h("button", { class: "small", onclick: () => (c.failed.splice(i, 1), send(f.you)) }, "Retry"),
-            h("button", { class: "ghost", onclick: () => (c.failed.splice(i, 1), render(), fillComposer(f.you)) }, "Edit"),
-            h("button", { class: "ghost", onclick: () => (c.failed.splice(i, 1), render()) }, "Dismiss"),
-          ),
-        ),
-      ),
+          h("div", { class: "chips", style: "margin-top:6px" },
+            h("button", { class: "pill on", title: "The site may be answering anyway: wait for that reply and keep it", onclick: () => (c.failed.splice(i, 1), checkFailed(c, f)) }, "Check"),
+            h("button", { class: "pill", onclick: () => (c.failed.splice(i, 1), send(f.you)) }, "Retry"),
+            h("button", { class: "pill", onclick: () => (c.failed.splice(i, 1), render(), fillComposer(f.you)) }, "Edit"),
+            h("button", { class: "pill", onclick: () => (c.failed.splice(i, 1), render()) }, "Dismiss")))),
     ),
   );
   // Queued: waiting for the message before them to be answered.
   const queued = c.queued || [];
   queued.forEach((q, i) =>
     box.append(
-      h(
-        "article",
-        { class: "turn queued" },
-        h("div", { class: "msg you" }, h("div", { class: "text" }, q.you)),
-        h(
-          "div",
-          { class: "msg-actions queued-actions" },
-          h("span", { class: "faint" }, `Queued ${i + 1} of ${queued.length} · goes out after the reply above`),
-          i > 0 ? h("button", { class: "small", "aria-label": "Send earlier", onclick: () => ([queued[i - 1].you, q.you] = [q.you, queued[i - 1].you], render()) }, "↑") : null,
-          h("button", { class: "small", onclick: () => (queued.splice(i, 1), render(), fillComposer(q.you)) }, "Edit"),
-          h("button", { class: "ghost", onclick: () => (queued.splice(i, 1), render()) }, "Remove"),
-        ),
-      ),
+      h("article", { class: "turn queued" },
+        h("div", { class: "youwrap" }, h("div", { class: "you" }, q.you),
+          h("div", { class: "foot" }, `Queued ${i + 1} of ${queued.length} · goes out after the reply above`),
+          h("div", { class: "chips" },
+            i > 0 ? h("button", { class: "pill", "aria-label": "Send earlier", onclick: () => ([queued[i - 1].you, q.you] = [q.you, queued[i - 1].you], render()) }, "↑") : null,
+            h("button", { class: "pill", onclick: () => (queued.splice(i, 1), render(), fillComposer(q.you)) }, "Edit"),
+            h("button", { class: "pill", onclick: () => (queued.splice(i, 1), render()) }, "Remove")))),
     ),
   );
   box.addEventListener("scroll", () => {
-    const far = box.scrollHeight - box.scrollTop - box.clientHeight > 300;
-    document.querySelector(".jump")?.classList.toggle("show", far || S.unseen.length > 0);
+    const away = box.scrollHeight - box.scrollTop - box.clientHeight > 60;
+    const j = document.querySelector(".jump");
+    if (j) j.hidden = !(away || S.unseen.length > 0);
     checkSeen(box);
   }, { passive: true });
   return box;
@@ -785,7 +709,7 @@ const traceOf = (t) => {
 // One menu for every message: the message quoted at the top, then its actions.
 const openMessageMenu = (c, t, i) => {
   const last = i === c.turns.length - 1;
-  const item = (label, run, opts = {}) => h("button", { class: "menu-item" + (opts.danger ? " danger" : ""), onclick: run }, h("span", {}, label), opts.key ? h("kbd", {}, opts.key) : null);
+  const item = (label, run, opts = {}) => h("button", { class: "it" + (opts.danger ? " danger" : ""), onclick: run }, h("div", { class: "g" }, label), opts.key ? h("kbd", {}, opts.key) : null);
   openSheet("Message", () => {
     const own = t.tags || [];
     const inherited = ChatFile.messageTags(c.meta, t).filter((x) => !own.includes(x));
@@ -793,7 +717,7 @@ const openMessageMenu = (c, t, i) => {
     for (const p of S.plugins.values()) for (const a of p.def?.messageActions || []) plugin.push(item(`${a.label} · ${pluginName(p.id)}`, () => (closeSheet(), runMessageAction(c, t, i, p, a))));
     return [
       h("blockquote", { class: "menu-quote" }, (t.reply || t.you || "").slice(0, 240) + ((t.reply || "").length > 240 ? "…" : "")),
-      h("div", { class: "results" },
+      h("div", { class: "body", style: "padding:0;overflow:visible" },
         item("Copy the reply", () => copyText(t.reply, "Copied"), { key: "swipe ←" }),
         item("Quote it in your next message", () => (closeSheet(), fillComposer(quote(t.reply), "append")), { key: "swipe →" }),
         item("Select text", () => openSelect(t)),
@@ -803,7 +727,7 @@ const openMessageMenu = (c, t, i) => {
         last ? item("Edit and send again", () => (closeSheet(), editLast()), { key: "↑" }) : null,
         ...plugin),
       h("h3", {}, "Tags"),
-      h("div", { class: "msg-tags-edit" },
+      h("div", { class: "chips" },
         own.map((x) => tagChip(x, { onRemove: () => (removeMessageTag(c, t, x), setTimeout(rerenderSheet, 50)), onBump: counterOf(x) ? () => addMessageTag(c, t, counterOf(x)[1] + "#") : null })),
         inherited.map((x) => tagChip(x, { dim: true })),
         tagInput("+ tag", (v) => (addMessageTag(c, t, v), setTimeout(rerenderSheet, 50)), "mtag-menu")),
@@ -832,6 +756,7 @@ const renderTurn = (c, t, i) => {
   const menu = () => openMessageMenu(c, t, i);
   const act = (icon, label, run) => h("button", { class: "act", "aria-label": label, title: label, onclick: run }, svgIcon(icon));
   const toggleQa = () => (S.qaSet.set(t, !open), render());
+  const plugActs = [...S.plugins.values()].flatMap((p) => p.def?.messageActions || []);
   // The footer: ⋯ and the time (and how many tags); opened: Copy, Quote, Send again, Select text, More, and the tags.
   const foot = t.pending
     ? null
@@ -844,14 +769,14 @@ const renderTurn = (c, t, i) => {
             act("quote", "Quote", () => fillComposer(quote(t.reply), "append")),
             act("retry", "Send again", () => send(t.you)),
             act("select", "Select text", () => openSelect(t)),
-            act("more", "More: tags, what was sent, plugin actions", menu)),
+            plugActs.length ? act("more", "More: what was sent, plugin actions", menu) : null),
           h("div", { class: "chips" },
             own.map((x) => h("span", { class: "tag" + (counterOf(x) ? " counter" : "") }, "#" + x)),
-            inherited.map((x) => h("span", { class: "tag dim", title: "From the chat tags" }, "#" + x)),
-            h("button", { class: "chip", onclick: menu }, "+ tag")));
+            inherited.map((x) => h("span", { class: "tag inh", title: "From the chat tags" }, "#" + x)),
+            h("button", { class: "pill", onclick: () => addTagPrompt(c, t) }, "+ tag")));
   // Your own message, with Copy and Edit and send again under it.
   const you = h("div", { class: "youwrap" },
-    h("div", { class: "msg you", title: ChatFile.stamp(t.at) }, h("div", { class: "text" }, t.you)),
+    h("div", { class: "you", title: ChatFile.stamp(t.at) }, t.you),
     h("div", { class: "acts right" }, act("copy", "Copy your message", () => copyText(t.you, "Copied")), act("edit", "Edit and send again", () => fillComposer(t.you))));
   // "Thought for N s · sent with N": folded; opened it shows the thinking, what was sent with it, and the full trace.
   const sw = sentWith(t);
@@ -862,25 +787,27 @@ const renderTurn = (c, t, i) => {
     t.thinking ? [h("div", { class: "lbl" }, "Thinking"), h("div", { class: "md", html: mdToHtml(t.thinking) })] : null,
     h("div", { class: "lbl" }, "Sent with"),
     h("div", { class: "sentlist" }, h("div", {}, "Profile: " + (t.profile || "?") + (c.meta.model ? " · " + c.meta.model : "")), ...sw.rows.map((r) => h("div", {}, "· " + r)), h("div", {}, "· Your message")),
-    h("details", { class: "trace" }, h("summary", {}, "Show the full text that was sent"), ...traceOf(t)));
+    S.openTrace.has(t)
+      ? h("details", { class: "trace", open: true, ontoggle: (e) => !e.target.open && (S.openTrace.delete(t), render()) }, h("summary", {}, "The full text that was sent"), ...traceOf(t))
+      : h("button", { class: "pill", onclick: () => (S.openTrace.add(t), render()) }, "Show the full text"));
   const art = h(
     "article",
     { class: "turn" + (S.highlight === i ? " hit" : ""), id: "turn-" + i },
     you,
     h(
       "div",
-      { class: "msg ai" + (t.error ? " has-error" : "") },
-      h("div", { class: "who" }, [c.meta.ai || "AI", c.meta.model].filter(Boolean).join(" · ")),
+      { class: "ai" + (t.error ? " has-error" : "") },
+      h("small", { class: "who" }, [c.meta.ai || "AI", c.meta.model].filter(Boolean).join(" · ")),
       t.pending
         ? (() => { const box = h("div", { class: "live-box", "data-turn": i }); syncLive(box, t); return box; })()
-        : h("div", { class: "text md", html: mdToHtml(t.reply) }),
+        : h("div", { class: "md", html: mdToHtml(t.reply) }),
       t.error ? h("div", { class: "error" }, "✕ " + t.error) : null,
       thin,
       thinBox,
       foot,
     ),
   );
-  const ai = art.querySelector(".msg.ai");
+  const ai = art.querySelector(".ai");
   if (!t.pending) {
     // Desktop right-click opens the menu. On a phone a long-press selects text, so the menu is the ⋯ buttons.
     ai.addEventListener("contextmenu", (e) => {
@@ -977,16 +904,21 @@ const blockEntries = (place) => {
 
 const topBlocks = () => blockEntries("top").map((e, i) => blockFor(e, 99));
 
+// The message bar, as in the wireframe: Quick edit, the box, bigger box, Send. A line under it
+// says what else is going on (other chats being answered).
 const renderComposer = (draft) => {
+  const big = !!S.expanded;
   const ta = h("textarea", {
+    id: "msg",
     "data-keep": "composer",
-    placeholder: S.chat.turns.length ? "Message" : "Start a chat",
+    placeholder: "Message",
+    "aria-label": "Message",
     rows: 1,
     value: draft ?? local("draft") ?? "",
     oninput: (e) => {
       local("draft", e.target.value);
       grow(e.target);
-      const b = document.querySelector(".composer .send");
+      const b = document.querySelector(".comp .send");
       if (b && b.classList.contains("stop") !== !!(waitingTurn() && !e.target.value.trim())) b.replaceWith(sendButton(e.target.value));
     },
     onkeydown: (e) => {
@@ -998,24 +930,14 @@ const renderComposer = (draft) => {
     },
   });
   setTimeout(() => grow(ta), 0);
-  return h(
-    "footer",
-    { class: "composer" + (S.expanded ? " expanded" : "") },
-    h(
-      "div",
-      { class: "inputbox" },
-      h("button", { class: "plus", title: "Quick edit and add: switch rows on or off, put in a text file", "aria-label": "Quick edit and add", onclick: openQuick }, svgIcon("stackadd")),
+  return [
+    h("div", { class: "comp" + (big ? " big" : "") },
+      h("button", { class: "ic", title: "Quick edit and add", "aria-label": "Quick edit and add", onclick: openQuick }, svgIcon("stackadd")),
       ta,
-      h("div", { class: "input-side" },
-        h("button", { class: "ghost expand", onclick: toggleExpand, title: (S.expanded ? "Smaller" : "Bigger") + " message box · Ctrl+E", "aria-label": S.expanded ? "Smaller message box" : "Bigger message box", "aria-pressed": String(!!S.expanded) }, svgIcon(S.expanded ? "shrink" : "expand")),
-        sendButton(ta.value)),
-    ),
-    h(
-      "div",
-      { class: "progress" },
-      h("span", { class: "progress-text" }, composerProgress()),
-    ),
-  );
+      h("button", { class: "ic", onclick: toggleExpand, title: (big ? "Smaller" : "Bigger") + " message box (Ctrl+E)", "aria-label": big ? "Smaller message box" : "Bigger message box" }, svgIcon(big ? "shrink" : "expand")),
+      sendButton(ta.value)),
+    h("div", { class: "progress" }, h("span", { class: "progress-text" }, composerProgress())),
+  ];
 };
 
 // The reply this chat is waiting for (on a site page), if any.
@@ -1032,7 +954,7 @@ const sendButton = (text = "") => {
 const toggleExpand = () => {
   S.expanded = !S.expanded;
   render();
-  const ta = document.querySelector(".composer textarea");
+  const ta = document.querySelector("#msg");
   if (ta) {
     ta.focus();
     grow(ta);
@@ -1046,7 +968,7 @@ const grow = (ta) => {
 };
 
 const send = async (retryText) => {
-  const ta = document.querySelector(".composer textarea");
+  const ta = document.querySelector("#msg");
   const text = (typeof retryText === "string" ? retryText : ta.value).trim();
   if (!text) return toast("Type a message first");
   const chat = S.chat;
@@ -1088,7 +1010,7 @@ const addFromPage = async () => {
 
 // Put text into the message box (edit and resend, reply, recent prompts, share).
 fillComposer = (text, mode = "replace") => {
-  const ta = document.querySelector(".composer textarea");
+  const ta = document.querySelector("#msg");
   if (!ta) return;
   ta.value = mode === "append" && ta.value.trim() ? ta.value.replace(/\s+$/, "") + "\n\n" + text : text;
   local("draft", ta.value);
@@ -1109,23 +1031,25 @@ const editLast = () => {
 // ---------- asking ----------
 // The app's own confirm and text prompt (the app's browser has none of its own).
 // askUser(message, { value, ok, danger }) resolves to true / the text, or null on Cancel.
+// As in the wireframe: a sheet over everything. A question gets "Are you sure?" with Yes
+// and Cancel; asking for text shows the question, a box, and OK / Cancel.
 const askUser = (message, { value = null, ok = "OK", danger = false } = {}) =>
   new Promise((done) => {
     const input = value === null ? null : h("input", { value, "aria-label": message });
     const finish = (v) => (wrap.remove(), done(v));
-    const yes = () => finish(input ? input.value.trim() || null : true);
-    const wrap = h("div", { class: "ask-wrap" },
-      h("div", { class: "scrim", onclick: () => finish(null) }),
-      h("div", { class: "ask", role: "alertdialog", "aria-label": message },
-        h("p", {}, message),
-        input,
-        h("div", { class: "row" },
-          h("button", { class: "grow", onclick: () => finish(null) }, "Cancel"),
-          h("button", { class: "grow " + (danger ? "danger" : "primary"), onclick: yes }, ok))));
+    const yes = () => finish(input ? input.value.trim() : true); // "" when emptied; null only on Cancel
+    const wrap = h("div", { class: "layer ask-wrap" },
+      h("div", { class: "dim", onclick: () => finish(null) }),
+      h("section", { class: "sheet", role: "alertdialog", "aria-label": message, style: "min-height:0" },
+        h("div", { class: "sh" }, input ? message : "Are you sure?"),
+        input ? h("div", { class: "field" }, input) : h("p", { style: "margin:0 0 8px" }, message),
+        h("div", { class: "chips" },
+          h("button", { class: "it prim", style: "width:auto" + (danger ? ";background:var(--err)!important" : ""), onclick: yes }, input ? ok : danger && ok !== "OK" ? ok : "Yes"),
+          h("button", { class: "it", style: "width:auto", onclick: () => finish(null) }, "Cancel"))));
     if (input) input.addEventListener("keydown", (e) => e.key === "Enter" && yes());
     wrap.addEventListener("keydown", (e) => e.key === "Escape" && finish(null));
     document.body.append(wrap);
-    (input || wrap.querySelector(".ask button:last-child")).focus();
+    (input || wrap.querySelector(".prim")).focus();
   });
 const askConfirm = (message, ok = "Delete") => askUser(message, { ok, danger: true });
 const askText = (message, value = "", ok = "OK") => askUser(message, { value, ok });
@@ -1133,8 +1057,10 @@ PP.confirm = askConfirm;
 PP.askText = askText;
 
 // ---------- sheets ----------
+// opts: short (not full height), sub (a small line under the title), head (more header
+// buttons, a function), back (where ‹ goes; else a first child with class "back" moves up).
 openSheet = (title, renderFn, opts = {}) => {
-  S.sheet = { title, render: renderFn, short: !!opts.short };
+  S.sheet = { title, render: renderFn, short: !!opts.short, sub: opts.sub || "", head: opts.head || null, back: opts.back || null };
   S.dd = {}; // dropdowns close when another screen opens
   syncLayer();
   render();
@@ -1182,23 +1108,31 @@ window.addEventListener("popstate", () => {
   render();
 });
 
-// The sheet: ‹ back (when the screen has a ‹ row, which moves up here), title, ? and ✕.
+// The sheet: ‹ back, the title, ? and ✕ on a card that rises from the bottom.
 const renderSheet = () => {
-  const body = h("div", { class: "sheet-body" }, S.sheet.render());
+  const body = h("div", { class: "body" }, S.sheet.render());
   const back = body.firstElementChild?.classList.contains("back") ? body.firstElementChild : null;
   if (back) back.remove();
+  const goBack = S.sheet.back || (back ? () => back.click() : null);
+  const sub = typeof S.sheet.sub === "function" ? S.sheet.sub() : S.sheet.sub;
   return h(
-    "section",
-    { class: "sheet" + (S.sheet.short ? " short" : ""), role: "dialog", "aria-label": S.sheet.title },
+    "div",
+    { class: "layer" },
+    h("div", { class: "dim", onclick: closeSheet }),
     h(
-      "div",
-      { class: "row sheet-head" },
-      back ? h("button", { class: "icon", onclick: () => back.click(), "aria-label": "Back to " + back.textContent.replace(/^‹\s*/, "") }, svgIcon("back")) : null,
-      h("h2", {}, S.sheet.title),
-      helpBtn(),
-      h("button", { class: "icon", onclick: closeSheet, "aria-label": "Close (Esc)", title: "Close" }, svgIcon("close")),
+      "section",
+      { class: "sheet" + (S.sheet.short ? "" : " tall"), role: "dialog", "aria-label": S.sheet.title },
+      h(
+        "div",
+        { class: "sh" },
+        goBack ? h("button", { class: "ic", onclick: goBack, "aria-label": "Back" }, svgIcon("back")) : null,
+        h("span", { class: "grow" }, S.sheet.title, sub ? h("small", {}, sub) : null),
+        ...(S.sheet.head ? [].concat(S.sheet.head()) : []),
+        helpBtn(),
+        h("button", { class: "ic", onclick: closeSheet, "aria-label": "Close", title: "Close (Esc)" }, svgIcon("close")),
+      ),
+      body,
     ),
-    body,
   );
 };
 
@@ -1343,73 +1277,76 @@ const shareChat = async (c = S.chat) => {
   }
 };
 const openGuide = () => openDoc("PLUGINS.md", "Writing plugins");
-const openQuickStart = () => openDoc("QUICKSTART.md", "Quick start");
 
-const openGit = () =>
+// Git history, as in the wireframe: the commits, then backup (author, remote,
+// token, push and pull). The log is read once when the screen opens.
+const GIT = { log: null, error: "" };
+const commitRow = (c) => item({ label: c.message, sub: ChatFile.stamp(new Date(c.time).toISOString()) + " · " + c.id });
+const loadGitLog = (path = "") => {
+  GIT.log = null;
+  GIT.error = "";
+  return api("/api/git/log" + (path ? "?path=" + encodeURIComponent(path) : ""))
+    .then((r) => (GIT.log = r.log), (e) => (GIT.error = e.message))
+    .finally(rerenderSheet);
+};
+const gitLogRows = () =>
+  GIT.error ? [item({ label: "No history here", sub: GIT.error })] : !GIT.log ? [item({ label: "Loading…" })] : GIT.log.length ? GIT.log.map(commitRow) : [item({ label: "No commits yet" })];
+const openGit = () => {
+  loadGitLog();
   openSheet("Git history", () => {
     const g = S.config.git;
-    const log = h("div", { class: "log muted" }, "Loading…");
-    api("/api/git/log")
-      .then((r) => log.replaceChildren(...(r.log.length ? r.log.map((c) => h("div", {}, h("code", {}, c.id), " ", ChatFile.stamp(new Date(c.time).toISOString()), " ", c.message)) : ["No commits yet."])))
-      .catch((e) => (log.textContent = e.message));
-    const field = (label, key, type = "text", ph = "") =>
-      h("label", { class: "field" + (type === "checkbox" ? " inline" : "") }, h("span", {}, label), type === "checkbox"
-        ? h("input", { type, checked: !!g[key], onchange: (e) => ((g[key] = e.target.checked), saveConfig()) })
-        : h("input", { type, value: g[key] || "", placeholder: ph, oninput: (e) => ((g[key] = e.target.value), saveConfig()) }));
-    const token = h("input", { type: "password", placeholder: S.app.gitToken ? "token saved (type to replace)" : "GitHub token with repo access" });
+    const ask = (label, key, ph) => async () => {
+      const v = await askText(label, g[key] || ph || "", "Save");
+      if (v != null) ((g[key] = v.trim()), saveConfig(), rerenderSheet());
+    };
     const run = (what) => async () => {
       try {
         const r = await api("/api/git/" + what, {});
         toast(what + ": " + (r.result || "ok"));
-        rerenderSheet();
+        loadGitLog();
       } catch (e) {
         toast(what + " failed: " + e.message, "error");
       }
     };
     return [
-      h("p", { class: "muted" }, "Every chat save is a commit in ", h("code", {}, S.historyRoot || "history"), ". You can also use git there from Termux."),
-      field("Commit on every save", "enabled", "checkbox"),
-      field("Author name", "name", "text", "promptpipe"),
-      field("Author email", "email", "text", "promptpipe@localhost"),
-      field("Remote URL", "remote", "url", "https://github.com/you/chat-history.git"),
-      h("label", { class: "field" }, h("span", {}, "Token (kept inside the app, not in the folder)"), h("div", { class: "row" }, token, h("button", {
-        onclick: async () => {
-          await api("/api/secret", { key: "gitToken", value: token.value });
-          S.app.gitToken = !!token.value;
-          token.value = "";
-          toast("Token saved");
-        },
-      }, "Save token"))),
-      field("Push after every commit", "autoPush", "checkbox"),
-      h("div", { class: "row" }, h("button", { onclick: run("push") }, "Push"), h("button", { onclick: run("pull") }, "Pull")),
-      h("h3", {}, "Recent commits"),
-      log,
+      ...gitLogRows(),
+      h("div", { class: "lbl" }, "Backup"),
+      item({ label: "Commit on every save", sub: "In " + (S.historyRoot || "history") + ". Git works there from Termux too.", toggle: !!g.enabled, onclick: () => ((g.enabled = !g.enabled), saveConfig(), rerenderSheet()) }),
+      item({ label: "Author name", sub: g.name || "promptpipe", onclick: ask("Author name", "name", "promptpipe") }),
+      item({ label: "Author email", sub: g.email || "promptpipe@localhost", onclick: ask("Author email", "email", "promptpipe@localhost") }),
+      item({ label: "Remote URL", sub: g.remote || "None · for example https://github.com/you/chat-history.git", onclick: ask("Remote URL", "remote", "") }),
+      item({ label: "Token", sub: (S.app.gitToken ? "Saved" : "Not set") + " · kept inside the app, not in the folder", onclick: async () => {
+        const v = await askText("GitHub token with repo access (empty removes it)", "", "Save");
+        if (v == null) return;
+        await api("/api/secret", { key: "gitToken", value: v.trim() });
+        S.app.gitToken = !!v.trim();
+        toast(v.trim() ? "Token saved" : "Token removed");
+        rerenderSheet();
+      } }),
+      item({ label: "Push after every commit", toggle: !!g.autoPush, onclick: () => ((g.autoPush = !g.autoPush), saveConfig(), rerenderSheet()) }),
+      item({ label: "Push now", onclick: run("push") }),
+      item({ label: "Pull now", onclick: run("pull") }),
     ];
-  });
+  }, { back: () => openSettingsGroup("Chats and storage", settingsBody("Chats and storage")) });
+};
 
 // A switch between a few options, shown at the end of a row.
 const seg = (opts, cur, pick, aria = "", disabled = false) =>
   h("div", { class: "seg" }, opts.map(([v, l]) => h("button", { class: v === cur ? "on" : "", "aria-pressed": String(v === cur), "aria-label": (aria ? aria + " " : "") + l, disabled, onclick: () => pick(v) }, l)));
 const segRow = (id, label, sub, control) => h("div", { class: "it", "data-row": id }, h("div", { class: "g" }, label, sub ? h("small", {}, sub) : null), control);
+// Look, as in the wireframe: light or dark, accent, UI scale. (Themes are
+// plugins: Library › Themes.)
 const lookControls = () => {
-  const themes = [...S.plugins.values()].filter(isTheme);
   const scale = Math.round(S.config.ui.scale * 100);
-  const text = +S.config.ui.text || 16;
-  const themeName = (themes.find((t) => t.id === S.config.ui.theme)?.manifest.name) || "Default";
+  const theme = S.config.ui.theme && S.plugins.get(S.config.ui.theme);
   return [
-    segRow("look.mode", "Light or dark", S.config.ui.theme ? "A theme sets its own colours" : "", seg([["", "System"], ["dark", "Dark"], ["light", "Light"]], S.config.ui.mode || "", (v) => setLook("mode", v), "", !!S.config.ui.theme)),
-    item({ id: "look.accent", label: "Accent", sub: ACCENTS[S.config.ui.accent || ""], right: svgIcon(S.dd.accent ? "up" : "down"), onclick: () => ddToggle("accent") }),
-    S.dd.accent ? h("div", { class: "themes" }, Object.entries(ACCENTS).map(([v, l]) =>
-      h("button", { class: "theme-pick accent-pick" + ((S.config.ui.accent || "") === v ? " current" : ""), "data-swatch": v || "orange", "aria-pressed": String((S.config.ui.accent || "") === v), onclick: () => setLook("accent", v) }, h("span", { class: "swatch", "aria-hidden": "true" }), l))) : null,
-    segRow("look.scale", "UI scale", "Text and controls. Applies at once." + ([90, 100, 115, 130].includes(scale) ? "" : " Now " + scale + "%."), seg([[90, "90%"], [100, "100%"], [115, "115%"], [130, "130%"]], scale, (v) => (setScale(v / 100), rerenderSheet()), "UI scale")),
-    segRow("look.text", "Text size", `${text} px`, h("div", { class: "seg" },
-      h("button", { "aria-label": "Smaller text", disabled: text <= 13, onclick: () => setLook("text", text - 1) }, "A−"),
-      h("button", { "aria-label": "Bigger text", disabled: text >= 22, onclick: () => setLook("text", text + 1) }, "A+"))),
-    item({ id: "look.theme", label: "Theme", sub: themeName + " · install more as plugins", right: svgIcon(S.dd.theme ? "up" : "down"), onclick: () => ddToggle("theme") }),
-    S.dd.theme ? h("div", { class: "themes" }, [{ id: "", manifest: { name: "Default", description: "Follows Light or dark and Accent above" } }, ...themes].map((t) =>
-      h("button", { class: "theme-pick" + ((S.config.ui.theme || "") === t.id ? " current" : ""), title: t.manifest.description || "", onclick: () => setTheme(t.id) }, t.manifest.name))) : null,
+    segRow("look.mode", "Light or dark", theme ? "The theme " + (theme.manifest.name || theme.id) + " sets its own colours" : "", seg([["", "System"], ["dark", "Dark"], ["light", "Light"]], S.config.ui.mode || "", (v) => setLook("mode", v), "", !!theme)),
+    item({ id: "look.acc", label: "Accent", sub: ACCENTS[S.config.ui.accent || ""], onclick: openAccent }),
+    segRow("look.size", "UI scale", "Text and controls. Applies at once." + ([90, 100, 115, 130].includes(scale) ? "" : " Now " + scale + "%."), seg([[90, "90%"], [100, "100%"], [115, "115%"], [130, "130%"]], scale, (v) => (setScale(v / 100), rerenderSheet()), "UI scale")),
   ];
 };
+const openAccent = () =>
+  openSheet("Accent", () => Object.entries(ACCENTS).map(([v, l]) => item({ label: l, radio: (S.config.ui.accent || "") === v, onclick: () => (setLook("accent", v), rerenderSheet()) })), { back: () => openSettingsGroup("Look", settingsBody("Look")) });
 
 
 // App parts: the core/ui plugins the app is made of, which ones are yours, and
@@ -1618,7 +1555,7 @@ document.addEventListener("keydown", (e) => {
     if (S.siteMenu) return run(() => ((S.siteMenu = false), render()));
     if (S.sheet) return run(closeSheet);
     if (S.drawer) return run(closeDrawer);
-    const b = document.querySelector(".composer .send.stop");
+    const b = document.querySelector(".comp .send.stop");
     if (b) return run(() => b.click());
   }
   if (ctrl && !e.shiftKey && k === "k") return run(() => openFind());
@@ -1629,7 +1566,7 @@ document.addEventListener("keydown", (e) => {
   if (ctrl && !e.shiftKey && k === "e") return run(toggleExpand);
   if (ctrl && e.key === "/") return run(toggleThinking);
   if (ctrl && e.key === "?") return run(openHelp);
-  if (e.key === "ArrowUp" && !e.altKey && !ctrl && e.target.matches?.(".composer textarea") && !e.target.value) return run(editLast);
+  if (e.key === "ArrowUp" && !e.altKey && !ctrl && e.target.matches?.("#msg") && !e.target.value) return run(editLast);
   if (ctrl && !e.shiftKey && k === "b") return run(() => (S.drawer ? closeDrawer() : openDrawer()));
   if (ctrl && !e.shiftKey && k === "p") return run(nextProfile);
   if (ctrl && e.shiftKey && k === "p") return run(() => openPlugins());
@@ -1652,7 +1589,7 @@ if (window.visualViewport) {
   const fit = () => document.documentElement.style.setProperty("--vvh", window.visualViewport.height + "px");
   window.visualViewport.addEventListener("resize", () => {
     fit();
-    if (document.activeElement?.closest?.(".composer") && nearBottom()) scrollDown();
+    if (document.activeElement?.closest?.(".comp") && nearBottom()) scrollDown();
   });
   fit();
 }
@@ -1662,8 +1599,6 @@ on("start", () => applyLook());
 on("ready", () => {
   render();
   scrollDown();
-  // First run: no site plugin yet and never welcomed.
-  if (!S.config.welcomed && ![...S.plugins.values()].some(isSite)) openWelcome();
 });
 // Text shared from another app starts a new chat with it in the box.
 on("share", (ev) => {

@@ -16,6 +16,9 @@ const LIB = { tab: "profile", filter: "all", cat: new Map(), ticked: new Set(), 
 
 const srcKey = (s) => `${s.repo}@${s.branch || "main"}`;
 const srcList = () => [{ repo: OFFICIAL, branch: "main", official: true }, ...(S.config.sources || [])];
+// A source that is off offers nothing (the plugins installed from it stay).
+const srcOn = (s) => (s.official ? !S.config.officialOff : !s.off);
+const onSources = () => srcList().filter(srcOn);
 const srcOfKey = (k) => srcList().find((s) => srcKey(s) === k);
 const srcName = (k) => {
   const s = srcOfKey(k);
@@ -33,6 +36,9 @@ const parseSource = (text) => {
 
 const kindOfPlugin = (p) => (isSite(p) ? "site" : isTheme(p) ? "theme" : p.manifest.block === false ? "tool" : "message");
 const fromKey = (id) => (S.config.pluginFrom || {})[id];
+// Where an installed plugin's updates come from: the source it was got from, and
+// for the app's own plugins, the official source.
+const fromSrc = (p, id, s) => fromKey(id) === srcKey(s) || (!fromKey(id) && p.source === "builtin" && !!s.official);
 const catOf = (s) => LIB.cat.get(srcKey(s)) || { plugins: [], error: "", busy: false, loaded: false };
 
 // Installed plugins first (with the update on offer from the source they came
@@ -47,11 +53,11 @@ const libItems = () => {
     byId.set(p.id, it);
   }
   const offers = [];
-  for (const s of srcList()) {
+  for (const s of onSources()) {
     for (const e of catOf(s).plugins) {
       const have = byId.get(e.id);
       const offer = { src: s, entry: e };
-      if (have && fromKey(e.id) === srcKey(s)) {
+      if (have && fromSrc(have.plugin, e.id, s)) {
         if (verNewer(e.version, have.version)) have.update = offer;
       } else offers.push({ id: e.id, name: e.name || e.id, kind: e.kind || "tool", plugin: null, version: e.version, offer, installedElsewhere: !!have });
     }
@@ -74,7 +80,7 @@ const loadSource = async (s) => {
   const k = srcKey(s);
   LIB.cat.set(k, { plugins: [], error: "", busy: true, loaded: false });
   rerenderSheet();
-  const next = { plugins: [], error: "", busy: false, loaded: true };
+  const next = { plugins: [], error: "", busy: false, loaded: true, checked: new Date() };
   try {
     const j = JSON.parse(await fetchText(rawOf(s, "index.json")));
     next.plugins = (j.plugins || []).filter((p) => p && p.id && p.path);
@@ -86,7 +92,7 @@ const loadSource = async (s) => {
   rerenderSheet();
   if (!S.sheet && S.drawer) render(); // the Settings badge
 };
-const loadSources = (force = false) => srcList().forEach((s) => (force || !LIB.cat.has(srcKey(s))) && loadSource(s));
+const loadSources = (force = false) => onSources().forEach((s) => (force || !LIB.cat.has(srcKey(s))) && loadSource(s));
 
 // ---------- installing ----------
 
@@ -95,7 +101,7 @@ const loadSources = (force = false) => srcList().forEach((s) => (force || !LIB.c
 const installOffer = async ({ src, entry }) => {
   const have = S.plugins.get(entry.id);
   const from = fromKey(entry.id);
-  if (have && from !== srcKey(src)) {
+  if (have && !fromSrc(have, entry.id, src)) {
     const where = from ? `from ${srcName(from)}` : have.source === "builtin" ? "built into the app" : "put there by you";
     const sure = await askUser(`${entry.name || entry.id} is already here (${where}). Replace it with the one from ${srcName(srcKey(src))}?`, { ok: "Replace" });
     if (!sure) return null;
@@ -171,171 +177,222 @@ const removePlugin = async (p) => {
 
 // ---------- the screen ----------
 
-const dot = (title) => h("span", { class: "udot", title, "aria-label": title });
-
-const libRow = (it) => {
-  const mark = LIB.done[it.offer ? doneKey(it.offer) : ""];
-  const kind = KIND_WORDS[it.kind] || "Plugin";
-  const origin = it.plugin
-    ? it.plugin.source === "builtin" ? (it.plugin.updated ? "updated with the app" : "built in") : fromKey(it.id) ? "from " + srcName(fromKey(it.id)) : it.plugin.overrides ? "your copy" : "yours"
-    : "from " + srcName(srcKey(it.offer.src)) + (it.installedElsewhere ? " · same name is installed" : "");
-  const ver = it.update ? `v${it.version || "?"} → v${it.update.entry.version}` : it.version ? "v" + it.version : "";
-  const sub = [kind, ver, origin].filter(Boolean).join(" · ");
-  const row = item({ id: "lib." + it.id, cls: "lib-row", label: it.name, sub, badge: it.update ? "Update" : null, chev: !!it.plugin, onclick: () => (it.plugin ? openPluginPage(it.id) : openOfferPage(it.offer)) });
-  if (!it.plugin) row.append(h("button", { class: "small primary", disabled: LIB.busy, onclick: (e) => (e.stopPropagation(), installOffers([it.offer])) }, mark === "…" ? "…" : mark === "ok" ? "✓" : "Get"));
-  return row;
-};
-
-const openOfferPage = (offer) =>
-  openSheet(offer.entry.name || offer.entry.id, () => [
-    backRow("Plugins", () => openPlugins("library")),
-    h("p", { class: "muted" }, `${KIND_WORDS[offer.entry.kind] || "Plugin"} · v${offer.entry.version || "?"} · from ${srcName(srcKey(offer.src))}`),
-    offer.entry.note ? h("p", {}, offer.entry.note) : null,
-    offer.src.official ? null : h("p", { class: "warn" }, THIRD_PARTY),
-    offer.entry.kind === "site" ? h("p", { class: "warn" }, SAFETY) : null,
-    LIB.done[doneKey(offer)] && !["ok", "…", ""].includes(LIB.done[doneKey(offer)]) ? h("p", { class: "error" }, LIB.done[doneKey(offer)]) : null,
-    h("div", { class: "row" }, h("button", { class: "primary", disabled: LIB.busy, onclick: () => installOffers([offer]).then(() => S.plugins.has(offer.entry.id) && openPluginPage(offer.entry.id)) }, LIB.busy ? "Installing…" : "Get it")),
-  ]);
-
 const THIRD_PARTY = "This source isn't checked by PromptPipe. A plugin can read your chats and run code in the AI site pages you are logged in to. Only use sources you trust.";
+const KIND_CHIPS = [["all", "All"], ["site", "AI sites"], ["message", "Message plugins"], ["theme", "Themes"], ["tool", "Tools"]];
+const filterChips = (list, cur, pick) =>
+  h("div", { class: "chips" }, list.map(([k, l]) => h("button", { class: "pill" + (cur === k ? " on" : ""), "aria-pressed": String(cur === k), onclick: () => (pick(k), rerenderSheet()) }, l)));
+const origin = (it) =>
+  it.plugin.source === "builtin" ? (it.plugin.updated ? "updated with the app" : "") : fromKey(it.id) ? (srcOfKey(fromKey(it.id))?.official ? "" : "Third party") : it.plugin.overrides ? "your copy" : "yours";
 
-const tabs = () =>
-  h("div", { class: "tabs" },
-    ["profile", "library"].map((t) => h("button", { class: LIB.tab === t ? "on" : "", "aria-pressed": String(LIB.tab === t), onclick: () => ((LIB.tab = t), t === "library" && loadSources(), rerenderSheet()) },
-      t === "profile" ? "Profile" : "Library", t === "library" && updateCount() ? h("span", { class: "badge" }, String(updateCount())) : null)));
+// Library: an installed plugin's card. Its update shows as old → new.
+const libRow = (it) =>
+  item({ id: "library.pl" + it.id, label: it.name, sub: [KIND_WORDS[it.kind] || "Plugin", (it.version || "?") + (it.update ? " → " + it.update.entry.version : ""), origin(it)].filter(Boolean).join(" · "), badge: it.update ? "Update" : null, right: it.update ? null : "›", onclick: () => openPluginPage(it.id) });
 
-const profileTab = () => {
-  S.editProfile = S.editProfile && S.config.profiles.some((x) => x.id === S.editProfile) ? S.editProfile : profile().id;
-  const prof = profileById(S.editProfile);
-  const sites = [...S.plugins.values()].filter(isSite);
-  return [
-    ...editorBody(),
-    h("h3", {}, "AI site of this profile"),
-    sites.length ? null : h("p", { class: "muted" }, "No site plugin yet."),
-    ...sites.map((p) => h("div", { class: "plugin-row" },
-      h("input", { type: "radio", name: "site", checked: prof.site === p.id, "aria-label": "Use " + (p.manifest.name || p.id), onchange: () => ((prof.site = p.id), saveConfig(), render()) }),
-      h("button", { class: "lib-main", onclick: () => openPluginPage(p.id) }, h("span", { class: "grow" }, h("b", {}, p.manifest.name || p.id), libUpdate(p.id) ? dot("Update available") : null)),
-      h("button", { class: "small", "aria-label": "Settings", onclick: () => openPluginSettings(p.id) }, svgIcon("settings")))),
-    h("div", { class: "row" }, h("button", { onclick: () => ((LIB.tab = "library"), (LIB.filter = "site"), loadSources(), rerenderSheet()) }, "Get more AI sites")),
-  ];
+// The Plugins screen's tabs; the Profile tab's dot says a plugin it uses has an update.
+const tabs = () => {
+  const upd = updateCount();
+  const profUpd = editedProfile().pipe.rows.some((r) => r.type === "step" && libUpdate(r.plugin));
+  return h("div", { class: "tabs" },
+    [["profile", "Profile", profUpd ? "●" : ""], ["library", "Library", upd ? String(upd) : ""]].map(([t, l, b]) =>
+      h("button", { class: LIB.tab === t ? "on" : "", "aria-pressed": String(LIB.tab === t), onclick: () => ((LIB.tab = t), (S.dd = {}), t === "library" && loadSources(), rerenderSheet()) }, l, b ? h("span", { class: "badge" }, b) : null)));
 };
 const libUpdate = (id) => updateItems().some((i) => i.id === id);
 
 const libraryTab = () => {
-  const items = libItems().filter((i) => LIB.filter === "all" || i.kind === LIB.filter);
-  const url = h("input", { placeholder: "Plugin link: GitHub folder, plugin.json or .zip", "aria-label": "Plugin link" });
-  const install = async () => {
-    try {
-      const r = await api("/api/plugins/install", { url: url.value });
-      if (r.id.startsWith("bundle:")) return emit("pluginBundle", { version: r.id.slice(7) });
-      await loadPlugins();
-      toast("Installed " + r.id);
-      render();
-      openPluginPage(r.id);
-    } catch (e) {
-      toast("Install failed: " + e.message, "error");
-    }
-  };
+  const n = updateCount();
+  const busy = (S.updates || {}).busy;
+  const items = libItems().filter((i) => i.plugin && (LIB.filter === "all" || i.kind === LIB.filter)).sort((a, b) => !!b.update - !!a.update || a.name.localeCompare(b.name));
+  const on = onSources();
   return [
-    items.length ? null : h("p", { class: "muted" }, LIB.filter === "all" ? "Nothing here yet." : "Nothing of this kind yet."),
+    filterChips(KIND_CHIPS, LIB.filter, (k) => (LIB.filter = k)),
+    n || busy ? item({ id: "library.updall", prim: true, label: busy ? "Checking…" : "Update all", sub: n + " update" + (n === 1 ? "" : "s") + " available", onclick: LIB.busy || SAFE ? null : updateAll }) : null,
     ...items.map(libRow),
-    h("h3", {}, "Install your own"),
-    h("div", { class: "row" }, url, h("button", { onclick: install }, "Install")),
-    h("div", { class: "row" },
-      h("button", { onclick: () => api("/api/app/action", { action: "pickPlugin" }) }, "Install from a file (.zip or plugin.json)"),
-      h("button", { onclick: openPluginGuide }, "Plugin guide")),
-    h("h3", {}, "Sources"),
-    h("p", { class: "muted" }, "Where the Library gets plugins from: repos on GitHub with an index.json."),
+    items.length ? null : item({ label: LIB.filter === "all" ? "Nothing installed yet" : "Nothing of this kind yet", sub: "Get plugins below", chev: true, onclick: () => openGetPlugins() }),
+    h("div", { class: "lbl" }, "Manage"),
+    item({ id: "library.reload", label: "Reload plugins", key: "Ctrl+Shift+R", onclick: reloadPlugins }),
+    item({ id: "library.getp", label: "Get plugins", sub: "From " + on.length + (on.length === 1 ? " source" : " sources"), chev: true, onclick: () => openGetPlugins() }),
+    item({ id: "library.inst", label: "Install from a file or link", chev: true, onclick: openInstall }),
+    item({ id: "library.guide", label: "Plugin guide", sub: "Writing plugins, copy instructions for AI", chev: true, onclick: openPluginGuide }),
+    item({ id: "library.appupd", label: "Check for app updates", sub: busy ? "Checking…" : (S.updates || {}).error ? "Last check: " + S.updates.error : "The app's own plugins and parts", onclick: () => updatePlugins({}) }),
+    h("div", { class: "lbl" }, "Sources"),
     ...srcList().map(sourceRow),
-    sourceAdder(),
-    h("div", { class: "row" }, h("button", { class: "small", onclick: () => loadSources(true) }, "Check the sources again"), h("button", { class: "small", title: "Ctrl+Shift+R", onclick: reloadPlugins }, "Reload plugins")),
+    item({ id: "library.addsrc", label: "Add a source", sub: "Another GitHub repo with plugins", chev: true, onclick: openAddSource }),
   ];
 };
 
+// A source: its name, how many plugins and when it was checked, remove (not the
+// official one), and its switch.
 const sourceRow = (s) => {
   const c = catOf(s);
-  return h("div", { class: "plugin-row src-row" },
-    h("div", { class: "grow" },
-      h("span", {}, h("b", {}, s.repo), s.official ? h("small", { class: "badge" }, "Official") : null),
-      h("small", { class: c.error ? "error" : "muted" }, c.busy ? "Loading…" : c.error ? "Couldn't load: " + c.error : c.loaded ? `${c.plugins.length} plugin${c.plugins.length === 1 ? "" : "s"}${s.branch && s.branch !== "main" ? " · branch " + s.branch : ""}` : "Not loaded yet"),
-      s.official ? null : h("small", { class: "warn" }, THIRD_PARTY)),
-    s.official ? null : h("button", { class: "small danger", onclick: () => removeSource(s) }, "Remove"));
-};
-const sourceAdder = () => {
-  const input = h("input", { placeholder: "owner/name or a GitHub link", "aria-label": "Add a source" });
-  const add = async () => {
-    const s = parseSource(input.value);
-    if (!s) return toast("Give a GitHub repo like owner/name", "error");
-    if (srcList().some((x) => srcKey(x) === srcKey(s))) return toast("That source is already here");
-    if (!(await askUser(`Add ${s.repo} as a plugin source?\n\n${THIRD_PARTY}`, { ok: "Add it" }))) return;
-    S.config.sources = [...(S.config.sources || []), s];
+  const k = srcKey(s);
+  const state = !srcOn(s) ? "Off" : c.busy ? "Checking…" : c.error ? "Couldn't load: " + c.error : c.loaded ? `${c.plugins.length} plugin${c.plugins.length === 1 ? "" : "s"} · checked ${String(c.checked.getHours()).padStart(2, "0")}:${String(c.checked.getMinutes()).padStart(2, "0")}` : "Not checked yet";
+  const flip = () => {
+    if (s.official) S.config.officialOff = srcOn(s);
+    else S.config.sources = (S.config.sources || []).map((x) => (srcKey(x) === k ? { ...x, off: !x.off } : x));
     saveConfig();
-    loadSource(s);
+    if (srcOn(srcOfKey(k))) loadSource(srcOfKey(k));
+    rerenderSheet();
+    render();
   };
-  input.onkeydown = (e) => e.key === "Enter" && (e.preventDefault(), add());
-  return h("div", { class: "row" }, input, h("button", { onclick: add }, "Add"));
+  return h("div", { class: "it", "data-row": "library.src" + k },
+    h("button", { class: "g", title: "Check again", onclick: () => srcOn(s) && loadSource(s) }, s.repo + (s.branch && s.branch !== "main" ? " · " + s.branch : ""), h("small", {}, state + (s.official ? " · Official" : " · Third party"))),
+    s.official ? null : h("button", { class: "act", "aria-label": "Remove source", onclick: () => removeSource(s) }, svgIcon("close")),
+    switchBtn(srcOn(s), s.repo + " on or off", flip));
 };
 const removeSource = async (s) => {
-  if (!(await askConfirm(`Remove the source ${s.repo}? Plugins already installed from it stay.`, "Remove"))) return;
+  if (!(await askConfirm(`Remove ${s.repo}? Plugins you installed from it stay.`, "Remove"))) return;
   S.config.sources = (S.config.sources || []).filter((x) => srcKey(x) !== srcKey(s));
   LIB.cat.delete(srcKey(s));
+  if (LIB.src === srcKey(s)) LIB.src = "all";
   saveConfig();
   rerenderSheet();
 };
+
+// Add a source: the repo, checked for its plugin catalogue before it is added.
+let srcDraft = "";
+const openAddSource = () =>
+  openSheet("Add a source", () => {
+    const add = async () => {
+      const s = parseSource(srcDraft);
+      if (!s) return toast("Give a GitHub repo like owner/name", "error");
+      if (srcList().some((x) => srcKey(x) === srcKey(s))) return toast("That source is already here");
+      try {
+        const j = JSON.parse(await fetchText(rawOf(s, "index.json")));
+        if (!Array.isArray(j.plugins)) throw new Error("index.json has no plugin list");
+      } catch (e) {
+        return toast("No plugin catalogue there: " + e.message, "error");
+      }
+      if (!(await askUser(`Add ${s.repo} as a plugin source?\n\n${THIRD_PARTY}`, { ok: "Add it" }))) return;
+      S.config.sources = [...(S.config.sources || []), s];
+      saveConfig();
+      srcDraft = "";
+      loadSource(s);
+      toast("Added " + s.repo);
+      openPlugins("library");
+    };
+    const input = h("input", { "aria-label": "GitHub repo or link", placeholder: "owner/repo or https://github.com/…", value: srcDraft, oninput: (e) => (srcDraft = e.target.value), onkeydown: (e) => e.key === "Enter" && (e.preventDefault(), add()) });
+    autofocus(input);
+    return [
+      h("div", { class: "lbl" }, "GitHub repo or link"),
+      h("label", { class: "search" }, input),
+      item({ id: "addsource.go", prim: true, label: "Check and add", onclick: add }),
+      item({ id: "addsource.hint", label: "The repo needs a plugin catalogue (index.json). The app checks this first." }),
+    ];
+  }, { back: () => openPlugins("library") });
+
+// Get plugins: what the sources that are on offer, by source.
+const openGetPlugins = (kind = "") => {
+  LIB.kind = kind;
+  loadSources();
+  openSheet("Get plugins", () => {
+    const on = onSources();
+    if (LIB.src !== "all" && !on.some((s) => srcKey(s) === LIB.src)) LIB.src = "all";
+    const offers = libItems().filter((i) => i.offer && (LIB.src === "all" || srcKey(i.offer.src) === LIB.src) && (!LIB.kind || i.kind === LIB.kind));
+    const loading = on.some((s) => catOf(s).busy);
+    const failed = on.filter((s) => catOf(s).error);
+    return [
+      filterChips([["all", "All sources"], ...on.map((s) => [srcKey(s), s.repo.split("/")[1]])], LIB.src, (k) => (LIB.src = k)),
+      LIB.kind ? h("div", { class: "chips" }, h("button", { class: "pill on", onclick: () => ((LIB.kind = ""), rerenderSheet()) }, (KIND_WORDS[LIB.kind] || LIB.kind) + "s only ✕")) : null,
+      ...offers.map(offerRow),
+      loading ? item({ label: "Checking the sources…" }) : null,
+      ...failed.map((s) => item({ label: "Couldn't load " + s.repo, sub: catOf(s).error + " · tap to try again", onclick: () => loadSource(s) })),
+      !offers.length && !loading && !failed.length ? item({ label: "Nothing new to get", sub: "Everything the sources offer is installed" }) : null,
+      item({ label: "Install from a file or link", chev: true, onclick: openInstall }),
+    ];
+  }, { back: () => openPlugins("library") });
+};
+LIB.src = "all";
+const offerRow = (it) => {
+  const o = it.offer;
+  const mark = LIB.done[doneKey(o)];
+  const bad = mark && !["ok", "…", ""].includes(mark);
+  return h("div", { class: "it", "data-row": "getplugins.c" + it.id + srcKey(o.src) },
+    h("button", { class: "g", onclick: () => openOfferPage(o) }, it.name,
+      h("small", {}, [KIND_WORDS[it.kind] || "Plugin", o.entry.version, o.entry.note].filter(Boolean).join(" · ")),
+      h("small", { class: bad ? "error" : "" }, bad ? mark : "From " + o.src.repo + (o.src.official ? " · Official" : " · Third party") + (it.installedElsewhere ? " · same name installed" : ""))),
+    mark === "ok" ? h("span", { class: "ch" }, "Installed") : h("button", { class: "pill", disabled: LIB.busy, onclick: () => installOffers([o]) }, mark === "…" ? "…" : "Get"));
+};
+
+const openOfferPage = (offer) =>
+  openSheet("Plugin", () => [
+    item({ label: offer.entry.name || offer.entry.id, sub: `${KIND_WORDS[offer.entry.kind] || "Plugin"} · version ${offer.entry.version || "?"} · from ${offer.src.repo}` }),
+    offer.entry.note ? item({ label: offer.entry.note }) : null,
+    offer.src.official ? null : item({ cls: "warn", label: "Third party", sub: THIRD_PARTY }),
+    offer.entry.kind === "site" ? item({ cls: "warn", label: "Use a spare account", sub: SAFETY }) : null,
+    item({ prim: true, label: LIB.busy ? "Installing…" : "Get it", onclick: LIB.busy ? null : () => installOffers([offer]).then(() => S.plugins.has(offer.entry.id) && openPluginPage(offer.entry.id)) }),
+  ], { back: () => openGetPlugins(LIB.kind) });
+
+// Install from a file or link (a GitHub folder, plugin.json or .zip).
+let linkDraft = "";
+const installLink = async () => {
+  try {
+    const r = await api("/api/plugins/install", { url: linkDraft.trim() });
+    if (r.id.startsWith("bundle:")) return emit("pluginBundle", { version: r.id.slice(7) });
+    linkDraft = "";
+    await loadPlugins();
+    syncProfiles();
+    toast("Installed " + r.id);
+    render();
+    openPluginPage(r.id);
+  } catch (e) {
+    toast("Install failed: " + e.message, "error");
+  }
+};
+const openInstall = () =>
+  openSheet("Install a plugin", () => [
+    item({ id: "inst.file", label: "Pick a file…", sub: "A .zip or plugin.json", onclick: () => api("/api/app/action", { action: "pickPlugin" }) }),
+    h("div", { class: "lbl" }, "Or a link"),
+    h("label", { class: "search" }, h("input", { "aria-label": "Plugin link", placeholder: "GitHub folder, plugin.json or .zip", value: linkDraft, oninput: (e) => (linkDraft = e.target.value), onkeydown: (e) => e.key === "Enter" && installLink() })),
+    item({ id: "inst.link", prim: true, label: "Install from the link", onclick: () => (linkDraft.trim() ? installLink() : toast("Paste a link first")) }),
+    item({ id: "inst.ai", label: "Paste an AI's answer", sub: "Made with the Plugin guide", chev: true, onclick: openInstallResult }),
+  ], { back: () => openPlugins("library") });
 
 const openPlugins = (tab, filter) => {
   if (tab) LIB.tab = tab;
   if (filter) LIB.filter = filter;
   if (LIB.tab === "library") loadSources();
-  openSheet("Plugins", () => {
-    const n = updateCount();
-    return [
-      backRow("Settings", openSettings),
-      tabs(),
-      LIB.tab === "library" ? h("div", { class: "chips" }, KINDS.map(([k, l]) => h("button", { class: "chip" + (LIB.filter === k ? " current" : ""), "aria-pressed": String(LIB.filter === k), onclick: () => ((LIB.filter = k), rerenderSheet()) }, l))) : null,
-      LIB.tab === "library" && (n || (S.updates || {}).busy)
-        ? item({ id: "updall", prim: true, label: (S.updates || {}).busy ? "Checking…" : "Update all", sub: n + " update" + (n === 1 ? "" : "s") + " available", onclick: LIB.busy || SAFE ? null : updateAll })
-        : null,
-      (S.updates || {}).error ? h("p", { class: "error" }, "✕ " + S.updates.error + ". Download the zip, then install it from the file.") : null,
-      ...(LIB.tab === "profile" ? profileTab() : libraryTab()),
-    ];
+  S.editProfile = S.editProfile && S.config.profiles.some((x) => x.id === S.editProfile) ? S.editProfile : profile().id;
+  openSheet("Plugins", () => [tabs(), ...(LIB.tab === "profile" ? editorBody() : libraryTab())], {
+    back: openSettings,
+    head: () => h("button", { class: "ic", "aria-label": "Quick start: plugins", title: "Quick start: plugins", onclick: () => startTour("plugins") }, svgIcon("play")),
   });
 };
-const openGetSites = () => openPlugins("library", "site");
+const openGetSites = () => openGetPlugins("site");
 
 // ---------- one plugin ----------
 
 const openPluginPage = (id) =>
-  openSheet(S.plugins.get(id)?.manifest?.name || id, () => {
+  openSheet("Plugin", () => {
     const p = S.plugins.get(id);
-    if (!p) return [backRow("Plugins", () => openPlugins()), h("p", { class: "muted" }, "This plugin isn't installed any more.")];
+    if (!p) return [item({ label: "This plugin isn't installed any more" })];
     const m = p.manifest || {};
     const prof = profile();
     const up = updateItems().find((i) => i.id === id)?.update;
-    const where = p.source === "builtin" ? (p.updated ? "Built in, updated with the app" : "Built in") : fromKey(id) ? "From " + srcName(fromKey(id)) : p.overrides ? "Your copy (it replaces the built-in one)" : "Yours";
+    const where = p.source === "builtin" ? (p.updated ? "built in, updated with the app" : "built in") : fromKey(id) ? "from " + srcName(fromKey(id)) : p.overrides ? "your copy (it replaces the built-in one)" : "yours";
     const kind = kindOfPlugin(p);
+    const hasSettings = Object.values(m.settings || {}).some((d) => d.type !== "hidden");
     return [
-      backRow("Plugins", () => openPlugins()),
-      h("p", { class: "muted" }, `${KIND_WORDS[kind]} · v${m.version || "?"} · ${where}${m.advanced ? " · advanced" : ""}`),
-      m.description ? h("p", {}, m.description) : null,
-      p.error ? h("p", { class: "error" }, "✕ " + p.error) : null,
+      item({ id: "plugin.pinfo", label: m.name || id, sub: `${KIND_WORDS[kind]} · version ${m.version || "?"}${up ? " · " + up.entry.version + " available" : ""}` }),
+      p.error ? item({ cls: "danger", label: "It didn't load", sub: p.error }) : null,
       staleNote(p),
-      kind === "message" ? h("div", { class: "plugin-row" }, switchBtn(stepOn(id, prof), "On in this profile", (on) => (setStepOn(id, on, prof), render(), rerenderSheet())), h("span", { class: "grow" }, `On in the profile “${prof.name}”`)) : null,
-      kind === "site" ? h("div", { class: "row" }, h("button", { disabled: prof.site === id, onclick: () => ((prof.site = id), saveConfig(), render(), rerenderSheet()) }, prof.site === id ? "Used by this profile" : `Use in “${prof.name}”`)) : null,
-      kind === "theme" ? h("div", { class: "row" }, h("button", { disabled: S.config.ui.theme === id, onclick: () => (setTheme(id), rerenderSheet()) }, S.config.ui.theme === id ? "In use" : "Use this theme")) : null,
-      up ? h("div", { class: "row" }, h("button", { class: "primary grow", disabled: LIB.busy, onclick: () => installOffers([up], { quiet: true }).then(() => (toast(`Updated to v${up.entry.version}`), rerenderSheet())) }, `Update to v${up.entry.version}`)) : null,
-      Object.values(m.settings || {}).some((d) => d.type !== "hidden") ? h("div", { class: "row" }, h("button", { onclick: () => openPluginSettings(id) }, "Settings")) : null,
-      p.previous ? h("div", { class: "row" }, h("button", { onclick: () => rollBack(id) }, verNewer(p.previous, m.version) ? `Go forward to v${p.previous}` : `Roll back to v${p.previous}`)) : null,
-      p.source === "builtin" && !SAFE ? h("div", { class: "row" }, h("button", { title: "Copy into your plugin folder to edit it", onclick: () => forkPlugin(id).then(() => rerenderSheet()) }, "Copy to edit")) : null,
-      p.source === "user" ? h("div", { class: "row" }, h("button", { class: "danger", onclick: () => removePlugin(p) }, "Remove")) : h("p", { class: "muted" }, "Built-in plugins can't be removed. Switch them off in a profile."),
+      up ? item({ id: "plugin.pupd", prim: true, label: "Update to " + up.entry.version, onclick: LIB.busy ? null : () => installOffers([up], { quiet: true }).then(() => (toast(`${m.name || id} updated`), rerenderSheet())) }) : null,
+      kind === "site" ? item({ id: "plugin.puse", label: "Sites belong to chats", sub: "Pick it from the pill in the header. Profiles do not change the site." }) : null,
+      kind === "message" ? item({ id: "plugin.pon", label: "On", sub: `In the profile “${prof.name}”`, toggle: stepOn(id, prof), onclick: () => (setStepOn(id, !stepOn(id, prof), prof), render(), rerenderSheet()) }) : null,
+      kind === "theme" ? item({ id: "plugin.pon", label: "Use this theme", toggle: S.config.ui.theme === id, onclick: () => (setTheme(S.config.ui.theme === id ? "" : id), rerenderSheet()) }) : null,
+      hasSettings ? item({ id: "plugin.pset", label: "Settings", sub: "This plugin's options", chev: true, onclick: () => openPluginSettings(id) }) : null,
+      p.previous ? item({ id: "plugin.prb", label: verNewer(p.previous, m.version) ? `Go forward to version ${p.previous}` : `Roll back to the previous version`, sub: verNewer(p.previous, m.version) ? "" : "Version " + p.previous, onclick: () => rollBack(id) }) : null,
+      p.source === "builtin" && !SAFE ? item({ id: "plugin.fork", label: "Copy to edit", sub: "Into your plugin folder; your copy replaces this one", onclick: () => forkPlugin(id).then(() => rerenderSheet()) }) : null,
+      m.description ? item({ id: "plugin.about", cls: LIB.about === id ? "" : "clamp", label: "About", sub: m.description + " · " + where[0].toUpperCase() + where.slice(1) + (m.advanced ? " · advanced" : ""), onclick: () => ((LIB.about = LIB.about === id ? "" : id), rerenderSheet()) }) : null,
+      p.source === "user" ? item({ id: "plugin.prm", cls: "danger", label: "Remove", onclick: () => removePlugin(p) }) : item({ id: "plugin.prm", label: "Built in", sub: "Built-in plugins can't be removed. Switch them off in a profile." }),
     ];
-  });
+  }, { back: () => openPlugins("library") });
 
 // ---------- the Plugin guide ----------
 
 const REQUEST_HEAD = "I want a plugin for PromptPipe, an Android app that sends my messages to AI chat sites. Below is the guide for writing plugins. Read it, then write the plugin I ask for.";
 const REQUEST_TAIL = "Reply with every file of the plugin. Write each file's name alone on the line before its code block (for example plugin.json, then the block), and always include plugin.json. Keep it small and simple. After the files, say in two sentences what it does.";
-const aiInstructions = (guide, want) => `${REQUEST_HEAD}\n\n=== PromptPipe plugin guide ===\n${guide}\n=== end of guide ===\n\nWhat I want the plugin to do:\n${want || "(write it here)"}\n\n${REQUEST_TAIL}`;
+// Without a want, the AI asks for it first (you say it in the AI chat).
+const aiInstructions = (guide, want) => `${REQUEST_HEAD}\n\n=== PromptPipe plugin guide ===\n${guide}\n=== end of guide ===\n\n${want ? "What I want the plugin to do:\n" + want : "First ask me what the plugin should do, then write it."}\n\n${REQUEST_TAIL}`;
 
 // An AI's answer -> its files: each fenced block belongs to the file name on the line before it.
 const filesFromAnswer = (text) => {
@@ -358,33 +415,33 @@ const filesFromAnswer = (text) => {
   return out;
 };
 
-const openPluginGuide = async () => {
-  let guide = "";
+// The Plugin guide, as in the wireframe: read it, copy it for an AI (with the
+// request around it), install what the AI wrote.
+const guideText = async () => {
   try {
-    guide = await (await fetch("/docs/PLUGINS.md")).text();
+    return await (await fetch("/docs/PLUGINS.md")).text();
   } catch (e) {
-    guide = "";
+    return "";
   }
-  let want = "";
-  openSheet("Plugin guide", () => [
-    backRow("Plugins", () => openPlugins("library")),
-    h("p", {}, "A plugin is a few small files. Write one by hand with the guide, or let an AI write it: say what you want, copy the instructions into an AI chat, then bring the answer back here."),
-    h("label", { class: "field" }, h("span", {}, "What should the plugin do?"), h("textarea", { rows: 4, value: want, placeholder: "For example: add today's date to the start of every message", oninput: (e) => (want = e.target.value) })),
-    h("div", { class: "row" },
-      h("button", { class: "primary", disabled: !guide, onclick: () => copyText(aiInstructions(guide, want), "Instructions copied: paste them into an AI chat") }, "Copy instructions for AI"),
-      h("button", { onclick: openInstallResult }, "Install the result")),
-    guide ? null : h("p", { class: "error" }, "The guide wasn't found in the app."),
-    h("div", { class: "row" }, h("button", { class: "small", onclick: openGuide }, "Read the guide")),
-  ]);
 };
+const openPluginGuide = () =>
+  openSheet("Plugin guide", () => [
+    item({ id: "guide.g1", label: "How a plugin is built", chev: true, onclick: openGuide }),
+    item({ id: "guide.g2", label: "Copy instructions for AI", sub: "Guide + a request template to paste into any AI", onclick: async () => {
+      const g = await guideText();
+      if (!g) return toast("The guide wasn't found in the app", "error");
+      copyText(aiInstructions(g, ""), "Copied. Paste it into an AI and say what you want");
+    } }),
+    item({ id: "guide.g3", label: "Install the result", sub: "From a file or link", chev: true, onclick: openInstall }),
+  ], { back: () => openPlugins("library") });
 
 const openInstallResult = () => {
   let answer = "";
-  const status = h("p", { class: "muted" }, "Paste the AI's whole answer. Each file needs its name on the line before its code block.");
+  const status = h("div", { class: "sub2" }, "Paste the AI's whole answer. Each file needs its name on the line before its code block.");
   const check = () => {
     const files = Object.keys(filesFromAnswer(answer));
     status.textContent = !answer.trim() ? "Paste the AI's whole answer. Each file needs its name on the line before its code block." : files.includes("plugin.json") ? "Found: " + files.join(", ") : files.length ? "Found " + files.join(", ") + " but no plugin.json." : "No files found yet.";
-    status.className = files.includes("plugin.json") || !answer.trim() ? "muted" : "error";
+    status.className = files.includes("plugin.json") || !answer.trim() ? "sub2" : "sub2 error";
   };
   const install = async () => {
     const files = filesFromAnswer(answer);
@@ -400,43 +457,12 @@ const openInstallResult = () => {
       toast("Install failed: " + e.message, "error");
     }
   };
-  openSheet("Install the result", () => [
-    backRow("Plugin guide", openPluginGuide),
+  openSheet("Paste an AI's answer", () => [
     status,
-    h("textarea", { rows: 12, value: answer, "aria-label": "The AI's answer", oninput: (e) => ((answer = e.target.value), check()) }),
-    h("div", { class: "row" }, h("button", { class: "primary", onclick: install }, "Install"), h("button", { onclick: () => api("/api/app/action", { action: "pickPlugin" }) }, "Pick a .zip or plugin.json instead")),
-  ]);
+    h("textarea", { class: "box", rows: 12, value: answer, "aria-label": "The AI's answer", oninput: (e) => ((answer = e.target.value), check()) }),
+    item({ prim: true, label: "Install", onclick: install }),
+  ], { back: openInstall });
   check();
-};
-
-// ---------- the welcome step: pick site plugins ----------
-
-const siteTickView = () => {
-  const src = srcList()[0];
-  const c = catOf(src);
-  if (!c.loaded && !c.busy) loadSource(src);
-  if (c.busy || !c.loaded) return [h("p", { class: "muted" }, "Loading the list of site plugins…")];
-  if (c.error)
-    return [
-      h("p", { class: "error" }, "Couldn't load the list: " + c.error),
-      h("p", { class: "muted" }, "Without a connection, download a site plugin's zip and use Install from a file."),
-      h("div", { class: "row" }, h("button", { class: "small primary", onclick: () => loadSource(src) }, "Try again"), h("button", { class: "small", onclick: () => api("/api/app/action", { action: "pickPlugin" }) }, "Install from a file")),
-    ];
-  const sites = c.plugins.filter((e) => e.kind === "site").map((entry) => ({ src, entry }));
-  const ticked = sites.filter((o) => LIB.ticked.has(doneKey(o)));
-  return [
-    ...sites.map((o) => {
-      const mark = LIB.done[doneKey(o)];
-      return h("label", { class: "plugin-row" },
-        h("input", { type: "checkbox", checked: LIB.ticked.has(doneKey(o)), disabled: LIB.busy, onchange: (e) => (e.target.checked ? LIB.ticked.add(doneKey(o)) : LIB.ticked.delete(doneKey(o)), rerenderSheet()) }),
-        h("div", { class: "grow" },
-          h("b", {}, o.entry.name || o.entry.id), " ", h("small", { class: "muted" }, (o.entry.version ? "v" + o.entry.version : "") + (o.entry.default ? "" : " · opt in") + (S.plugins.has(o.entry.id) ? ` · installed v${S.plugins.get(o.entry.id).manifest?.version || "?"}` : "")),
-          o.entry.note ? h("div", { class: "muted" }, o.entry.note) : null,
-          mark && !["ok", "…", ""].includes(mark) ? h("div", { class: "error" }, mark) : null),
-        mark === "ok" ? h("span", { class: "ok-mark" }, "✓") : mark === "…" ? h("span", { class: "muted" }, "…") : null);
-    }),
-    h("div", { class: "row" }, h("button", { class: "primary", disabled: !ticked.length || LIB.busy, onclick: () => installOffers(ticked) }, LIB.busy ? "Installing…" : "Get the ticked ones")),
-  ];
 };
 
 // The old setting for one custom repo becomes a source of its own.

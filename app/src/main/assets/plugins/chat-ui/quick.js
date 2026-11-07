@@ -4,7 +4,12 @@
 
 // An on/off switch (a button, so it works with touch, keys and screen readers).
 const switchBtn = (on, label, onchange) =>
-  h("button", { class: "sw" + (on ? " on" : ""), role: "switch", "aria-checked": String(!!on), "aria-label": label, onclick: (e) => (e.stopPropagation(), onchange(!on)) }, h("span", { class: "knob" }));
+  h("button", { class: "sw" + (on ? " on" : ""), role: "switch", "aria-checked": String(!!on), "aria-label": label, onclick: (e) => (e.stopPropagation(), onchange(!on)) });
+// Move up / Move down, as in the wireframe.
+const moveBtns = (i, n, move) =>
+  h("div", { class: "mv" },
+    h("button", { class: "act", "aria-label": "Move up", disabled: i === 0, onclick: (e) => (e.stopPropagation(), move(-1)) }, svgIcon("up")),
+    h("button", { class: "act", "aria-label": "Move down", disabled: i >= n - 1, onclick: (e) => (e.stopPropagation(), move(1)) }, svgIcon("down")));
 
 // Press a grip and move to reorder a list: a line shows where the row would land.
 // `rows()` gives the row elements in order; onDrop(from, to) does the move.
@@ -39,11 +44,13 @@ const reorderDrag = (e, rows, from, onDrop) => {
   grip.addEventListener("pointercancel", cancel);
 };
 
-const plainKind = (r) => {
-  if (r.type === "message") return "Your text goes here. Move it anywhere.";
-  if (r.type === "piece") return "System prompt";
+// What a row is, in a few words. short: the Quick edit drawer's words.
+const plainKind = (r, short = false) => {
+  if (r.type === "message") return short ? "Your text goes here" : "Your text goes here. Move it anywhere.";
+  if (r.type === "piece") return short ? "System prompt" : "Adds text · system prompt";
   const p = S.plugins.get(r.plugin);
   if (!p) return "Plugin not installed";
+  if (short) return "Message plugin";
   if (r.part || typeof p.def?.piece === "function") return "Adds text";
   return typeof p.def?.beforeSend === "function" ? "Changes text" : "Works on replies";
 };
@@ -63,37 +70,34 @@ const pickTextFiles = (many) => {
   input.click();
 };
 
+// The message bar's Quick edit: the active profile's rows (on or off, reorder) and text files.
 const openQuick = () => {
   const prof = profile();
   openSheet(prof.name, () => {
     const pre = presetOf(prof);
     const P = PP.pipeline;
-    const rowEls = () => [...document.querySelectorAll(".quick-list .qrow")];
+    const rowEls = () => [...document.querySelectorAll("[data-qp]")];
     const row = (r, i) => {
       const live = r.type === "message" || P.rowLive(pre, r);
       const g = r.group && (pre.groups || []).find((x) => x.id === r.group);
       return h(
         "div",
-        { class: "qrow" + (live ? "" : " off") + (r.type === "message" ? " anchor" : "") },
-        h("button", { class: "rbtn grip", "aria-label": "Drag to reorder", title: "Drag to reorder", onpointerdown: (e) => reorderDrag(e, rowEls, i, (from, to) => (P.moveRowTo(pre, from, to), rerenderSheet())), onclick: (e) => e.stopPropagation() }, svgIcon("grip")),
-        h("span", { class: "grow qname" }, h("b", {}, rowName(r)), h("small", { class: "muted" }, plainKind(r) + (g && g.on === false ? " · its group is off" : ""))),
-        h("span", { class: "mv" },
-          rbtn("up", "Move up", () => (P.moveRow(pre, i, -1), rerenderSheet()), i === 0 ? "dis" : ""),
-          rbtn("down", "Move down", () => (P.moveRow(pre, i, 1), rerenderSheet()), i === pre.rows.length - 1 ? "dis" : "")),
-        r.type === "message" ? h("span", { class: "sw-gap" }) : switchBtn(r.on !== false, rowName(r) + " on or off", (v) => ((r.on = v), saveConfig(), rerenderSheet())),
+        { class: "it" + (live ? "" : " off"), "data-qp": i, "data-row": "plus." + rowName(r) },
+        h("button", { class: "grip", "aria-label": "Drag to reorder", title: "Drag to reorder", onpointerdown: (e) => reorderDrag(e, rowEls, i, (from, to) => (P.moveRowTo(pre, from, to), rerenderSheet())), onclick: (e) => e.stopPropagation() }, svgIcon("grip")),
+        h("div", { class: "g" }, rowName(r).replace(/^System prompt: /, ""), h("small", {}, plainKind(r, true) + (g && g.on === false ? " · its group is off" : ""))),
+        moveBtns(i, pre.rows.length, (d) => (P.moveRow(pre, i, d), rerenderSheet())),
+        r.type === "message" ? null : switchBtn(r.on !== false, rowName(r) + " on or off", (v) => ((r.on = v), saveConfig(), rerenderSheet())),
       );
     };
     const fileRow = (many) =>
-      sheetRow({ icon: many ? "copy" : "quote", label: many ? "Several text files" : "Text file", sub: many ? "One after another, in the box" : "Put its text in the box", onclick: () => pickTextFiles(many) });
+      item({ icon: many ? "copy" : "quote", label: many ? "Several text files" : "Text file", sub: many ? "One after another, in the box" : "Put its text in the box", onclick: () => pickTextFiles(many) });
     return [
-      h("div", { class: "row quick-head" },
-        h("span", { class: "grow muted" }, "Switch on or off, drag to reorder."),
-        h("button", { class: "chip", onclick: () => openProfileEditor(prof.id) }, svgIcon("edit"), "Edit profile")),
-      pre ? h("div", { class: "quick-list" }, pre.rows.map(row)) : h("p", { class: "muted" }, "This profile has no rows yet."),
-      h("h3", {}, "Add to your message"),
+      h("div", { class: "sub2" }, "Switch on or off, drag to reorder."),
+      ...(pre ? pre.rows.map(row) : [h("p", { class: "sub2" }, "This profile has no rows yet.")]),
+      h("div", { class: "lbl" }, "Add to your message"),
       fileRow(false),
       fileRow(true),
-      ...[...S.plugins.values()].flatMap((p) => (p.def?.menu || []).filter((m) => m.plus).map((m) => sheetRow({ label: m.label, onclick: () => (closeSheet(), Promise.resolve().then(() => m.run()).catch((e) => toast(e.message, "error"))) }))),
+      ...[...S.plugins.values()].flatMap((p) => (p.def?.menu || []).filter((m) => m.plus).map((m) => item({ label: m.label, onclick: () => (closeSheet(), Promise.resolve().then(() => m.run()).catch((e) => toast(e.message, "error"))) }))),
     ];
-  }, { short: true });
+  }, { short: true, sub: "Quick edit", head: () => h("button", { class: "pill", onclick: () => openProfileEditor(prof.id) }, svgIcon("edit"), "Edit profile") });
 };

@@ -5,7 +5,7 @@
 const helpOn = () => S.config.helpButton !== false;
 const helpBtn = () =>
   helpOn()
-    ? h("button", { class: "icon hq" + (S.help ? " on" : ""), "aria-label": "Help: explain things", "aria-pressed": String(!!S.help), title: "Help: tap, then tap anything", onclick: () => ((S.help = !S.help), (S.helpCard = null), render()) }, svgIcon("help"))
+    ? h("button", { class: "ic hq" + (S.help ? " on" : ""), "aria-label": "Help: explain things", "aria-pressed": String(!!S.help), title: "Help: tap, then tap anything", onclick: () => ((S.help = !S.help), (S.helpCard = null), render()) }, svgIcon("help"))
     : null;
 
 const HELP_TEXT = {
@@ -17,7 +17,11 @@ const HELP_TEXT = {
   "stop": "Stops waiting for the reply.",
   "bigger message box": "Makes the box taller for long messages. Ctrl+E.",
   "smaller message box": "Makes the box small again. Ctrl+E.",
-  "close (esc)": "Closes this screen.",
+  "close": "Closes this screen.",
+  "back": "Goes back one screen.",
+  "switch site": "The site and model this chat uses. Tap to switch.",
+  "find chats and functions": "Search your chats and every setting. It shows where each one lives and lights it up.",
+  "jump to latest ↓": "Scrolls to the newest message.",
   "chat title": "Tap for rename, tags, pin, copy, export, folders and history.",
   "show actions": "Shows Copy, Quote, Send again, Select text and the tags for this reply.",
   "hide actions": "Folds the actions away.",
@@ -31,27 +35,30 @@ const HELP_TEXT = {
   "move up": "Moves this row up. It is sent earlier.",
   "move down": "Moves this row down. It is sent later.",
 };
+// What a control is, what it does, and where it lives (from Find's list of functions).
 const helpFor = (el) => {
   const row = el.closest("[data-row]");
-  const label = el.getAttribute("aria-label") || el.getAttribute("title") || (el.classList.contains("title") ? "Chat title" : "") || el.textContent.trim().slice(0, 40);
+  const label = el.getAttribute("aria-label") || el.getAttribute("title") || el.textContent.trim().slice(0, 40);
   const key = label.toLowerCase().replace(/^help: .*/, "");
   const sub = (row || el).querySelector?.(".g small, small")?.textContent || "";
   const name = row?.querySelector(".g")?.firstChild?.textContent || label || "This";
-  return { name, body: HELP_TEXT[key] || sub || "Tap it normally to use it. Its screen explains the options.", el };
+  const fn = commands().find((c) => c.name.toLowerCase() === name.toLowerCase() || c.name.toLowerCase() === key);
+  return { name, body: HELP_TEXT[key] || sub || "Tap it normally to use it. Its screen explains the options.", path: fn?.path || "", key: fn?.key || "", el };
 };
 const helpLayer = () => {
   const c = S.helpCard;
   const done = () => ((S.help = false), (S.helpCard = null), render());
-  return h("div", { class: "layer helpl" },
-    S.help ? h("div", { class: "helpbar" }, h("span", {}, "Help mode. Tap anything to see what it does."), h("span", { class: "row" }, h("button", { class: "chip", onclick: () => (done(), openQuickStart()) }, "Quick start"), h("button", { class: "chip", onclick: done }, "Done"))) : null,
-    c ? h("section", { class: "sheet short helpcard", role: "dialog", "aria-label": "Help: " + c.name },
-      h("div", { class: "row sheet-head" }, h("h2", {}, c.name)),
-      h("div", { class: "sheet-body" }, h("p", {}, c.body),
-        h("div", { class: "chips" },
-          h("button", { class: "chip current", onclick: () => ((S.helpCard = null), render()) }, "Got it"),
-          h("button", { class: "chip", onclick: () => { const el = c.el; S.help = false; S.helpCard = null; render(); (el.isConnected ? el : document.querySelector(`[aria-label="${el.getAttribute("aria-label")}"]`))?.click(); } }, "Do it")))) : null);
+  return h("div", { class: "helpl" },
+    S.help ? h("div", { class: "helpbar" }, h("span", {}, "Help mode. Tap anything to see what it does."), h("span", { style: "display:flex;gap:6px;flex:none" }, h("button", { class: "pill", onclick: () => (done(), openQuickStartList()) }, "Quick start"), h("button", { class: "pill", onclick: done }, "Done"))) : null,
+    c ? h("section", { class: "sheet helpcard", role: "dialog", "aria-label": "Help: " + c.name },
+      h("div", { class: "sh", style: "font-size:17px" }, c.name),
+      h("p", { style: "margin:0 0 4px" }, c.body),
+      c.path ? h("div", { class: "sub2" }, "Where: " + c.path + (c.key ? " · " + c.key : "")) : null,
+      h("div", { class: "chips" },
+        h("button", { class: "it prim", style: "width:auto", onclick: () => ((S.helpCard = null), render()) }, "Got it"),
+        h("button", { class: "it", style: "width:auto", onclick: () => { const el = c.el; S.help = false; S.helpCard = null; render(); (el.isConnected ? el : document.querySelector(`[aria-label="${el.getAttribute("aria-label")}"]`))?.click(); } }, "Do it"))) : null);
 };
-const HELP_SEL = "button, [role=button], .it, [data-row], input, textarea, .title, .cr";
+const HELP_SEL = "button, [role=button], .it, [data-row], input, textarea, .t, .cr, .pill";
 // While help mode is on, a tap explains instead of acting.
 document.addEventListener("pointerdown", (e) => { if (S.help && !e.target.closest(".helpl, .hq")) e.stopPropagation(); }, true);
 document.addEventListener("click", (e) => {
