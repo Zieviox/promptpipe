@@ -158,7 +158,18 @@ api_route :: proc(req: ^Request) -> Response {
 		return why == "" ? json_res(200, fmt.tprintf(`{{"path":%s}}`, quote(path))) : json_error(500, fmt.tprintf("could not save %s (%s)", name, why))
 	case "/api/storage/check":
 		// Try what chats need (a folder, a file in it, a file beside it) and say what the phone answers.
-		return json_res(200, storage_check())
+		report, _ := storage_check(history_dir())
+		return json_res(200, report)
+	case "/api/storage/folder":
+		// GET: where chats are. POST {path, copy}: use another folder ("" = the default one).
+		if !post do return json_res(200, fmt.tprintf(`{{"path":%s,"default":%s,"custom":%v,"chats":%d}}`, quote(history_dir()), quote(history_default()), S.history_override != "", count_files(history_dir(), ".md")))
+		copied, err := choose_history_folder(get_str(body, "path"), get_bool(body, "copy"))
+		return err == "" ? json_res(200, fmt.tprintf(`{{"path":%s,"copied":%d}}`, quote(history_dir()), copied)) : json_error(400, err)
+	case "/api/storage/dirs":
+		path := strings.trim_right(q["path"] or_else "", "/")
+		if path == "" do path = "/"
+		if !os.is_dir(path) do return json_error(400, fmt.tprintf("%s is not a folder the app can open", path))
+		return json_res(200, list_folder(path))
 	case "/api/plugins/bundle": return json_res(200, bundle_info())
 	case "/api/plugins/fork":
 		path, err := fork_plugin(get_str(body, "id"))

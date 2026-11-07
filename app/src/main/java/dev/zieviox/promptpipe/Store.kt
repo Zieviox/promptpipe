@@ -24,7 +24,11 @@ class Store(private val ctx: Context) {
     val base: File
         get() = (if (hasAllFiles()) File(Environment.getExternalStorageDirectory(), "PromptPipe")
         else File(ctx.getExternalFilesDir(null), "PromptPipe")).also { it.mkdirs() }
-    val history get() = File(base, "history").also { it.mkdirs() }
+    // The chats folder: the one chosen in Settings › Chats and storage (the core keeps the
+    // choice in <private>/history-folder), else PromptPipe/history.
+    val history: File
+        get() = (File(privateDir, "history-folder").takeIf { it.isFile }?.readText()?.trim()?.takeIf { it.startsWith("/") }?.let { File(it) }
+            ?: File(base, "history")).also { it.mkdirs() }
     val privateDir get() = File(ctx.filesDir, "core").also { it.mkdirs() }
     val appFiles get() = File(ctx.filesDir, "app-files")
 

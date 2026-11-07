@@ -20,6 +20,7 @@ State :: struct {
 	// set once at start
 	data_dir:    string, // user files: history/, plugins/, config.json
 	private_dir: string, // key, secrets.json, plugin-updates/
+	history_override: string, // a chosen chats folder (history-folder in private_dir), or ""
 	assets_dir:  string, // what ships with the app: ui/, docs/, plugins/
 	port:        int,
 	key:         string, // required on every call (cookie or X-PP-Key)

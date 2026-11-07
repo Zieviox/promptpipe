@@ -9,7 +9,10 @@ import "core:strconv"
 import "core:strings"
 import "core:sync"
 
-history_dir :: proc() -> string {return join(S.data_dir, "history")}
+history_default :: proc() -> string {return join(S.data_dir, "history")}
+history_dir :: proc() -> string {return S.history_override != "" ? S.history_override : history_default()}
+// The chosen chats folder is kept in the app-only folder; the shell reads the same file for git.
+history_pointer :: proc() -> string {return join(S.private_dir, "history-folder")}
 plugins_dir :: proc() -> string {return join(S.data_dir, "plugins")}
 updates_dir :: proc() -> string {return join(S.private_dir, "plugin-updates")}
 // The copy of a plugin of yours that an install replaced, kept so it can be rolled back to.
@@ -187,30 +190,76 @@ bundle_info :: proc() -> string {
 
 // ---------- chat history ----------
 
-// What the history folder allows right now, step by step, with the system's own reason.
-storage_check :: proc() -> string {
-	dir := join(history_dir(), ".pp-check")
-	top := join(history_dir(), ".pp-check.txt")
+// What a chats folder allows, step by step, with the system's own reason.
+// Returns the JSON for the screen and whether every step worked.
+storage_check :: proc(base: string) -> (json_text: string, all_ok: bool) {
+	dir := join(base, ".pp-check")
+	top := join(base, ".pp-check.txt")
 	os_remove_all(dir)
 	os_remove_all(top)
+	all_ok = true
 	b := strings.builder_make()
-	fmt.sbprintf(&b, `{{"path":%s,"steps":[`, quote(history_dir()))
-	step :: proc(b: ^strings.Builder, first: bool, name, why: string) {
-		if !first do strings.write_byte(b, ',')
+	fmt.sbprintf(&b, `{{"path":%s,"steps":[`, quote(base))
+	n := 0
+	step :: proc(b: ^strings.Builder, n: ^int, all_ok: ^bool, name, why: string) {
+		if n^ > 0 do strings.write_byte(b, ',')
+		n^ += 1
+		if why != "" do all_ok^ = false
 		fmt.sbprintf(b, `{{"name":%s,"ok":%v,"why":%s}}`, quote(name), why == "", quote(why))
 	}
 	ferr := os.make_directory(dir)
-	step(&b, true, "make a folder", ferr == nil ? "" : fmt.tprintf("%v", ferr))
+	step(&b, &n, &all_ok, "make a folder", ferr == nil ? "" : fmt.tprintf("%v", ferr))
 	if ferr == nil {
-		step(&b, false, "write a file in it", write_bytes_why(join(dir, "a.txt"), transmute([]byte)string("ok")))
+		step(&b, &n, &all_ok, "write a file in it", write_bytes_why(join(dir, "a.txt"), transmute([]byte)string("ok")))
 	}
-	step(&b, false, "write a file beside the chats", write_bytes_why(top, transmute([]byte)string("ok")))
+	step(&b, &n, &all_ok, "write a file beside the chats", write_bytes_why(top, transmute([]byte)string("ok")))
 	os_remove_all(dir)
 	os_remove_all(top)
+	strings.write_string(&b, "]}")
+	return strings.to_string(b), all_ok
+}
+
+// The folders inside `path`, for the folder picker (hidden ones left out).
+list_folder :: proc(path: string) -> string {
+	names := make([dynamic]string)
+	for d in list_dirs(path) do if !strings.has_prefix(d, ".") do append(&names, d)
+	sort_strings(names[:])
+	b := strings.builder_make()
+	fmt.sbprintf(&b, `{{"path":%s,"parent":%s,"dirs":[`, quote(path), quote(path == "/" ? "" : parent(path) == "" ? "/" : parent(path)))
+	for d, i in names {
+		if i > 0 do strings.write_byte(&b, ',')
+		strings.write_string(&b, quote(d))
+	}
 	strings.write_string(&b, "]}")
 	return strings.to_string(b)
 }
 
+// Use `path` as the chats folder ("" = the default one). The chats already in the
+// old folder are copied over when asked; the old folder itself stays as it was.
+choose_history_folder :: proc(path: string, copy: bool) -> (copied: int, err: string) {
+	target := path == "" ? history_default() : strings.trim_right(path, "/")
+	if target != history_default() {
+		if !strings.has_prefix(target, "/") || strings.contains(target, "/../") || strings.has_suffix(target, "/..") do return 0, "give a full folder path that starts with /"
+		if strings.has_prefix(target, plugins_dir()) || strings.has_prefix(target, S.private_dir) do return 0, "that folder is the app's own"
+	}
+	if os.is_file(target) do return 0, "that is a file, not a folder"
+	if merr := os.make_directory_all(target); merr != nil && !os.is_dir(target) do return 0, fmt.tprintf("could not make %s (%v)", target, merr)
+	if report, ok := storage_check(target); !ok do return 0, fmt.tprintf("the phone won't let the app write in %s: %s", target, report)
+	old := history_dir()
+	if copy && old != target && os.is_dir(old) {
+		before := count_files(old, ".md")
+		if !copy_tree(old, target) do return 0, "copying the chats stopped part way; the old folder is untouched"
+		copied = before
+	}
+	if target == history_default() {
+		os_remove_all(history_pointer())
+		S.history_override = ""
+	} else {
+		if !write_text(history_pointer(), target, private = true) do return 0, "could not save the choice"
+		S.history_override = strings.clone(target, heap())
+	}
+	return copied, ""
+}
 
 history_path :: proc(rel: string) -> (string, bool) {
 	if !safe_rel(rel) do return "", false

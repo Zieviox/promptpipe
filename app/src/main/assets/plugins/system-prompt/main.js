@@ -182,9 +182,13 @@ const openLibrary = (ctx) => {
   });
 };
 
+// What the library sheet needs when opened from Settings or Find (not from a profile row).
+const libraryCtx = () => ({ settings: PP.settings("system-prompt"), set: (k, v) => PP.setSetting("system-prompt", k, v), on: true, note: () => {} });
+
 PP.plugin({
-  // In Find: import and export without opening the library.
+  // In Find and Settings: the library, and import and export without opening the library.
   menu: [
+    { label: "System prompts", run: async () => (await load(), openLibrary(libraryCtx())) },
     { label: "Import system prompts…", run: pickAndImport },
     { label: "Export all system prompts", run: async () => (await load(), lib.prompts.length ? exportAll() : PP.toast("No system prompts yet")) },
   ],

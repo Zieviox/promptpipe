@@ -38,7 +38,8 @@ const commands = () => [
     .map((e) => ({ name: `Toggle ${pluginName(e.id)} (${stepOn(e.id) ? "on" : "off"})`, path: "Profile", key: "", run: () => (setStepOn(e.id, !stepOn(e.id)), render()) })),
   { name: "Plugins", path: "Settings", key: "Ctrl+Shift+P", run: () => openPlugins() },
   { name: "Reload plugins", path: "Settings › Plugins", key: "Ctrl+Shift+R", run: reloadPlugins },
-  { name: "Plugin guide", path: "Settings › Plugins", key: "", run: openGuide },
+  { name: "Plugin guide", path: "Settings › Plugins", key: "", run: openPluginGuide },
+  { name: "Update plugins", path: "Settings › Plugins", key: "", run: () => openPlugins("library") },
   ...[...S.plugins.values()].flatMap((p) =>
     (p.def?.menu || []).map((m) => ({ name: m.label, path: "Plugins › " + (p.manifest?.name || p.id), key: "", run: () => Promise.resolve().then(() => m.run()).catch((e) => toast(e.message, "error")) })),
   ),
@@ -57,11 +58,12 @@ const commands = () => [
 const SETTING_CONTROLS = [
   ["Look", "Light or dark"], ["Look", "Accent"], ["Look", "Text size"], ["Look", "UI scale"], ["Look", "Theme"],
   ["Look", "Stay at the bottom while a reply comes in"], ["Look", "Enter sends"],
-  ["Chats and storage", "Where chats are saved"], ["Chats and storage", "Git history and backup"], ["Chats and storage", "Storage check"],
+  ["Chats and storage", "Chats folder"], ["Chats and storage", "Choose a folder"], ["Chats and storage", "Git history and backup"], ["Chats and storage", "Storage check"],
   ["Sites", "Get site plugins"], ["Sites", "Max replies at once"], ["Sites", "Waiting for replies"],
   ["Import and export", "Export all profiles"], ["Import and export", "Import a profile"], ["Import and export", "Importing a name you already have"],
   ["Local API", "API token"], ["Local API", "Folder for chats made through the API"],
-  ["Advanced", "App parts"], ["Advanced", "Stop background service"], ["Advanced", "Core log"], ["Advanced", "Show the welcome again"],
+  ["Advanced", "App parts"], ["Advanced", "Stop background service"], ["Advanced", "Core log"], ["Advanced", "Reset to first launch"],
+  ["System prompts", "Open the library"], ["Help", "Shortcuts and help"],
 ];
 
 const findEntries = () => [

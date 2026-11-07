@@ -44,6 +44,7 @@ start :: proc(port: int) -> bool {
 	S.modules = make([dynamic]string)
 	S.missing = make(map[string]string)
 	S.waiters = make(map[string]^Waiter)
+	if chosen, ok := read_text(history_pointer()); ok && strings.trim_space(chosen) != "" do S.history_override = strings.clone(strings.trim_space(chosen), heap())
 	for d in ([]string{S.data_dir, S.private_dir, history_dir(), plugins_dir()}) do os.make_directory_all(d)
 
 	S.key = os.get_env("PP_KEY", context.allocator)

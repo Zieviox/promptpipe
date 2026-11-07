@@ -114,3 +114,16 @@ copy_tree :: proc(from, to: string) -> bool {
 	}
 	return true
 }
+
+// How many files ending in `suffix` are under `dir` (the .git folder isn't looked into).
+count_files :: proc(dir, suffix: string) -> int {
+	infos, err := os.read_all_directory_by_path(dir, context.allocator)
+	if err != nil do return 0
+	n := 0
+	for fi in infos {
+		if fi.type == .Directory {
+			if fi.name != ".git" do n += count_files(join(dir, fi.name), suffix)
+		} else if strings.has_suffix(fi.name, suffix) do n += 1
+	}
+	return n
+}
