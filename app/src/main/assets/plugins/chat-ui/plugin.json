@@ -1,12 +1,13 @@
 {
   "name": "Chat screen",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "kind": "ui",
   "order": 50,
   "description": "App part: the whole chat UI. Copy it to change anything you see.",
   "scripts": [
     "ui.js",
     "drawer.js",
+    "quick.js",
     "chat-sheet.js",
     "find.js"
   ],

@@ -239,10 +239,11 @@ const removePreset = (pre) => {
   for (const prof of S.config.profiles) if (prof.preset === pre.id) prof.preset = list[0].id;
   saveConfig();
 };
-const moveRow = (pre, i, d) => {
-  const j = i + d;
-  if (j < 0 || j >= pre.rows.length) return;
-  [pre.rows[i], pre.rows[j]] = [pre.rows[j], pre.rows[i]];
+const moveRow = (pre, i, d) => moveRowTo(pre, i, i + d);
+// Take the row at `from` and put it at `to` (the others shift).
+const moveRowTo = (pre, from, to) => {
+  if (to < 0 || to >= pre.rows.length || from === to) return;
+  pre.rows.splice(to, 0, ...pre.rows.splice(from, 1));
   saveConfig();
 };
 const addGroup = (pre, name) => {
@@ -320,4 +321,4 @@ const setUp = async () => {
 on("plugins", setUp, null);
 
 // Shared with the UI part and plugins.
-PP.pipeline = { partRow, pluginPieces, partOf, WHEN, presets, presetOf, rowLive, rowName, whenLabel, previewMessage, piece, promptLibrary, usePreset, addPreset, removePreset, moveRow, addGroup, removeGroup };
+PP.pipeline = { partRow, pluginPieces, partOf, WHEN, presets, presetOf, rowLive, rowName, whenLabel, previewMessage, piece, promptLibrary, usePreset, addPreset, removePreset, moveRow, moveRowTo, addGroup, removeGroup };

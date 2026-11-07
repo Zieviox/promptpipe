@@ -674,6 +674,11 @@ const ICONS = {
   edit: '<path d="M5 19l1-4 9-9 3 3-9 9zM13.5 7.5l3 3"/>',
   grip: '<circle cx="9" cy="6" r="1.3"/><circle cx="15" cy="6" r="1.3"/><circle cx="9" cy="12" r="1.3"/><circle cx="15" cy="12" r="1.3"/><circle cx="9" cy="18" r="1.3"/><circle cx="15" cy="18" r="1.3"/>',
   right: '<path d="M9 5l7 7-7 7"/>',
+  up: '<path d="M6 14l6-6 6 6"/>',
+  quote: '<path d="M10 8H6v5h4zM18 8h-4v5h4zM10 13c0 2-1 3-3 4M18 13c0 2-1 3-3 4"/>',
+  stackadd: '<path d="M10 3l8 4-8 4-8-4z"/><path d="M2 12l8 4 8-4"/><path d="M19 15v6M16 18h6"/>',
+  expand: '<path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/>',
+  shrink: '<path d="M20 10h-6V4M4 14h6v6M14 10l7-7M10 14l-7 7"/>',
   down: '<path d="M6 10l6 6 6-6"/>',
   share: '<path d="M12 15V4M8 8l4-4 4 4M5 13v6h14v-6"/>',
   chat: '<path d="M5 6h14v9H10l-4 4v-4H5z"/>',
@@ -1015,42 +1020,7 @@ const blockEntries = (place) => {
     .sort((a, b) => at(a.id) - at(b.id));
 };
 
-// The preset chip (opens the pipeline) and a chip per group (its switch).
-const presetChips = () => {
-  const pre = presetOf();
-  if (!pre) return [];
-  return [
-    h("span", { class: "pill preset on" },
-      h("button", { class: "pill-main", title: "The pipeline: what goes with your message", onclick: openPipeline }, svgIcon("layers"), pre.name)),
-    ...(pre.groups || []).map((g) =>
-      h("span", { class: "pill group " + (g.on !== false ? "on" : "off") },
-        h("button", { class: "pill-main", "aria-pressed": String(g.on !== false), title: "Turns every row of this group on or off", onclick: () => ((g.on = g.on === false), saveConfig(), render()) }, h("span", { class: "dot" }), g.name))),
-  ];
-};
-
 const topBlocks = () => blockEntries("top").map((e, i) => blockFor(e, 99));
-
-const renderBlocks = () => {
-  const entries = blockEntries("toggles");
-  const main = entries.filter((e) => !S.plugins.get(e.id).manifest.advanced);
-  const adv = entries.filter((e) => S.plugins.get(e.id).manifest.advanced);
-  let n = 0;
-  const row = h("div", { class: "blocks" }, presetChips(), main.map((e) => blockFor(e, ++n)));
-  if (adv.length) {
-    row.append(
-      h("button", { class: "adv-toggle", "aria-expanded": String(S.advOpen), title: "Ctrl+Shift+A", onclick: toggleAdvanced }, `Advanced ${adv.length} ${S.advOpen ? "▾" : "▸"}`),
-    );
-  }
-  const wrap = h("div", { class: "blocks-wrap" }, row);
-  if (adv.length && S.advOpen) wrap.append(h("div", { class: "blocks adv" }, adv.map((e) => blockFor(e, ++n))));
-  return wrap;
-};
-
-const toggleAdvanced = () => {
-  S.advOpen = !S.advOpen;
-  local("advOpen", S.advOpen);
-  render();
-};
 
 const renderComposer = (draft) => {
   const ta = h("textarea", {
@@ -1076,14 +1046,13 @@ const renderComposer = (draft) => {
   return h(
     "footer",
     { class: "composer" + (S.expanded ? " expanded" : "") },
-    renderBlocks(),
     h(
       "div",
       { class: "inputbox" },
-      h("button", { class: "plus", title: "Pipeline, site, a text file, bigger box", "aria-label": "More", onclick: openPlusMenu }, "+"),
+      h("button", { class: "plus", title: "Quick edit and add: switch rows on or off, put in a text file", "aria-label": "Quick edit and add", onclick: openQuick }, svgIcon("stackadd")),
       ta,
       h("div", { class: "input-side" },
-        h("button", { class: "ghost expand", onclick: toggleExpand, title: (S.expanded ? "Shrink" : "Expand") + " the message box · Ctrl+E", "aria-label": S.expanded ? "Shrink message box" : "Expand message box", "aria-pressed": String(!!S.expanded) }, S.expanded ? "⤡" : "⤢"),
+        h("button", { class: "ghost expand", onclick: toggleExpand, title: (S.expanded ? "Smaller" : "Bigger") + " message box · Ctrl+E", "aria-label": S.expanded ? "Smaller message box" : "Bigger message box", "aria-pressed": String(!!S.expanded) }, svgIcon(S.expanded ? "shrink" : "expand")),
         sendButton(ta.value)),
     ),
     h(
@@ -1103,26 +1072,6 @@ const sendButton = (text = "") => {
     return h("button", { class: "send stop", title: "Stop waiting for the reply · Esc", "aria-label": "Stop", onclick: () => api("/api/site", { cmd: "cancel", page: t.page }).then(() => toast("Stopped waiting"), (e) => toast(e.message, "error")) }, svgIcon("stop"));
   return h("button", { class: "send", onclick: send, title: "Send · Ctrl+Enter" + (t ? " (it waits its turn)" : ""), "aria-label": "Send" }, svgIcon("send"));
 };
-
-// + next to the box: the things you add to or around a message.
-const openPlusMenu = () =>
-  openSheet("Add", () => [
-    h("div", { class: "results" },
-      h("button", { class: "menu-item", onclick: openPipeline }, h("span", {}, "Pipeline: presets and pieces"), h("kbd", {}, "Ctrl+Shift+L")),
-      h("button", { class: "menu-item", onclick: openSiteSheet }, h("span", {}, "Site, model and profile")),
-      h("label", { class: "menu-item file-pick" }, h("span", {}, "Put a text file in the box"),
-        h("input", { type: "file", accept: "text/*,.md,.txt,.json,.csv", onchange: async (e) => {
-          const f = e.target.files && e.target.files[0];
-          if (!f) return;
-          if (f.size > 2_000_000) return toast("That file is over 2 MB; paste the part you need", "error");
-          const text = await f.text();
-          closeSheet();
-          setTimeout(() => fillComposer(text, "append"), 50);
-          toast(`Added ${f.name} (${text.length} characters)`);
-        } })),
-      h("button", { class: "menu-item", onclick: () => (closeSheet(), setTimeout(toggleExpand, 50)) }, h("span", {}, S.expanded ? "Smaller message box" : "Bigger message box"), h("kbd", {}, "Ctrl+E")),
-      ...[...S.plugins.values()].flatMap((p) => (p.def?.menu || []).filter((m) => m.plus).map((m) => h("button", { class: "menu-item", onclick: () => (closeSheet(), Promise.resolve().then(() => m.run()).catch((e) => toast(e.message, "error"))) }, h("span", {}, m.label))))),
-  ]);
 
 // Expand mode: the message box takes most of the screen for long text.
 const toggleExpand = () => {
@@ -1933,7 +1882,7 @@ const openHelp = () =>
       ["Tap \u201c\u25cf site \u00b7 model\u201d at the top", "the site sheet: status, model, profile, pages, site plugins"],
       ["⋯ under a reply, or long-press it", "the message menu: copy, quote, select, send again, tags, what was sent, plugin actions"],
       ["Tap a reply", "shows Copy and Quote under it"],
-      ["+ next to the box", "pipeline, site, a text file, bigger box"],
+      ["The layers button next to the box", "quick edit and add: switch rows on or off, reorder them, put in a text file"],
       ["■ (Send while a reply is coming)", "stop waiting; type to queue a message instead"],
       ["⤢ next to Send", "big message box"],
     ].map(([a, b]) => h("div", { class: "menu-item" }, h("span", {}, a), h("kbd", {}, b))),
@@ -2042,7 +1991,6 @@ document.addEventListener("keydown", (e) => {
   if (ctrl && e.shiftKey && k === "p") return run(openPlugins);
   if (ctrl && e.shiftKey && k === "l") return run(openPipeline);
   if (ctrl && e.shiftKey && k === "r") return run(reloadPlugins);
-  if (ctrl && e.shiftKey && k === "a") return run(toggleAdvanced);
   if (ctrl && !e.shiftKey && k === "t") return run(() => (openChatSheet(), setTimeout(() => document.querySelector(".in-sheet .tag-input")?.focus(), 50)));
   if (ctrl && e.key === ",") return run(openSettings);
   if (ctrl && (e.key === "=" || e.key === "+")) return run(() => setScale(S.config.ui.scale + 0.05));
@@ -2051,11 +1999,6 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "F2") return run(openChatSheet);
   if (e.altKey && e.key === "ArrowUp") return run(() => stepChat(-1));
   if (e.altKey && e.key === "ArrowDown") return run(() => stepChat(1));
-  if (e.altKey && /^[1-9]$/.test(e.key)) {
-    const pills = document.querySelectorAll(".blocks .pill:not(.preset):not(.group) .pill-main");
-    const b = pills[Number(e.key) - 1];
-    if (b) return run(() => b.click());
-  }
 });
 
 // ---------- keyboard on screen ----------

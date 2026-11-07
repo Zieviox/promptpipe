@@ -27,10 +27,12 @@ const commands = () => [
   { name: "Edit and resend last message", path: "Message bar", key: "↑ in empty box", run: editLast },
   { name: "Bigger or smaller message box", path: "Message bar", key: "Ctrl+E", run: toggleExpand },
   { name: "Fold or unfold all thinking", path: "Chat", key: "Ctrl+/", run: () => toggleThinking() },
-  { name: "Pipeline: presets, rows and order", path: "Profile", key: "Ctrl+Shift+L", run: openPipeline },
+  { name: "Edit this profile", path: "Profile", key: "Ctrl+Shift+L", run: openPipeline },
   { name: "Profiles", path: "Profile", key: "", run: openProfileMenu },
   { name: "Next profile", path: "Profile", key: "Ctrl+P", run: nextProfile },
-  { name: "Toggle Advanced blocks", path: "Message bar", key: "Ctrl+Shift+A", run: toggleAdvanced },
+  { name: "Quick edit and add", path: "Message bar", key: "", run: openQuick },
+  { name: "Put a text file in the box", path: "Message bar", key: "", run: () => pickTextFiles(false) },
+  { name: "Put several text files in the box", path: "Message bar", key: "", run: () => pickTextFiles(true) },
   ...profile().plugins
     .filter((e) => isStep(S.plugins.get(e.id)))
     .map((e) => ({ name: `Toggle ${pluginName(e.id)} (${stepOn(e.id) ? "on" : "off"})`, path: "Profile", key: "", run: () => (setStepOn(e.id, !stepOn(e.id)), render()) })),
