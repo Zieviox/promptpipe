@@ -4,6 +4,7 @@
 // ---
 // title: Story ideas
 // source: https://chat.qwen.ai/c/...      (the chat on the AI site)
+// site: qwen-chat                          (the site plugin the chat uses)
 // ai: Qwen Chat
 // model: Qwen3-Max
 // profile: Base64
@@ -18,7 +19,7 @@
 // <!-- pp:turn {"at":"...","profile":"Base64","notes":[...]} -->
 // ### You / ### <AI name> / <details> with what was sent and the raw reply
 (function () {
-  const FIELDS = ["title", "source", "ai", "model", "profile", "tags", "created", "updated"];
+  const FIELDS = ["title", "source", "site", "ai", "model", "profile", "tags", "created", "updated"];
 
   const yamlStr = (s) => {
     s = String(s ?? "");
@@ -37,7 +38,7 @@
   };
 
   const parseFront = (text) => {
-    const meta = { title: "", source: "", ai: "", model: "", profile: "", tags: [], created: "", updated: "" };
+    const meta = { title: "", source: "", site: "", ai: "", model: "", profile: "", tags: [], created: "", updated: "" };
     const m = /^---\n([\s\S]*?)\n---/.exec(text);
     if (!m) return meta;
     for (const line of m[1].split("\n")) {

@@ -313,7 +313,7 @@ const importProfiles = (list, mode) => {
     const plugins = (d.plugins || []).map((e) => ({ id: e.id, on: false, settings: e.settings || {} }));
     if (clash && mode === "replace") (Object.assign(clash, { pipe, plugins }), made.push(clash));
     else {
-      const prof = { id: "p" + Date.now().toString(36) + made.length, name: clash ? uniqueName(d.name) : d.name, site: profile().site || "", plugins, pipe };
+      const prof = { id: "p" + Date.now().toString(36) + made.length, name: clash ? uniqueName(d.name) : d.name, plugins, pipe };
       S.config.profiles.push(prof);
       made.push(prof);
     }

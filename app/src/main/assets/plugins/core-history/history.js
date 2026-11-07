@@ -22,7 +22,7 @@ const tagsFile = () => ({ path: "tags.json", text: JSON.stringify(S.tags, null, 
 const newChat = (folder = S.folder) => ({
   path: null,
   folder,
-  meta: { title: "New chat", source: "", ai: "", model: "", profile: profile().name, tags: [], created: iso(), updated: iso() },
+  meta: { title: "New chat", source: "", site: "", ai: "", model: "", profile: profile().name, tags: [], created: iso(), updated: iso() },
   turns: [],
 });
 
@@ -70,6 +70,7 @@ const openSiteChat = async (c) => {
   S.chat = newChat();
   S.chat.meta.title = c.title;
   S.chat.meta.source = c.url;
+  S.chat.meta.site = siteIdOf();
   S.chat.meta.ai = siteFor()?.name || "";
   closeDrawer();
   render();

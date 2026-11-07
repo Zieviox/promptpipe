@@ -77,17 +77,17 @@ const showSite = () => {
   return api("/api/app/action", t ? { action: "site", page: t.page } : { action: "site" }).catch((e) => toast(e.message, "error"));
 };
 
-// Model and switches chosen in the app (saved per profile) are set on the page
+// Model and switches chosen in the app (saved per site) are set on the page
 // before sending, when the page shows something else.
-// Returns the profile's own object, so changes to it are saved with the profile.
-const choicesFor = (prof = profile()) => {
-  const ss = (prof.siteSettings = prof.siteSettings || {});
+// Returns the site's own saved object, so changes to it are saved with it.
+const choicesFor = (siteId = siteIdOf()) => {
+  const ss = siteSaved(siteId);
   ss.model = ss.model || "";
   ss.switches = ss.switches || {};
   return ss;
 };
-const applySiteChoices = async (site, prof, page = S.page, turn = null) => {
-  const want = choicesFor(prof);
+const applySiteChoices = async (site, page = S.page, turn = null) => {
+  const want = choicesFor(site.id);
   if (!want.model && !Object.keys(want.switches).length) return;
   const cur = await api("/api/site", { cmd: "info", site, page });
   if (want.model && !(cur.model || "").toLowerCase().includes(want.model.toLowerCase())) {
@@ -141,10 +141,12 @@ const runChat = (chat, prompt, prof = profile(), follow = false, onPage = null) 
     // the routed profile then only gives the site and model.
     const hookProf = prof;
     if (route && route.profile) prof = S.config.profiles.find((p) => p.id === route.profile || p.name.toLowerCase() === String(route.profile).toLowerCase()) || prof;
-    const site = siteFor(prof);
-    if (!site) throw new Error("this profile has no AI site plugin (Profiles sheet)");
+    const site = siteFor(chat);
+    if (!site) throw new Error("no AI site plugin yet (get one from the site pill at the top)");
+    if (!chat.meta.site) chat.meta.site = site.id; // the chat keeps the site it was first sent on
+    chat.meta.ai = site.name;
     // Where to send: the route's choice, else the chat's link, else a fresh site chat.
-    // A link to another site than the profile's (a switched profile) starts fresh.
+    // A link to another site than the chat's (the site was switched) starts fresh.
     let target = route && route.url ? (route.url === "new" ? site.url : route.url) : chat.meta.source || site.url;
     if (!sameHost(target, site.url)) target = site.url;
     const turn = { at: iso(), you: prompt, sent: "", raw: "", reply: "", profile: prof.name, tags: [], notes: [], data: {}, pending: true, progress: "Waiting for a free site page…" };
@@ -164,7 +166,7 @@ const runChat = (chat, prompt, prof = profile(), follow = false, onPage = null) 
       const here = pg(page).url;
       if (follow) {
       } else if (!sameUrl(here, target)) await openSite(target, page, turn);
-      if (!follow) await applySiteChoices(site, prof, page, turn);
+      if (!follow) await applySiteChoices(site, page, turn);
       const steps = route && route.plugins === "active" ? hookProf : prof;
       // A brand-new site chat (new chat or new sub-chat) hasn't seen any
       // first-message setup yet (system prompt "first message only" ...).
@@ -242,14 +244,14 @@ const inHooks = async (fn) => {
 // saved as a chat. opts: { profile: name, hooks: true to run the profile's plugins }.
 const askSite = async (prompt, opts = {}) => {
   const prof = S.config.profiles.find((p) => opts.profile && p.name.toLowerCase() === String(opts.profile).toLowerCase()) || profile();
-  const site = siteFor(prof);
-  if (!site) throw new Error("PP.ask: this profile has no AI site plugin");
+  const site = siteFor(S.chat);
+  if (!site) throw new Error("PP.ask: no AI site plugin yet");
   if (hookDepth > 0 && maxReplies() === 1) throw new Error("PP.ask inside a plugin step needs Max replies at once to be 2 or more (Settings › Sites)");
   const page = await acquire({ url: site.url });
   try {
     const quiet = {}; // progress of side requests isn't shown under the message box
     await openSite(site.url, page, quiet);
-    await applySiteChoices(site, prof, page, quiet);
+    await applySiteChoices(site, page, quiet);
     const ctx = { chat: null, profile: prof, firstMessage: true, notes: [] };
     const text = opts.hooks ? await inHooks(() => buildMessage(prompt, ctx, [], prof)) : prompt;
     const w = S.config.wait || {};

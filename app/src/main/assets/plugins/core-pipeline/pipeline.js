@@ -238,7 +238,7 @@ const applyStarter = (id, prof = profile()) => {
 // A new profile with its own rows, from a starter (or just your message). It is
 // not made the active one.
 const makeProfile = (name, starterId = "plain", from = profile()) => {
-  const prof = { id: "p" + Date.now().toString(36), name, site: from.site || "", plugins: [] };
+  const prof = { id: "p" + Date.now().toString(36), name, plugins: [] };
   S.config.profiles.push(prof);
   applyStarter(starterId, prof);
   if (!prof.pipe) prof.pipe = { groups: [], rows: [messageRow()] };

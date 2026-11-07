@@ -431,18 +431,19 @@ const siteState = () => {
   if (!siteFor()) return { key: "none", words: "No site plugin" };
   if ([...Array(pageCount()).keys()].some((i) => pg(i).busy)) return { key: "busy", words: "Busy" };
   if (!S.site.connected) return { key: "off", words: "Page not open" };
+  if (S.site.url && !sameHost(S.site.url, siteFor().url)) return { key: "off", words: "Page on another site" };
   return { key: "ready", words: "Ready" };
 };
 
 // "● site · model" in the header: the site, the model read from the page (or
 // the one you picked, marked "wanted" until the page shows it) and the state.
-const siteButton = (prof = profile()) => {
+const siteButton = () => {
   const st = siteState();
-  const want = choicesFor(prof).model;
+  const want = siteIdOf() ? choicesFor().model : "";
   const onPage = S.site.model || "";
   const model = onPage || want;
   const mismatch = want && onPage && !onPage.toLowerCase().includes(want.toLowerCase());
-  const site = siteFor(prof);
+  const site = siteFor();
   const short = site ? site.name.split(" ")[0] : "No site";
   const busy = Object.keys(S.pageTurns || {}).length;
   return h("button", { class: "pill site-pill " + st.key, title: `${st.words}${mismatch ? ` · the page shows ${onPage}, you picked ${want}` : ""} · switch site`, "aria-label": "Switch site", "aria-haspopup": "menu", "aria-expanded": String(!!S.siteMenu), onclick: () => ((S.siteMenu = !S.siteMenu), render()) },
@@ -453,22 +454,33 @@ const siteButton = (prof = profile()) => {
 };
 // "Qwen3-Max" -> "Max": the part after the name's own digits.
 const shortModel = (m) => m.replace(/^[A-Za-z]+\d*[.\d]*-?/, "") || m;
-// A site plugin of this profile with an update waiting (the pill gets a dot).
+// The open chat's site plugin has an update waiting (the pill gets a dot).
 const siteUpdate = () => {
-  const id = profile().site;
+  const id = siteIdOf();
   return !!id && updateItems().some((i) => i.id === id);
 };
 // The pill's menu: each site with its model, then "Site, model and profile…".
+// Picking a site switches the open chat to it (and new chats start on it).
+const pickChatSite = async (id) => {
+  S.siteMenu = false;
+  if (id !== siteIdOf()) {
+    setChatSite(id);
+    if (S.chat.path) await saveChat(S.chat, "site: " + pluginName(id)).catch((e) => toast(e.message, "error"));
+    toast("This chat uses " + pluginName(id));
+  }
+  render();
+  warmSite();
+};
 const siteMenu = () => {
-  const prof = profile();
+  const cur = siteIdOf();
   const sites = [...S.plugins.values()].filter(isSite);
   const close = () => ((S.siteMenu = false), render());
   return h("div", { class: "layer", style: "z-index:14" },
     h("div", { style: "position:absolute;inset:0", onclick: close }),
     h("div", { class: "sitemenu", role: "menu" },
-      ...sites.map((x) => h("button", { role: "menuitemradio", "aria-checked": String(x.id === prof.site), class: "it", "data-row": "sitemenu." + x.id, onclick: () => ((S.siteMenu = false), (prof.site = x.id), saveConfig(), render(), warmSite()) },
-        h("span", { class: "on" }, x.id === prof.site ? "●" : "○"),
-        h("div", { class: "g" }, x.manifest.name, h("small", {}, (x.id === prof.site ? S.site.model || choicesFor(prof).model : "") || "Model: as the site has it")),
+      ...sites.map((x) => h("button", { role: "menuitemradio", "aria-checked": String(x.id === cur), class: "it", "data-row": "sitemenu." + x.id, onclick: () => pickChatSite(x.id) },
+        h("span", { class: "on" }, x.id === cur ? "●" : "○"),
+        h("div", { class: "g" }, x.manifest.name, h("small", {}, (x.id === cur ? S.site.model : "") || choicesFor(x.id).model || "Model: as the site has it")),
         h("span", { class: "dot", style: "margin:0" }))),
       sites.length ? h("div", { class: "sep" }) : null,
       h("button", { role: "menuitem", class: "it", "data-row": "sitemenu.more", onclick: () => ((S.siteMenu = false), openSiteSheet()) }, h("div", { class: "g" }, sites.length ? "Site, model and profile…" : "Get site plugins…"))));
@@ -481,12 +493,12 @@ const SAFETY = "Use a separate account on the AI site (a throwaway Gmail works),
 const openSiteSheet = () =>
   openSheet("Profile and site", () => {
     const prof = profile();
-    const site = siteFor(prof);
+    const site = siteFor();
     const st = siteState();
-    const want = choicesFor(prof).model;
+    const want = site ? choicesFor().model : "";
     const sites = [...S.plugins.values()].filter(isSite);
     const pr = S.plugins.get("page-report");
-    const upd = site && updateItems().find((i) => i.id === prof.site);
+    const upd = site && updateItems().find((i) => i.id === site.id);
     const pageItem = (label, sub, fn, id) => item({ id: "site." + id, label, sub, onclick: fn });
     return [
       !site ? item({ id: "site.get", prim: true, label: "Get site plugins", sub: "No AI site yet", onclick: openGetSites }) : null,
@@ -505,7 +517,7 @@ const openSiteSheet = () =>
       item({ id: "site.pages", label: `${maxReplies()} replies at once at most`, sub: `${pageCount()} ${pageCount() === 1 ? "page is" : "pages are"} open`, right: "Change", onclick: () => settingsPage("Sites", settingsBody("Sites")) }),
       h("div", { class: "lbl" }, "Site plugins"),
       item({ id: "site.getsites", label: "Get site plugins", chev: true, onclick: openGetSites }),
-      site ? item({ id: "site.plugset", label: "Site plugin settings", chev: true, onclick: () => openPluginSettings(prof.site) }) : null,
+      site ? item({ id: "site.plugset", label: "Site plugin settings", chev: true, onclick: () => openPluginSettings(site.id) }) : null,
       h("div", { class: "lbl" }, "Developer"),
       ...((pr && pr.def && pr.def.menu) || []).map((m) => item({ id: "site.dev." + m.label, label: m.label, onclick: () => Promise.resolve().then(() => m.run()).catch((e) => toast(e.message, "error")) })),
       item({ id: "site.decode", label: "Decode the newest reply (preview)", onclick: decodeLast }),
@@ -519,7 +531,7 @@ const renderTop = () => {
     { class: "top" },
     h("button", { class: "ic", title: "Chats · Ctrl+B", "aria-label": "Chats", onclick: openDrawer }, svgIcon("menu"), Object.keys(S.chatStatus || {}).some((k) => S.chatStatus[k] === "Reply ready") ? h("span", { class: "pdot", style: "top:2px;right:2px" }) : null),
     h("button", { class: "t", title: "Chat actions · F2", "aria-label": "Chat title", onclick: openChatSheet }, (c.meta.title || "New chat") + " ▾"),
-    siteButton(profile()),
+    siteButton(),
     ...topBlocks(),
     h("button", { class: "ic find", title: "Find chats and functions · Ctrl+K or F3", "aria-label": "Find chats and functions", onclick: () => openFind() }, svgIcon("search")),
     helpBtn(),
@@ -1151,35 +1163,38 @@ const runFromSheet = (c) => {
 };
 
 // Settings form built from a plugin's manifest.
+// A plugin's settings as wireframe rows: a switch, a radio list, or a box.
 const settingsForm = (id) => {
   const man = S.plugins.get(id).manifest;
   const cur = settingsFor(id);
   const out = [];
   for (const [k, d] of Object.entries(man.settings || {})) {
     if (d.type === "hidden") continue; // kept by the plugin itself
-    let input;
-    const set = (v) => setSetting(id, k, v);
-    if (d.type === "bool") input = h("input", { type: "checkbox", checked: !!cur[k], onchange: (e) => (set(e.target.checked), render()) });
-    else if (d.type === "select") {
+    const set = (v, redraw) => (setSetting(id, k, v), redraw && (rerenderSheet(), render()));
+    const label = d.label || k;
+    if (d.type === "bool") {
+      out.push(item({ label, sub: d.help, toggle: !!cur[k], onclick: () => set(!cur[k], true) }));
+      continue;
+    }
+    out.push(h("div", { class: "lbl" }, label));
+    if (d.type === "select") {
       const opts = Array.isArray(d.options) ? d.options.map((o) => [o, o]) : Object.entries(d.options || {});
-      input = h("select", { onchange: (e) => set(e.target.value) }, opts.map(([v, l]) => h("option", { value: v, selected: v === cur[k] }, l)));
-    } else if (d.type === "textarea") input = h("textarea", { rows: 5, value: cur[k] ?? "", oninput: (e) => set(e.target.value) });
-    else input = h("input", { type: d.type === "number" ? "number" : "text", value: cur[k] ?? "", oninput: (e) => set(d.type === "number" ? Number(e.target.value) : e.target.value) });
-    out.push(h("label", { class: "field" + (d.type === "bool" ? " inline" : "") }, h("span", {}, d.label || k), input, d.help ? h("small", { class: "muted" }, d.help) : null));
+      out.push(...opts.map(([v, l]) => item({ label: l, radio: v === cur[k], onclick: () => set(v, true) })));
+    } else if (d.type === "textarea") out.push(h("textarea", { class: "box", rows: 5, "aria-label": label, value: cur[k] ?? "", oninput: (e) => set(e.target.value) }));
+    else out.push(h("label", { class: "search" }, h("input", { type: d.type === "number" ? "number" : "text", "aria-label": label, value: cur[k] ?? "", oninput: (e) => set(d.type === "number" ? Number(e.target.value) : e.target.value) })));
+    if (d.help) out.push(h("div", { class: "sub2" }, d.help));
   }
-  if (!out.length) out.push(h("p", { class: "muted" }, "This plugin has no settings."));
+  if (!out.length) out.push(item({ label: "This plugin has no settings" }));
   return out;
 };
 
+// Saved per site for site plugins, per profile for the others.
 const openPluginSettings = (id) => {
   const p = S.plugins.get(id);
-  openSheet(`${p.manifest?.name || id} · ${profile().name}`, () => [
-    h("p", { class: "muted" }, p.manifest?.description || ""),
-    p.error ? h("p", { class: "error" }, "✕ " + p.error) : null,
-    isSite(p) ? null : h("label", { class: "field inline" }, h("span", {}, `On in the profile “${profile().name}”`), h("input", { type: "checkbox", checked: stepOn(id), onchange: (e) => (setStepOn(id, e.target.checked), render()) })),
+  openSheet("Settings", () => [
+    p.error ? item({ cls: "danger", label: "It didn't load", sub: p.error }) : null,
     ...settingsForm(id),
-    h("p", { class: "muted" }, "Settings are saved per profile; the switch and the order are the preset's (Pipeline)."),
-  ]);
+  ], { sub: (p.manifest?.name || id) + (isSite(p) ? " · every chat on this site" : " · profile " + profile().name), back: () => openPluginPage(id) });
 };
 
 // A copy of yours with the same id replaces the app's plugin. When the app's own
@@ -1514,6 +1529,7 @@ const linkToSite = async () => {
   try {
     const r = await siteCmd("info");
     S.chat.meta.source = r.url;
+    S.chat.meta.site = siteIdOf();
     S.chat.meta.ai = siteFor()?.name || "";
     if (S.chat.path) await saveChat(S.chat, "link: " + S.chat.meta.title);
     render();

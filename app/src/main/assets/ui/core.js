@@ -213,7 +213,7 @@ const PP = (window.PP = {
   },
   // Another plugin's settings for the active profile (read only), e.g. PP.settings("system-prompt").stack.
   settings: (id) => settingsFor(id),
-  // The site plugin of the active profile ({ name, url, ... }).
+  // The site plugin of the open chat ({ name, url, ... }).
   get sitePlugin() {
     return siteFor();
   },
@@ -269,11 +269,15 @@ const pluginName = (id) => S.plugins.get(id)?.manifest?.name || id;
 
 // Every profile lists every non-site plugin once (new ones are added switched off).
 const syncProfiles = () => {
-  // A profile whose site isn't installed takes the first site that is.
-  const sites = [...S.plugins.values()].filter(isSite);
-  for (const prof of S.config.profiles) {
-    if (sites.length && !sites.some((p) => p.id === prof.site)) prof.site = sites[0].id;
+  // Sites belong to chats. Before, each profile had one: the active profile's
+  // site (and its settings) become the default for new chats, once.
+  if (S.config.site == null) {
+    const prof = profile();
+    S.config.site = prof.site || "";
+    S.config.siteSettings = { ...(S.config.siteSettings || {}), ...(prof.site && prof.siteSettings ? { [prof.site]: prof.siteSettings } : {}) };
   }
+  const sites = [...S.plugins.values()].filter(isSite);
+  if (sites.length && !sites.some((p) => p.id === S.config.site)) S.config.site = sites[0].id;
   for (const prof of S.config.profiles) {
     prof.plugins = prof.plugins.filter((e) => !S.plugins.has(e.id) || isStep(S.plugins.get(e.id)));
     for (const p of S.plugins.values()) {
@@ -289,25 +293,46 @@ const entryFor = (id, prof = profile()) => {
   return e;
 };
 
-// Settings: what the profile saved, else the manifest's default.
+// A site plugin's own saved things (its settings, the model and switches you
+// picked): one per site, whatever the profile.
+const siteSaved = (id) => ((S.config.siteSettings = S.config.siteSettings || {})[id] = S.config.siteSettings[id] || {});
+// Settings: what the profile saved (a site's: what that site saved), else the manifest's default.
 const settingsFor = (id, prof = profile()) => {
   const man = S.plugins.get(id)?.manifest || {};
-  const saved = id === prof.site ? prof.siteSettings || {} : entryFor(id, prof).settings;
+  const saved = isSite(S.plugins.get(id)) ? siteSaved(id) : entryFor(id, prof).settings;
   const out = {};
   for (const [k, d] of Object.entries(man.settings || {})) out[k] = k in saved ? saved[k] : d.default;
   return out;
 };
 const setSetting = (id, key, value, prof = profile()) => {
-  if (id === prof.site) (prof.siteSettings = prof.siteSettings || {})[key] = value;
+  if (isSite(S.plugins.get(id))) siteSaved(id)[key] = value;
   else entryFor(id, prof).settings[key] = value;
   saveConfig();
 };
 
-const siteFor = (prof = profile()) => {
-  const p = S.plugins.get(prof.site);
+// The site plugin a chat uses: its own (meta.site), else the one its file names
+// (older chats: meta.ai), else the default for new chats (the last one picked).
+const siteIdOf = (chat = S.chat) => {
+  const ok = (id) => !!id && isSite(S.plugins.get(id));
+  if (chat && ok(chat.meta.site)) return chat.meta.site;
+  const byName = chat && chat.meta.ai && [...S.plugins.values()].find((p) => isSite(p) && p.manifest.name === chat.meta.ai);
+  if (byName) return byName.id;
+  return ok(S.config.site) ? S.config.site : "";
+};
+// Pick the site for a chat; new chats take it too from then on.
+const setChatSite = (id, chat = S.chat) => {
+  chat.meta.site = id;
+  chat.meta.ai = pluginName(id);
+  S.config.site = id;
+  saveConfig();
+};
+
+const siteFor = (chat = S.chat) => {
+  const p = S.plugins.get(siteIdOf(chat));
   if (!p || !isSite(p)) return null;
   const site = JSON.parse(JSON.stringify(p.manifest.site));
-  site.settings = settingsFor(p.id, prof);
+  site.id = p.id;
+  site.settings = settingsFor(p.id);
   if (site.settings.replySelector) site.reply = [site.settings.replySelector, ...site.reply];
   site.name = p.manifest.name;
   if (p.siteScript) site.script = p.siteScript;

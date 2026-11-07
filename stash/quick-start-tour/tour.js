@@ -117,8 +117,7 @@ const pickSite = async (ch) => {
     const n = await installOffers([ch.offer], { quiet: true });
     if (!n) return toast("Couldn't get " + ch.name + ". Pick it again or choose Later.", "error");
   }
-  profile().site = ch.id;
-  saveConfig();
+  setChatSite(ch.id);
   render();
 };
 const siteName = () => siteFor()?.name || "your site";

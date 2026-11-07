@@ -1,6 +1,6 @@
 {
   "name": "Chat screen",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "kind": "ui",
   "order": 50,
   "description": "App part: the whole chat UI. Copy it to change anything you see.",
