@@ -57,7 +57,6 @@ const commands = () => [
   { name: "Bigger UI", path: "Settings › Look", key: "Ctrl+=", run: () => setScale(S.config.ui.scale + 0.05) },
   { name: "Smaller UI", path: "Settings › Look", key: "Ctrl+-", run: () => setScale(S.config.ui.scale - 0.05) },
   { name: "Shortcuts and help", path: "Help", key: "Ctrl+?", run: openHelp },
-  { name: "Quick start", path: "Help", key: "", run: openQuickStartList },
 ];
 
 // Settings pages are found by name; the controls on them by these labels (the
@@ -69,7 +68,7 @@ const SETTING_CONTROLS = [
   ["Chats and storage", "Chat folder"], ["Chats and storage", "Move all chats to another folder…"], ["Chats and storage", "Git history and backup"], ["Chats and storage", "Allow all files access"], ["Chats and storage", "Storage check"],
   ["Import and export", "Export all profiles"], ["Import and export", "Import a profile…"], ["Import and export", "Export all system prompts"], ["Import and export", "Import system prompts…"], ["Import and export", "Importing a name you already have"],
   ["Local API", "Address"], ["Local API", "API token"], ["Local API", "How apps use it"], ["Local API", "Folder for chats made through the API"],
-  ["Advanced", "Reset to first launch"], ["Advanced", "App parts"], ["Advanced", "Safe mode"], ["Advanced", "Core log"], ["Advanced", "Stop background service"], ["Advanced", "Version"],
+  ["Advanced", "App parts"], ["Advanced", "Safe mode"], ["Advanced", "Core log"], ["Advanced", "Stop background service"], ["Advanced", "Version"],
   ["Help", "Show the ? button"], ["Help", "Shortcuts"], ["Help", "Plugin guide"],
 ];
 

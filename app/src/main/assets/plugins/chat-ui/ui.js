@@ -274,11 +274,8 @@ render = () => {
   if (S.drawer) app.append(h("div", { class: "drawer-scrim", onclick: closeDrawer }), withClass(renderDrawer(), enter(hadDrawer)));
   if (S.siteMenu) app.append(siteMenu());
   if (S.sheet) app.append(withClass(renderSheet(), enter(hadSheet)));
-  maybeTour();
-  if (S.tour) app.append(tourLayer());
   if (S.help || S.helpCard) app.append(helpLayer());
   restoreView(view, hadSheet);
-  if (S.tour) tourSpot();
   // Reading at the very bottom, you stay at the bottom as the chat grows; anywhere
   // above it, your place is never moved (new replies show on the jump button).
   if (view.pinned && followOn()) scrollDown();
