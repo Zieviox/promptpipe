@@ -8,7 +8,13 @@ What it does:
 - **Server.** It serves the app screen, plugins and the API.
 - **Key.** Every call needs the security key. The app screen gets it through
   `/open?key=…`, which sets a cookie. The shell sends it in the `X-PP-Key`
-  header. The core checks the Host header on every request.
+  header. The core checks the Host header on every request, and the key
+  before it reads a request's body.
+- **Proof.** `/hello?nonce=N` (no key) answers HMAC-SHA256(key,
+  "ppcore-proof:" + N). The shell checks it before it sends the key or runs a
+  call, because another app can take the port while the core is down.
+- **Limits.** At most 256 connections at once, timeouts on every read and
+  write, 64 MB per request body, 32 MB per unzipped plugin file.
 - **Files.** Settings, chat history and the plugin store.
 - **Page bridge.** The core queues work only the shell can do: driving a site
   page, app actions and native modules (git, clipboard, vibration, share). The

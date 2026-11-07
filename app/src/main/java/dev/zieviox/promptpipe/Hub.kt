@@ -45,26 +45,33 @@ class Hub(private val app: App) {
         if (e.optString("type") in listOf("site", "pages")) app.core.status()
     }
 
-    // The app screen, opened with the security key once the core answers.
-    // Until then it shows "Starting…", and if the core doesn't answer, why.
-    fun openScreen() = kotlin.concurrent.thread(isDaemon = true) {
-        main.post { uiSession.loadUri(page("Starting promptpipe…", "")) }
+    // The app screen, opened with the security key once our core has proved
+    // itself (Core.ready). Until then it shows "Starting…", and if the core
+    // doesn't come up, why. Called again whenever the core stops or restarts;
+    // only the newest call goes on.
+    private val screenTicket = AtomicInteger(0)
+
+    fun openScreen(title: String = "Starting promptpipe…") = kotlin.concurrent.thread(isDaemon = true) {
+        val mine = screenTicket.incrementAndGet()
+        fun load(uri: String) = main.post { if (screenTicket.get() == mine) uiSession.loadUri(uri) }
+        load(page(title, ""))
         for (i in 0 until 150) {
+            if (screenTicket.get() != mine) return@thread
             if (app.core.ready()) {
-                main.post { uiSession.loadUri("${App.base}/open?key=${app.core.key}") }
+                load("${App.base}/open?key=${app.core.key}")
                 return@thread
             }
             Thread.sleep(200)
         }
         val why = app.core.problem.ifEmpty { "the core didn't answer within 30 seconds" }
-        main.post { uiSession.loadUri(page("promptpipe couldn't start: $why", "Last lines of ${app.core.logFile.path}:\n\n${app.core.lastLog()}")) }
+        load(page("promptpipe couldn't start: $why", "Last lines of ${app.core.logFile.path}:\n\n${app.core.lastLog()}"))
     }
 
     // A plain page made on the spot (no server needed), in the app's dark colours.
     private fun page(title: String, detail: String): String {
         fun esc(s: String) = s.replace("&", "&amp;").replace("<", "&lt;")
         val html = "<meta name=viewport content='width=device-width'><body style='background:#0b0c0f;color:#d8dbe2;font:16px system-ui;padding:24px'>" +
-            "<p>${esc(title)}</p>" + (if (detail.isEmpty()) "" else "<pre style='white-space:pre-wrap;font-size:12px;color:#9aa1ad'>${esc(detail)}</pre><p><a style='color:#e8875a' href='${App.base}/open?key=${app.core.key}'>Try again</a></p>")
+            "<p>${esc(title)}</p>" + (if (detail.isEmpty()) "" else "<pre style='white-space:pre-wrap;font-size:12px;color:#9aa1ad'>${esc(detail)}</pre><p><a style='color:#e8875a' href='$RETRY'>Try again</a></p>")
         return "data:text/html;charset=utf-8," + java.net.URLEncoder.encode(html, "UTF-8").replace("+", "%20")
     }
 
@@ -217,7 +224,13 @@ class Hub(private val app: App) {
 
         // Links in chats open in the normal browser, not inside the app UI.
         override fun onLoadRequest(session: GeckoSession, request: GeckoSession.NavigationDelegate.LoadRequest): GeckoResult<AllowOrDeny>? {
-            if (request.uri.startsWith(App.base) || request.uri.startsWith("about:") || request.uri.startsWith("data:")) return GeckoResult.fromValue(AllowOrDeny.ALLOW)
+            // "Try again" on the failure page waits for the core here, rather than
+            // going to the port (which may not be our core while it is down).
+            if (request.uri == RETRY) {
+                openScreen()
+                return GeckoResult.fromValue(AllowOrDeny.DENY)
+            }
+            if (request.uri.startsWith(App.base + "/") || request.uri.startsWith("about:") || request.uri.startsWith("data:")) return GeckoResult.fromValue(AllowOrDeny.ALLOW)
             main.post { screen?.runAction("openUrl", JSONObject().put("url", request.uri)) }
             return GeckoResult.fromValue(AllowOrDeny.DENY)
         }
@@ -330,5 +343,6 @@ class Hub(private val app: App) {
 
     companion object {
         const val MAX_PAGES = 4
+        private const val RETRY = "https://promptpipe.invalid/retry"
     }
 }

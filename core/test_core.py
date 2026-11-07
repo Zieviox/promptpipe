@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Route checks for the core. Starts it on a free port in a temp folder.
 Usage: python3 core/test_core.py <path to ppcore binary>"""
-import base64, io, zipfile, json, os, socket, subprocess, sys, tempfile, threading, time, http.client
+import base64, hashlib, hmac, io, zipfile, json, os, socket, subprocess, sys, tempfile, threading, time, http.client
 
 BIN = sys.argv[1]
 KEY = "k" * 48
@@ -52,6 +52,26 @@ st, _, _, h = call("GET", "/open?key=" + KEY)
 check("open sets cookie and redirects", st == 302 and "HttpOnly" in h.get("Set-Cookie", "") and "SameSite=Strict" in h.get("Set-Cookie", ""))
 st, _, raw, _ = call("GET", "/", headers={"Cookie": "pp_key=" + KEY}); check("cookie opens the screen", st == 200 and "ui" in raw)
 st, _, _, _ = call("GET", "/open?key=nope"); check("open with wrong key -> 401", st == 401)
+
+def raw_head(head, wait=5):
+    """Send just a request head (no body) and return the status line the core answers with."""
+    sk = socket.create_connection(("127.0.0.1", PORT), 2); sk.settimeout(wait)
+    sk.sendall(head.encode())
+    try: return sk.recv(200).decode(errors="replace").split("\r\n")[0]
+    except socket.timeout: return "(no answer)"
+    finally: sk.close()
+nonce = "ab" * 16
+st, js, _, _ = call("GET", "/hello?nonce=" + nonce)
+want = hmac.new(KEY.encode(), ("ppcore-proof:" + nonce).encode(), hashlib.sha256).hexdigest()
+check("hello proves the key without a key", st == 200 and js["proof"] == want, js)
+st, _, _, _ = call("GET", "/hello?nonce=xyz"); check("hello refuses a bad nonce", st == 400)
+st, _, _, _ = call("GET", "/hello?nonce=" + nonce, host="evil.example:%d" % PORT); check("hello checks Host", st == 403)
+line = raw_head(f"POST /api/config HTTP/1.1\r\nHost: 127.0.0.1:{PORT}\r\nContent-Length: 60000000\r\n\r\n")
+check("no key: refused before the body is read", " 401 " in line, line)
+line = raw_head(f"POST /hello?nonce={nonce} HTTP/1.1\r\nHost: 127.0.0.1:{PORT}\r\nContent-Length: 10\r\n\r\n")
+check("open routes take no body", " 413 " in line, line)
+line = raw_head(f"POST /api/config HTTP/1.1\r\nHost: 127.0.0.1:{PORT}\r\nX-PP-Key: {KEY}\r\nContent-Length: 70000000\r\n\r\n")
+check("body over the cap refused", " 413 " in line, line)
 
 st, js, _, _ = call("GET", "/api/app", headers=K); TOKEN0 = js["apiTokenValue"]
 st, js, _, _ = call("POST", "/v1/chat/completions", {"messages": [{"role": "user", "content": "hi"}]}, {"Authorization": "Bearer " + TOKEN0}); check("API with app screen closed -> 503", st == 503, js)
@@ -112,6 +132,20 @@ st, js, _, _ = api("POST", "/api/plugins/install", {"name": "x.zip", "base64": b
 one = zipb({"mine/plugin.json": '{"id":"mine","version":"1"}', "mine/main.js": "m()"})
 st, js, _, _ = api("POST", "/api/plugins/install", {"name": "m.zip", "base64": base64.b64encode(one).decode()}); check("plugin zip installs", js.get("id") == "mine" and os.path.exists(tmp + "/data/plugins/mine/main.js"), js)
 st, js, _, _ = api("POST", "/api/plugins/install", {"url": "https://example.com/p/plugin.json"}); check("install by link needs the shell's fetch", st == 400 and "shell" in js["error"], js)
+def patched(zipbytes, field, value, size):
+    """The zip with one field of its first central directory entry changed."""
+    z = bytearray(zipbytes)
+    eocd = z.rfind(b"PK\x05\x06")
+    cd = int.from_bytes(z[eocd + 16:eocd + 20], "little")
+    z[cd + field:cd + field + size] = value.to_bytes(size, "little")
+    return bytes(z)
+def install_zip(zb): return api("POST", "/api/plugins/install", {"name": "z.zip", "base64": base64.b64encode(zb).decode()})
+good = zipb({"zz/plugin.json": '{"id":"zz","version":"1"}'})
+st, js, _, _ = install_zip(patched(good, 28, 0xFFFF, 2)); check("zip name running past the end refused", st == 400 and "broken zip" in js["error"], js)
+st, js, _, _ = install_zip(patched(good, 24, 1, 4)); check("zip size that doesn't match refused", st == 400 and "can't unpack" in js["error"], js)
+st, js, _, _ = install_zip(patched(good, 24, 0xFFFFFFFF, 4)); check("huge zip entry refused", st == 400 and "too big" in js["error"], js)
+st, js, _, _ = install_zip(patched(good, 42, 0x7FFFFFFF, 4)); check("zip entry offset past the end refused", st == 400 and "broken zip" in js["error"], js)
+st, _, _, _ = api("GET", "/api/app"); check("core still up after bad zips", st == 200)
 
 print("events")
 api("POST", "/shell/emit", {"event": {"type": "start"}})
@@ -150,6 +184,9 @@ st, js, _, _ = api("POST", "/api/module", {"module": "clipboard", "call": "copy"
 st, js, _, _ = api("POST", "/api/plugins/install", {"url": "https://github.com/o/r/tree/main/web"}); check("install from a GitHub folder link via shell fetch", js.get("id") == "web" and open(tmp + "/data/plugins/web/main.js").read() == "w()", js)
 st, js, _, _ = api("POST", "/api/plugins/update", {"repo": "o/r"}); check("update from latest release", js.get("updated") and js["version"] == "1.2", js)
 st, js, _, _ = api("POST", "/api/plugins/update", {"repo": "o/r"}); check("second update: up to date", js.get("upToDate") is True, js)
+for c in ("push", "pull", "commit"):
+    st, js, _, _ = api("POST", "/api/module", {"module": "git", "call": c, "args": {"remote": "https://evil.example/x.git"}})
+    check(f"git {c} through /api/module refused", st == 403, js)
 st, js, _, _ = api("POST", "/api/module", {"module": "git", "call": "log"}); check("missing module: reported, with reason", st == 501 and "not supported on this platform (test): no git here" in js["error"], js)
 st, js, _, _ = api("GET", "/api/app"); check("app info lists modules and missing", js["modules"] == ["clipboard"] and js["missing"]["git"] == "no git here" and js["shell"] is True, js)
 sh.join(timeout=60)

@@ -62,6 +62,8 @@ class GitStore(private val store: Store) {
 
     private fun setRemote(g: Git, url: String) {
         if (url.isBlank()) throw IOException("set a remote URL first (Git sheet)")
+        // The token goes to this address: never over plain http.
+        if (!url.startsWith("https://")) throw IOException("the git remote must be an https:// link (your token is sent to it)")
         val existing = g.remoteList().call().firstOrNull { it.name == "origin" }
         if (existing == null) g.remoteAdd().setName("origin").setUri(URIish(url)).call()
         else if (existing.urIs.firstOrNull()?.toString() != url) g.remoteSetUrl().setRemoteName("origin").setRemoteUri(URIish(url)).call()

@@ -16,6 +16,7 @@ route :: proc(req: ^Request) -> Response {
 	p := req.path
 	switch {
 	case p == "/open": return open_session(req)
+	case p == "/hello": return hello(req)
 	case strings.has_prefix(p, "/v1/"): return openai(req)
 	case strings.has_prefix(p, "/shell/"):
 		if !shell_ok(req) do return json_error(401, "missing or wrong key")
@@ -179,7 +180,12 @@ api_route :: proc(req: ^Request) -> Response {
 	case "/api/git/pull": return module_relay("git", "pull", fmt.tprintf(`{{"remote":%s}}`, quote(get_str(git_cfg(), "remote"))))
 	case "/api/module":
 		// {module: "clipboard"|"vibration"|"share"|"git", call, args}
-		return module_relay(get_str(body, "module"), get_str(body, "call"), to_json(body["args"] or_else nil))
+		// Git calls that send the token (push, pull, and commit with auto push)
+		// only go through /api/git/… and /api/history/save, with the remote from
+		// the git settings: a plugin can't send the token to a remote of its choice.
+		module, call := get_str(body, "module"), get_str(body, "call")
+		if module == "git" && call != "log" do return json_error(403, "git push, pull and commit go through /api/git/… with the remote from your git settings")
+		return module_relay(module, call, to_json(body["args"] or_else nil))
 	case "/api/jobs/done":
 		found := answer(get_str(body, "id"), true, string(req.body), "")
 		return found ? json_ok() : json_error(404, "nobody waits for that job")

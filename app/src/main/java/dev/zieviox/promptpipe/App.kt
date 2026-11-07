@@ -33,6 +33,9 @@ class App : Application() {
         shell.start()
     }
 
+    // The core starts before Hub exists and may report to it early.
+    fun hubOrNull(): Hub? = if (this::hub.isInitialized) hub else null
+
     private fun processName(): String =
         if (Build.VERSION.SDK_INT >= 28) getProcessName()
         else try {

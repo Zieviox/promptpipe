@@ -9,10 +9,19 @@ import "core:mem/virtual"
 import "core:net"
 import "core:strconv"
 import "core:strings"
+import "core:sync"
 import "core:thread"
+import "core:time"
 
 MAX_HEAD :: 64 * 1024
 MAX_BODY :: 64 * 1024 * 1024
+// Open connections at once. Past this, new ones are closed straight away, so a
+// flood of connections can't use up the core's threads or memory.
+MAX_CONNS :: 256
+// One read or write on a socket; then the whole head, and the whole body.
+IO_TIMEOUT :: 10 * time.Second
+HEAD_TIMEOUT :: 15 * time.Second
+BODY_TIMEOUT :: 60 * time.Second
 
 Request :: struct {
 	method:  string,
@@ -31,8 +40,16 @@ Response :: struct {
 
 Handler :: #type proc(req: ^Request) -> Response
 
-serve :: proc(port: int, handler: Handler) -> net.Network_Error {
+// Runs once the head is in, before the body is read. ok = false: answer with
+// `res` and stop. body_limit: the most body bytes this request may bring.
+Gate :: #type proc(req: ^Request) -> (res: Response, body_limit: int, ok: bool)
+
+@(private = "file")
+live_conns: int
+
+serve :: proc(port: int, gate: Gate, handler: Handler) -> net.Network_Error {
 	sock := net.listen_tcp(net.Endpoint{net.IP4_Loopback, port}) or_return
+	// The shell waits for this line, then checks /hello before it trusts the port.
 	fmt.printfln("core: listening on 127.0.0.1:%d", port)
 	for {
 		client, _, err := net.accept_tcp(sock)
@@ -40,41 +57,73 @@ serve :: proc(port: int, handler: Handler) -> net.Network_Error {
 			fmt.eprintln("core: accept failed:", err)
 			continue
 		}
+		if sync.atomic_load(&live_conns) >= MAX_CONNS {
+			net.close(client)
+			continue
+		}
+		sync.atomic_add(&live_conns, 1)
 		Conn :: struct {
 			sock:    net.TCP_Socket,
+			gate:    Gate,
 			handler: Handler,
 		}
-		thread.create_and_start_with_poly_data(Conn{client, handler}, proc(c: Conn) {
-			handle_conn(c.sock, c.handler)
+		t := thread.create_and_start_with_poly_data(Conn{client, gate, handler}, proc(c: Conn) {
+			defer sync.atomic_sub(&live_conns, 1)
+			handle_conn(c.sock, c.gate, c.handler)
 		}, self_cleanup = true)
+		if t == nil {
+			sync.atomic_sub(&live_conns, 1)
+			net.close(client)
+		}
 	}
 }
 
 @(private = "file")
-handle_conn :: proc(sock: net.TCP_Socket, handler: Handler) {
+handle_conn :: proc(sock: net.TCP_Socket, gate: Gate, handler: Handler) {
 	defer net.close(sock)
+	// No read or write may hang for ever (a caller that sends nothing, or reads nothing).
+	_ = net.set_option(sock, .Receive_Timeout, IO_TIMEOUT)
+	_ = net.set_option(sock, .Send_Timeout, IO_TIMEOUT)
 	arena: virtual.Arena
 	if virtual.arena_init_growing(&arena) != nil do return
 	defer virtual.arena_destroy(&arena)
 	context.allocator = virtual.arena_allocator(&arena)
 	context.temp_allocator = context.allocator
 
-	req, ok := read_request(sock)
-	res: Response
+	req, buf, body_start, ok := read_head(sock)
 	if !ok {
-		res = text(400, "bad request")
-	} else {
-		res = handler(&req)
+		write_response(sock, text(400, "bad request"))
+		return
 	}
-	write_response(sock, res)
+	// Host and key first: a caller without them never gets the core to read
+	// (and hold in memory) a body.
+	gres, limit, admitted := gate(&req)
+	if !admitted {
+		write_response(sock, gres)
+		return
+	}
+	switch read_body(sock, &req, &buf, body_start, limit) {
+	case .Ok: write_response(sock, handler(&req))
+	case .Too_Large: write_response(sock, text(413, "body too large"))
+	case .Bad: write_response(sock, text(400, "bad request"))
+	}
 }
 
 @(private = "file")
-read_request :: proc(sock: net.TCP_Socket) -> (req: Request, ok: bool) {
-	buf := make([dynamic]byte, 0, 8192)
+Body_Result :: enum {
+	Ok,
+	Too_Large,
+	Bad,
+}
+
+@(private = "file")
+read_head :: proc(sock: net.TCP_Socket) -> (req: Request, buf: [dynamic]byte, body_start: int, ok: bool) {
+	buf = make([dynamic]byte, 0, 8192)
 	chunk: [8192]byte
 	head_end := -1
+	started := time.now()
 	for head_end < 0 {
+		if time.since(started) > HEAD_TIMEOUT do return
 		n, err := net.recv_tcp(sock, chunk[:])
 		if err != nil || n == 0 do return
 		append(&buf, ..chunk[:n])
@@ -99,19 +148,30 @@ read_request :: proc(sock: net.TCP_Socket) -> (req: Request, ok: bool) {
 		if c <= 0 do continue
 		req.headers[strings.to_lower(strings.trim_space(line[:c]))] = strings.trim_space(line[c + 1:])
 	}
+	return req, buf, head_end + 4, true
+}
+
+// The body, up to `limit` bytes (what the gate allows this request).
+// The head's strings point into `buf`; that stays valid while it grows, since
+// the connection's arena never frees.
+@(private = "file")
+read_body :: proc(sock: net.TCP_Socket, req: ^Request, buf: ^[dynamic]byte, body_start: int, limit: int) -> Body_Result {
 	length := 0
 	if cl, has := req.headers["content-length"]; has {
 		length = strconv.parse_int(cl) or_else -1
-		if length < 0 || length > MAX_BODY do return
+		if length < 0 do return .Bad
 	}
-	body_start := head_end + 4
-	for len(buf) - body_start < length {
+	if length > min(limit, MAX_BODY) do return .Too_Large
+	chunk: [8192]byte
+	started := time.now()
+	for len(buf^) - body_start < length {
+		if time.since(started) > BODY_TIMEOUT do return .Bad
 		n, err := net.recv_tcp(sock, chunk[:])
-		if err != nil || n == 0 do return
-		append(&buf, ..chunk[:n])
+		if err != nil || n == 0 do return .Bad
+		append(buf, ..chunk[:n])
 	}
-	req.body = buf[body_start:body_start + length]
-	return req, true
+	req.body = buf^[body_start:body_start + length]
+	return .Ok
 }
 
 parse_query :: proc(raw: string) -> map[string]string {
@@ -139,6 +199,7 @@ reason :: proc(status: int) -> string {
 	case 401: return "Unauthorized"
 	case 403: return "Forbidden"
 	case 404: return "Not Found"
+	case 413: return "Content Too Large"
 	case 500: return "Internal Server Error"
 	case 501: return "Not Implemented"
 	case 502: return "Bad Gateway"

@@ -39,6 +39,12 @@ fetch_url :: proc(url: string) -> (data: []byte, err: string) {
 
 // ---------- zip (stored and deflated entries) ----------
 
+// Plugins are small. These caps keep a broken or hostile zip from using up
+// the core's memory; every offset is checked before it is used, since a bad
+// slice would stop the whole core, not just this request.
+MAX_ZIP_ENTRY :: 32 * 1024 * 1024
+MAX_ZIP_TOTAL :: 64 * 1024 * 1024
+
 unzip :: proc(z: []byte) -> (out: []File_Data, err: string) {
 	// End of central directory: last 22+ bytes, signature PK\5\6.
 	eocd := -1
@@ -52,6 +58,7 @@ unzip :: proc(z: []byte) -> (out: []File_Data, err: string) {
 	count := int(endian.unchecked_get_u16le(z[eocd + 10:]))
 	at := int(endian.unchecked_get_u32le(z[eocd + 16:]))
 	files := make([dynamic]File_Data)
+	total := 0
 	for _ in 0 ..< count {
 		if at + 46 > len(z) || endian.unchecked_get_u32le(z[at:]) != 0x02014b50 do return nil, "broken zip directory"
 		method := endian.unchecked_get_u16le(z[at + 10:])
@@ -61,6 +68,7 @@ unzip :: proc(z: []byte) -> (out: []File_Data, err: string) {
 		xlen := int(endian.unchecked_get_u16le(z[at + 30:]))
 		clen := int(endian.unchecked_get_u16le(z[at + 32:]))
 		local := int(endian.unchecked_get_u32le(z[at + 42:]))
+		if at + 46 + nlen + xlen + clen > len(z) do return nil, "broken zip directory"
 		name := string(z[at + 46:at + 46 + nlen])
 		at += 46 + nlen + xlen + clen
 		if strings.has_suffix(name, "/") do continue
@@ -69,17 +77,24 @@ unzip :: proc(z: []byte) -> (out: []File_Data, err: string) {
 		lextra := int(endian.unchecked_get_u16le(z[local + 28:]))
 		start := local + 30 + lname + lextra
 		if start + csize > len(z) do return nil, "broken zip entry"
+		// Sizes of 0xFFFFFFFF (zip64) land here too.
+		if usize > MAX_ZIP_ENTRY || csize > MAX_ZIP_ENTRY || total + usize > MAX_ZIP_TOTAL do return nil, fmt.tprintf("%s is too big to unpack (plugins stay under %d MB)", name, MAX_ZIP_ENTRY / (1024 * 1024))
 		raw := z[start:start + csize]
+		data: []byte
 		switch method {
 		case 0:
-			append(&files, File_Data{name, raw})
+			data = raw
 		case 8:
 			buf: bytes.Buffer
 			if zlib.inflate(raw, &buf, raw = true, expected_output_size = usize) != nil do return nil, fmt.tprintf("can't unpack %s", name)
-			append(&files, File_Data{name, bytes.buffer_to_bytes(&buf)})
+			data = bytes.buffer_to_bytes(&buf)
 		case:
 			return nil, fmt.tprintf("%s uses a zip method this app can't unpack", name)
 		}
+		// The size the zip claims must be the size that came out.
+		if len(data) != usize do return nil, fmt.tprintf("can't unpack %s (its size doesn't match the zip's directory)", name)
+		total += len(data)
+		append(&files, File_Data{name, data})
 	}
 	return files[:], ""
 }

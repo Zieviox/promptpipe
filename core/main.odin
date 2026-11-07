@@ -57,7 +57,7 @@ start :: proc(port: int) -> bool {
 		fmt.println("core: made the API token (always on)")
 	}
 	fmt.printfln("core: %s, data %s", VERSION, S.data_dir)
-	if err := serve(port, route); err != nil {
+	if err := serve(port, admit, route); err != nil {
 		fmt.eprintln("core: can't listen on port", port, err)
 		return false
 	}
