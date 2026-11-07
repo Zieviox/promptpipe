@@ -53,7 +53,8 @@ const beginTour = (k) => {
 };
 const startTour = (k = "setup") => (beginTour(k), render());
 const endTour = (msg) => {
-  if (S.tour?.name === "setup") ((S.config.welcomed = true), saveConfig());
+  // The welcome ends back on the chat: its login step left you on the site view.
+  if (S.tour?.name === "setup") ((S.config.welcomed = true), (S.sv = false), saveConfig());
   S.tour = null;
   stopLoginWatch();
   if (msg) toast(msg);
@@ -84,8 +85,8 @@ const maybeTour = () => {
   if (S.config.welcomed && !seen().setup) seen().setup = true; // set up before the guides existed
   const top = S.sheet?.title;
   if (!seen().setup) beginTour("setup");
-  else if (!seen().chat && !S.drawer && !S.sheet && !S.siteMenu) beginTour("chat");
-  else if (!seen().list && S.drawer && !S.sheet) beginTour("list");
+  else if (!seen().chat && !S.drawer && !S.sheet && !S.siteMenu && !S.sv) beginTour("chat");
+  else if (!seen().list && S.drawer && !S.sheet && S.chats.length) beginTour("list"); // it needs a chat to pin
   else if (!seen().plugins && top === "Plugins") beginTour("plugins");
 };
 
@@ -199,7 +200,9 @@ const tourLayer = () => {
   const G = GUIDES[S.tour.name];
   const i = S.tour.i;
   const d = G.steps[i];
-  if (G.full && d.login && S.sv) return null; // its card sits under the page (siteViewFoot)
+  // The site view covers the app and the real page sits in it: the welcome's login card goes
+  // under the page (siteViewFoot) and any other guide waits until you are back.
+  if (S.sv) return null;
   if (G.full) return h("div", { class: "layer tourl full" }, h("div", {}, ...(d.login && tourSite.login >= 1 && siteFor() ? loginCard(G, i) : tourBody(G, i))));
   return h("div", { class: "layer tourl pass" }, h("section", { class: "sheet", role: "dialog", "aria-label": "Quick start: " + d.t }, ...tourBody(G, i)));
 };
@@ -222,7 +225,7 @@ const tourTarget = () => {
 const tourSpot = () => {
   for (const el of document.querySelectorAll(".tourhl, .tourdim")) el.classList.contains("tourdim") ? el.remove() : el.classList.remove("tourhl");
   const d = curStep();
-  if (!d || !d.sel) return;
+  if (!d || !d.sel || S.sv) return;
   // The control is scrolled into view once, when the step starts (it may be further down a list).
   const key = S.tour.name + S.tour.i;
   if (S.tour.scrolled !== key) {
@@ -249,7 +252,7 @@ const tourSpot = () => {
 // Block by identity, never by screen area: while a step is lit, only the lit control and the
 // card take taps. A step whose control isn't on screen blocks nothing.
 const tourBlock = (e) => {
-  if (!S.tour) return;
+  if (!S.tour || S.sv) return;
   const t = tourTarget();
   if (!t || e.target.closest(".tourl") || t.contains(e.target)) return;
   e.stopPropagation();
