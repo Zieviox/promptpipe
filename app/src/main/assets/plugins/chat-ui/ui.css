@@ -326,8 +326,11 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); width: 20
 .tourl.pass .sheet { pointer-events: auto; min-height: 0; }
 .tourl.ontop { justify-content: flex-start; }
 .tourl.ontop .sheet { border-radius: 0 0 22px 22px; }
-.tourhl { position: relative; z-index: 34; outline: 2px solid var(--accent); outline-offset: 2px; box-shadow: 0 0 0 9999px rgba(0, 0, 0, .68); border-radius: 14px; }
-.shield { position: fixed; z-index: 33; background: transparent; }
+.tourhl { outline: 2px solid var(--accent); outline-offset: 2px; box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 28%, transparent); border-radius: 14px; animation: tourpulse 1.1s ease-in-out infinite; }
+.tourdim { position: fixed; inset: 0; z-index: 34; background: rgba(0, 0, 0, .68); pointer-events: none; }
+.tournote { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+@keyframes tourpulse { 50% { box-shadow: 0 0 0 11px transparent; } }
+@media (prefers-reduced-motion: reduce) { .tourhl { animation: none; } }
 .tdot { width: 8px; height: 8px; border-radius: 50%; background: var(--hair); padding: 0; min-width: 0; }
 .tdot.on { background: var(--accent); width: 20px; border-radius: 99px; }
 .tourwarn { background: color-mix(in srgb, #e8b04b 22%, var(--raise)); border-radius: 12px; padding: 10px 12px; font-size: 14px; font-weight: 600; }

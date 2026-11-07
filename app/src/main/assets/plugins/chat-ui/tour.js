@@ -9,6 +9,9 @@ const markSeen = (k) => ((seen()[k] = true), saveConfig());
 const resetSeen = () => ((S.config.seen = {}), saveConfig());
 const pinCount = () => (S.config.pinned || []).length;
 const TRY = "Try it now: use the lit control";
+// Where a step's control lives (the card's "Take me there").
+const toChat = () => ((S.sheet = null), (S.drawer = false), (S.siteMenu = false), syncLayer());
+const toList = () => ((S.sheet = null), (S.drawer = true), syncLayer());
 
 // ---------- the guides, as data ----------
 // A step: t (title), b (lines), sel (what to light up), hint, done (it was used),
@@ -21,19 +24,19 @@ const GUIDES = {
     { t: "Log in to your site", b: ["PromptPipe has no AI of its own. It uses the chat site for you, like you would. So you need to be logged in there."], login: true, note: "You log in on the site's own page, not in a PromptPipe form. Use an account you can afford to lose. Sites may limit automated use.", next: "Done" },
   ] },
   chat: { title: "Chatting", sub: "Send, find, quick edit", steps: [
-    { t: "Say hello", b: ["Type a message, then tap send. The reply shows up above, live."], sel: ".comp", hint: "Try it now: type and send", done: (b) => S.chat.turns.length > b.turns },
-    { t: "Find anything", b: ["Find searches your chats and every setting, and lights up where each one lives."], sel: '[aria-label="Find chats and functions"]', hint: TRY, done: () => S.sheet?.title === "Find", after: closeSheet },
-    { t: "Quick edit", b: ["This turns your profile's plugins on or off and reorders them, without leaving the chat."], sel: '[aria-label="Quick edit and add"]', hint: TRY, done: () => S.sheet?.sub === "Quick edit", after: closeSheet },
+    { t: "Say hello", b: ["Type a message, then tap send. The reply shows up above, live."], sel: ".comp", go: toChat, hint: "Try it now: type and send", done: (b) => S.chat.turns.length > b.turns },
+    { t: "Find anything", b: ["Find searches your chats and every setting, and lights up where each one lives."], sel: '[aria-label="Find chats and functions"]', go: toChat, hint: TRY, done: () => S.sheet?.title === "Find", after: closeSheet },
+    { t: "Quick edit", b: ["This turns your profile's plugins on or off and reorders them, without leaving the chat."], sel: '[aria-label="Quick edit and add"]', go: toChat, hint: TRY, done: () => S.sheet?.sub === "Quick edit", after: closeSheet },
   ] },
   list: { title: "Chat list", sub: "Pin, select, search", steps: [
-    { t: "Pin a chat", b: ["Pinned chats stay on top. Tap a pin."], sel: '#clist [data-ck^="c:"] .pb:not(.on)', hint: TRY, done: (b) => pinCount() > b.pins },
-    { t: "Select several", b: ["Tap the check to pick many chats, then pin, move or delete them together. Drag handles move chats and folders."], sel: '[aria-label="Select chats"]', hint: TRY, done: () => S.selMode, after: () => (endSelect(), render()) },
-    { t: "Search", b: ["Type a name or a #tag."], sel: "#cs", hint: "Try it now: type a letter", done: () => !!(S.query || "").length },
+    { t: "Pin a chat", b: ["Pinned chats stay on top. Tap a pin."], sel: '#clist [data-ck^="c:"] .pb:not(.on)', go: toList, hint: TRY, done: (b) => pinCount() > b.pins || (S.chats.length > 0 && S.chats.every((c) => isPinned(c.path))) },
+    { t: "Select several", b: ["Tap the check to pick many chats, then pin, move or delete them together. Drag handles move chats and folders."], sel: '[aria-label="Select chats"]', go: toList, hint: TRY, done: () => S.selMode, after: () => (endSelect(), render()) },
+    { t: "Search", b: ["Type a name or a #tag."], sel: "#cs", go: toList, hint: "Try it now: type a letter", done: () => !!(S.query || "").length },
   ] },
   plugins: { title: "Plugins", sub: "Updates and repos", steps: [
-    { t: "Open the Library", b: ["Plugins add sites and tools. A dot on Library means an update is waiting."], sel: ".tabs button:last-child", hint: TRY, done: () => S.sheet?.title === "Plugins" && LIB.tab === "library" },
-    { t: "Update everything", b: ["Tap Update all. You can roll a plugin back later."], sel: '[data-row="library.updall"]', hint: TRY, done: () => updateCount() === 0 },
-    { t: "Plugins from friends", b: ["A repo is a list of plugins. A friend can send you a link. Tap Get plugins, then Sources."], warn: "Only add repos from people you trust. Plugins are code. They can read your chats. Never add one from a random site.", sel: '[data-row="library.getp"]', hint: TRY, done: () => S.sheet?.title === "Get plugins" },
+    { t: "Open the Library", b: ["Plugins add sites and tools. A dot on Library means an update is waiting."], sel: ".tabs button:last-child", go: () => openPlugins("profile"), hint: TRY, done: () => S.sheet?.title === "Plugins" && LIB.tab === "library" },
+    { t: "Update everything", b: ["Tap Update all. You can roll a plugin back later."], sel: '[data-row="library.updall"]', go: () => openPlugins("library"), hint: TRY, done: () => updateCount() === 0 },
+    { t: "Plugins from friends", b: ["A repo is a list of plugins. A friend can send you a link. Tap Get plugins, then Sources."], warn: "Only add repos from people you trust. Plugins are code. They can read your chats. Never add one from a random site.", go: () => openPlugins("library"), sel: '[data-row="library.getp"]', hint: TRY, done: () => S.sheet?.title === "Get plugins" },
   ] },
 };
 
@@ -41,7 +44,7 @@ const GUIDES = {
 // S.tour: { name, i, base } while a guide is open. base: counts when the step began.
 S.tour = null;
 const curStep = () => (S.tour ? GUIDES[S.tour.name].steps[S.tour.i] : null);
-const enterStep = (i) => (S.tour.i = i, S.tour.base = { turns: S.chat.turns.length, pins: pinCount() });
+const enterStep = (i) => ((S.tour.i = i), (S.tour.advancing = false), (S.tour.base = { turns: S.chat.turns.length, pins: pinCount() }));
 // beginTour only sets the state (a redraw is on its way); startTour also redraws.
 const beginTour = (k) => {
   markSeen(k);
@@ -64,7 +67,11 @@ const tourAdvance = () => {
   if (!d || !d.done || !d.done(S.tour.base)) return;
   const G = GUIDES[S.tour.name];
   const last = S.tour.i >= G.steps.length - 1;
+  if (S.tour.advancing) return; // a redraw before the move on must not queue it twice
+  S.tour.advancing = true;
+  const at = S.tour.i;
   setTimeout(() => {
+    if (!S.tour || S.tour.i !== at) return; // the guide ended or moved on by hand meanwhile
     if (d.after) d.after();
     if (last) endTour(G.title + " guide done");
     else goStep(S.tour.i + 1);
@@ -73,7 +80,7 @@ const tourAdvance = () => {
 
 // The first visit to a place opens its guide (never over help or another guide).
 const maybeTour = () => {
-  if (S.tour || S.help) return;
+  if (S.tour || S.help || document.querySelector(".ask")) return; // never over help, a question or another guide
   if (S.config.welcomed && !seen().setup) seen().setup = true; // set up before the guides existed
   const top = S.sheet?.title;
   if (!seen().setup) beginTour("setup");
@@ -196,23 +203,60 @@ const tourLayer = () => {
   return h("div", { class: "layer tourl pass" }, h("section", { class: "sheet", role: "dialog", "aria-label": "Quick start: " + d.t }, ...tourBody(G, i)));
 };
 
-// Light up the step's control; everything else can't be tapped until the guide moves on.
+// ---------- the spotlight ----------
+// The lit control is on screen: it has a size, sits inside the window, and nothing covers it
+// (a drawer or sheet over it counts as "not on screen": blocking then would trap every tap).
+const tourTarget = () => {
+  const d = curStep();
+  const t = d && d.sel && document.querySelector(d.sel);
+  if (!t) return null;
+  const r = t.getBoundingClientRect();
+  if (!(r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth)) return null;
+  const x = Math.min(Math.max(r.left + r.width / 2, 0), innerWidth - 1), y = Math.min(Math.max(r.top + r.height / 2, 0), innerHeight - 1);
+  const top = document.elementFromPoint(x, y);
+  return top && (t.contains(top) || top.closest(".tourl")) ? t : null;
+};
+// Light up the step's control. If it isn't on screen nothing is dimmed or blocked: the card
+// says so and offers "Take me there" (the step's `go`).
 const tourSpot = () => {
+  for (const el of document.querySelectorAll(".tourhl, .tourdim")) el.classList.contains("tourdim") ? el.remove() : el.classList.remove("tourhl");
   const d = curStep();
   if (!d || !d.sel) return;
-  const t = document.querySelector(d.sel);
-  const shield = (top, left, w, ht) => app.append(h("div", { class: "shield", style: `top:${top}px;left:${left}px;width:${Math.max(0, w)}px;height:${Math.max(0, ht)}px` }));
-  const W = innerWidth, H = innerHeight;
-  if (!t) return shield(0, 0, W, H);
+  // The control is scrolled into view once, when the step starts (it may be further down a list).
+  const key = S.tour.name + S.tour.i;
+  if (S.tour.scrolled !== key) {
+    const raw = document.querySelector(d.sel);
+    if (raw) ((S.tour.scrolled = key), raw.scrollIntoView({ block: "nearest" }));
+  }
+  const t = tourTarget();
+  const lay = document.querySelector(".tourl");
+  const card = lay && lay.querySelector(".sheet");
+  if (!t) {
+    if (card) {
+      const note = h("div", { class: "tournote" }, "That control is not on this screen.", d.go ? h("button", { class: "pill", onclick: () => ((S.tour.scrolled = null), d.go(), render()) }, "Take me there") : null);
+      card.insertBefore(note, card.lastElementChild);
+    }
+    return;
+  }
   t.classList.add("tourhl");
-  const r = t.getBoundingClientRect(), pad = 3;
+  const r = t.getBoundingClientRect(), pad = 4;
   const x0 = r.left - pad, y0 = r.top - pad, x1 = r.right + pad, y1 = r.bottom + pad;
-  shield(0, 0, W, y0);
-  shield(y1, 0, W, H - y1);
-  shield(y0, 0, x0, y1 - y0);
-  shield(y0, x1, W - x1, y1 - y0);
-  if ((r.top + r.bottom) / 2 > H / 2) document.querySelector(".tourl")?.classList.add("ontop"); // a control low down: the card goes to the top
+  // The dim is only a picture: a layer with a hole at the control, that never takes a tap.
+  app.append(h("div", { class: "tourdim", style: `clip-path:polygon(evenodd,0 0,100% 0,100% 100%,0 100%,0 0,${x0}px ${y0}px,${x0}px ${y1}px,${x1}px ${y1}px,${x1}px ${y0}px,${x0}px ${y0}px)` }));
+  lay?.classList.toggle("ontop", (r.top + r.bottom) / 2 > innerHeight / 2); // a control low down: the card goes to the top
 };
+// Block by identity, never by screen area: while a step is lit, only the lit control and the
+// card take taps. A step whose control isn't on screen blocks nothing.
+const tourBlock = (e) => {
+  if (!S.tour) return;
+  const t = tourTarget();
+  if (!t || e.target.closest(".tourl") || t.contains(e.target)) return;
+  e.stopPropagation();
+  e.preventDefault();
+};
+for (const n of ["click", "pointerdown", "pointerup"]) document.addEventListener(n, tourBlock, true);
+// Esc ends the guide.
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && S.tour) { e.stopPropagation(); e.preventDefault(); endTour(); } }, true);
 
 // ---------- Help › Quick start ----------
 const openQuickStartList = () =>

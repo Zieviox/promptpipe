@@ -105,6 +105,14 @@ const openWaiting = () =>
     ...[["idleMin", "Give up after this long with no activity on the page"], ["maxMin", "Give up after this long in total"]].map(([k, label]) =>
       h("label", { class: "it" }, h("div", { class: "g" }, label), h("input", { type: "number", min: "0", step: "1", style: "width:5em", value: String((S.config.wait || {})[k] || 0), oninput: (e) => ((S.config.wait = { ...(S.config.wait || {}), [k]: Math.max(0, +e.target.value || 0) }), saveConfig()) }))),
   ]);
+// Back to the welcome, as on the first start (nothing the person made is touched).
+const resetFirstLaunch = async () => {
+  if (!(await askConfirm("Reset the app to first launch? Your chats, profiles, prompts and plugins stay.", "Reset"))) return;
+  resetSeen();
+  S.config.welcomed = false;
+  closeSheet();
+  startTour("setup");
+};
 // ---------- the local API ----------
 const apiBase = () => `http://127.0.0.1:${S.app.port}/v1`;
 const backToApi = () => openSettingsGroup("Local API", settingsBody("Local API"));
@@ -199,16 +207,18 @@ const SETTINGS = [
       if (v != null) ((S.config.api.folder = v.trim()), saveConfig(), rerenderSheet());
     } }),
   ]],
-  ["Advanced", "App parts, safe mode, core log", () => [
+  ["Advanced", "Reset, safe mode, core log", () => [
+    item({ id: "adv.reset", label: "Reset to first launch", sub: "Shows the welcome again. Chats, profiles and plugins stay.", onclick: resetFirstLaunch }),
     item({ id: "adv.parts", label: "App parts", chev: true, onclick: () => settingsPage("App parts", appPartsControls) }),
     item({ id: "adv.safe", label: "Safe mode", sub: SAFE ? "On: only built-in plugins" : "", onclick: () => restart(true) }),
     item({ id: "adv.log", label: "Core log", chev: true, onclick: openCoreLog }),
     item({ id: "adv.bg", label: "Stop background service", sub: "A notification keeps the AI page and the API alive in the background", onclick: () => api("/api/app/action", { action: "stopService" }) }),
     item({ id: "adv.ver", label: "Version", sub: (S.app.version || "?") + (S.app.coreVersion ? " · core " + S.app.coreVersion : ""), onclick: () => copyText((S.app.version || "?") + " · core " + (S.app.coreVersion || "?"), "Copied") }),
   ]],
-  ["Help", "Shortcuts, plugin guide", () => [
+  ["Help", "Shortcuts, quick start", () => [
     item({ id: "help.q", label: "Show the ? button", sub: "Tap ?, then tap anything to see what it does", toggle: S.config.helpButton !== false, onclick: () => ((S.config.helpButton = S.config.helpButton === false), saveConfig(), rerenderSheet(), render()) }),
     item({ id: "help.keys", label: "Shortcuts", sub: "Keyboard and touch", chev: true, onclick: openHelp }),
+    item({ id: "help.qs", label: "Quick start", sub: "Short guides, three steps each. Replay any time.", chev: true, onclick: openQuickStartList }),
     item({ id: "help.pg", label: "Plugin guide", chev: true, onclick: openPluginGuide }),
   ]],
 ];

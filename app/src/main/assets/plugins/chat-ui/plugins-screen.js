@@ -352,7 +352,10 @@ const openPlugins = (tab, filter) => {
   if (filter) LIB.filter = filter;
   if (LIB.tab === "library") loadSources();
   S.editProfile = S.editProfile && S.config.profiles.some((x) => x.id === S.editProfile) ? S.editProfile : profile().id;
-  openSheet("Plugins", () => [tabs(), ...(LIB.tab === "profile" ? editorBody() : libraryTab())], { back: openSettings });
+  openSheet("Plugins", () => [tabs(), ...(LIB.tab === "profile" ? editorBody() : libraryTab())], {
+    back: openSettings,
+    head: () => h("button", { class: "ic", "aria-label": "Quick start: plugins", title: "Quick start: plugins", onclick: () => startTour("plugins") }, svgIcon("play")),
+  });
 };
 const openGetSites = () => openGetPlugins("site");
 

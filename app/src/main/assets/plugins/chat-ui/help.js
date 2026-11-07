@@ -49,7 +49,7 @@ const helpLayer = () => {
   const c = S.helpCard;
   const done = () => ((S.help = false), (S.helpCard = null), render());
   return h("div", { class: "helpl" },
-    S.help ? h("div", { class: "helpbar" }, h("span", {}, "Help mode. Tap anything to see what it does."), h("span", { style: "display:flex;gap:6px;flex:none" }, h("button", { class: "pill", onclick: done }, "Done"))) : null,
+    S.help ? h("div", { class: "helpbar" }, h("span", {}, "Help mode. Tap anything to see what it does."), h("span", { style: "display:flex;gap:6px;flex:none" }, h("button", { class: "pill", onclick: () => (done(), openQuickStartList()) }, "Quick start"), h("button", { class: "pill", onclick: done }, "Done"))) : null,
     c ? h("section", { class: "sheet helpcard", role: "dialog", "aria-label": "Help: " + c.name },
       h("div", { class: "sh", style: "font-size:17px" }, c.name),
       h("p", { style: "margin:0 0 4px" }, c.body),

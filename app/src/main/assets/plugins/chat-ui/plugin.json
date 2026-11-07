@@ -13,7 +13,8 @@
     "find.js",
     "plugins-screen.js",
     "settings.js",
-    "help.js"
+    "help.js",
+    "tour.js"
   ],
   "css": [
     "ui.css"

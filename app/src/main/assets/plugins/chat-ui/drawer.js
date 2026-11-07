@@ -557,7 +557,8 @@ const renderDrawer = () => {
     h("div", { style: "flex:1" }),
     S.selMode ? selectBar(m) : null,
     h("div", { class: "tail" },
-      h("button", { class: "it foot-pill", "aria-label": "Settings", onclick: () => (closeDrawer(), openSettings()) }, svgIcon("settings"), "Settings", updateCount() ? h("span", { class: "badge" }, String(updateCount())) : null)),
+      h("button", { class: "it foot-pill", "aria-label": "Settings", onclick: () => (closeDrawer(), openSettings()) }, svgIcon("settings"), "Settings", updateCount() ? h("span", { class: "badge" }, String(updateCount())) : null),
+      h("button", { class: "it foot-pill", "aria-label": "Quick start tutorial", title: "Quick start tutorial", onclick: () => (closeDrawer(), openQuickStartList()) }, svgIcon("play"), "Quick start")),
   );
 };
 
