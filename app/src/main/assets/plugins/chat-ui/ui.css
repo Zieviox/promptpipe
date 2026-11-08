@@ -147,6 +147,7 @@ details summary { cursor: pointer; color: var(--muted); }
 .turn { display: flex; flex-direction: column; gap: 14px; }
 .youwrap { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .you { align-self: flex-end; background: var(--raise); padding: 8px 12px; border-radius: 16px; max-width: 80%; white-space: pre-wrap; overflow-wrap: anywhere; }
+.you.tuck { max-height: calc(1.35em * 6 + 16px); overflow: hidden; -webkit-mask-image: linear-gradient(#000 55%, transparent); mask-image: linear-gradient(#000 55%, transparent); }
 .ai small.who { color: var(--muted); display: block; font-size: 12px; }
 .ai .md { overflow-wrap: anywhere; }
 .acts { display: flex; gap: 2px; margin-top: 4px; }

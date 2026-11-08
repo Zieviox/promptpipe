@@ -763,6 +763,8 @@ const sentWith = (t, c = S.chat) => {
   return { prof, rows };
 };
 
+// Long: more than 8 lines or 600 characters.
+const isLongText = (text) => String(text || "").length > 600 || String(text || "").split("\n").length > 8;
 const renderTurn = (c, t, i) => {
   const own = t.tags || [];
   const inherited = ChatFile.messageTags(c.meta, t).filter((x) => !own.includes(x));
@@ -789,9 +791,13 @@ const renderTurn = (c, t, i) => {
             own.map((x) => h("span", { class: "tag" + (counterOf(x) ? " counter" : "") }, "#" + x)),
             inherited.map((x) => h("span", { class: "tag inh", title: "From the chat tags" }, "#" + x)),
             h("button", { class: "pill", onclick: () => addTagPrompt(c, t) }, "+ tag")));
-  // Your own message, with Copy and Edit and send again under it.
+  // Your own message, with Copy and Edit and send again under it. A long one (a paste) is
+  // tucked to a few lines; Show more opens it, and it stays open across redraws.
+  const long = isLongText(t.you);
+  const tucked = long && !S.openLong.has(t);
   const you = h("div", { class: "youwrap" },
-    h("div", { class: "you", title: ChatFile.stamp(t.at) }, t.you),
+    h("div", { class: "you" + (tucked ? " tuck" : ""), title: ChatFile.stamp(t.at) }, t.you),
+    long ? h("button", { class: "thin", "aria-expanded": String(!tucked), onclick: () => (tucked ? S.openLong.add(t) : S.openLong.delete(t), render()) }, svgIcon(tucked ? "down" : "up"), tucked ? "Show more" : "Show less") : null,
     h("div", { class: "acts right" }, act("copy", "Copy your message", () => copyText(t.you, "Copied")), act("edit", "Edit and send again", () => fillComposer(t.you))));
   // "Thought for N s · sent with N": folded; opened it shows the thinking, what was sent with it, and the full trace.
   const sw = sentWith(t, c);

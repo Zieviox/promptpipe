@@ -119,6 +119,7 @@ const S = {
   query: "",
   traces: new WeakMap(), // turn -> full trace (this session only)
   openSent: new WeakSet(), // replies whose "Thought for / sent with" is unfolded
+  openLong: new WeakSet(), // long messages of yours opened with "Show more"
   qaSet: new WeakMap(), // replies whose action row was opened or closed by hand
 };
 
