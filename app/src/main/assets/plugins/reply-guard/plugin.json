@@ -1,0 +1,46 @@
+{
+  "id": "reply-guard",
+  "name": "Reply Guard",
+  "version": "1.0.0",
+  "description": "Keeps the longest version of each reply. While the site writes, every version is saved; if the page then reloads, cuts the reply off, empties it or hands back the previous reply, the longer one is kept as the final reply. Replies of sends that fail are kept too (⋯ → Reply Guard), and you can lock a reply so nothing shorter replaces it.",
+  "main": "main.js",
+  "files": ["GUIDE.md"],
+  "block": {
+    "place": "toggles",
+    "label": "Guard"
+  },
+  "settings": {
+    "mode": {
+      "type": "select",
+      "label": "When the page's reply is shorter than what was seen",
+      "options": {
+        "auto": "Keep the longer version (you can switch back)",
+        "ask": "Keep the page's version, offer the longer one"
+      },
+      "default": "auto"
+    },
+    "minChars": {
+      "type": "number",
+      "label": "Step in when at least this many characters are missing",
+      "default": 20,
+      "help": "An empty reply always counts, whatever this says."
+    },
+    "ratio": {
+      "type": "number",
+      "label": "…and the page's reply is under this % of the longest seen",
+      "default": 90,
+      "help": "The page's final reply is Markdown and the one seen while writing is plain text, so they never match exactly. 90 leaves room for that."
+    },
+    "sameAsBefore": {
+      "type": "bool",
+      "label": "Catch a reply that is the previous reply again",
+      "default": true,
+      "help": "When the page hands back the answer to your earlier message, the version seen while writing (if any) is used, else the message is marked."
+    },
+    "keep": {
+      "type": "number",
+      "label": "Saved replies to keep (⋯ → Reply Guard)",
+      "default": 40
+    }
+  }
+}

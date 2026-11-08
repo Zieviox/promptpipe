@@ -455,6 +455,9 @@ Built-in guides:
 - **Sub-chats**: [plugins/sub-chats/GUIDE.md](/plugins/sub-chats/GUIDE.md)
   (new site chats inside a chat; a full example of `route`, turn data and
   `renderTurn`)
+- **Reply Guard**: [plugins/reply-guard/GUIDE.md](/plugins/reply-guard/GUIDE.md)
+  (keeps the longest version of a reply; an example of `PP.on("site")` with
+  the live reply, `afterReply`, `renderTurn` and `messageActions`)
 
 Plugins can share pure helpers on `PP`: Sub-chats sets `PP.subChats`
 (`segments(chat)`, ...) and Memory sets `PP.memory` (`plan`, `lodFromMd`, ...).

@@ -20,6 +20,8 @@ Markdown file on your phone.
 - **Memory**: long chats keep their context; older turns get summarised in a
   side chat before the limit is reached.
 - **System prompt library**: save, pin and stack prompts.
+- **Reply Guard**: if the site reloads, cuts a reply off, empties it or hands
+  back the previous one, the longest version you saw being written is kept.
 - Touch first, with keyboard shortcuts for a hardware keyboard.
 
 promptpipe ships **without AI site plugins**. Install the one for the site you
@@ -74,7 +76,8 @@ over each other); without it Gradle's usual debug key is used.
 - `app/src/main/assets/ppext/`: the built-in extension whose content script
   drives the AI page.
 - `app/src/main/assets/plugins/`: built-in plugins: the app parts
-  (`core-*`, `chat-ui`), Base64, System prompt, Memory, Page report, themes.
+  (`core-*`, `chat-ui`), Base64, System prompt, Memory, Reply Guard, Page report,
+  themes.
 - `scripts/plugin-bundle.sh`: makes the release's plugin bundle zip.
 
 Built on Odin, GeckoView (Firefox's engine) and JGit.
