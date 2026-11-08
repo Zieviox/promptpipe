@@ -89,7 +89,7 @@ const uniqueName = (name, taken = S.config.profiles.map((p) => p.name)) => {
   return n;
 };
 
-// "+ New": a name and a starter (Plain, RP, Writing feedback, Story writing).
+// "+ New": a name and a starter (Plain, Writing feedback, Dialogue & Role play, Story & Prose).
 const openNewProfile = () => {
   let name = "";
   let starter = "plain";
