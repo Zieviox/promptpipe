@@ -47,6 +47,8 @@ const openChat = async (path) => {
   const r = await api("/api/history/file?path=" + encodeURIComponent(path));
   if (r.text == null) throw new Error("chat file not found: " + path);
   S.chat = ChatFile.fromMd(path, r.text);
+  const prof = profileNamed(S.chat.meta.profile);
+  if (prof) S.config.activeProfile = prof.id; // the chat's profile; new chats start with it too
   S.unseen = [];
   S.chat.folder = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
   S.config.lastChat = path;

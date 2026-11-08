@@ -287,6 +287,10 @@ const syncProfiles = () => {
 };
 
 const profile = () => S.config.profiles.find((p) => p.id === S.config.activeProfile) || S.config.profiles[0];
+// A chat's profile: the one named in its file (a renamed profile keeps its old names in
+// aka), else the active one. Opening a chat makes its profile the active one.
+const profileNamed = (n) => (n ? S.config.profiles.find((p) => p.name === n || (p.aka || []).includes(n)) : null) || null;
+const profileOf = (chat) => profileNamed(chat?.meta?.profile) || profile();
 const entryFor = (id, prof = profile()) => {
   let e = prof.plugins.find((x) => x.id === id);
   if (!e) prof.plugins.push((e = { id, on: false, settings: {} }));

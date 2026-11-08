@@ -26,7 +26,7 @@ const GUIDES = {
   chat: { title: "Chatting", sub: "Send, find, quick edit", steps: [
     { t: "Say hello", b: ["Pick how the AI should help, then type a message and tap send. The reply shows up above, live."], starter: true, sel: ".comp", go: toChat, hint: "Try it now: type and send", done: (b) => S.chat.turns.length > b.turns },
     { t: "Find anything", b: ["Find searches your chats and every setting, and lights up where each one lives."], sel: '[aria-label="Find chats and functions"]', go: toChat, hint: TRY, done: () => S.sheet?.title === "Find", after: closeSheet },
-    { t: "Quick edit", b: ["This turns your profile's plugins on or off and reorders them, without leaving the chat."], sel: '[aria-label="Quick edit and add"]', go: toChat, hint: TRY, done: () => S.sheet?.sub === "Quick edit", after: closeSheet },
+    { t: "Quick edit", b: ["This turns your profile's plugins on or off and reorders them, without leaving the chat."], sel: '[aria-label="Quick edit and add"]', go: toChat, hint: TRY, done: () => S.sheet?.id === "quick", after: closeSheet },
   ] },
   list: { title: "Chat list", sub: "Pin, select, search", steps: [
     { t: "Pin a chat", b: ["Pinned chats stay on top. Tap a pin."], sel: '#clist [data-ck^="c:"] .pb:not(.on)', go: toList, hint: TRY, done: (b) => pinCount() > b.pins || (S.chats.length > 0 && S.chats.every((c) => isPinned(c.path))) },

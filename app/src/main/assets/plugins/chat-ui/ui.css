@@ -217,6 +217,7 @@ details summary { cursor: pointer; color: var(--muted); }
 .sheet.tall { height: calc(100% - 44px); }
 .sh { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 15px; margin-bottom: 4px; }
 .sh .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.sh .ttl { text-align: left; font: inherit; font-weight: 600; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
 .sh .grow small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
 .body { overflow: auto; display: flex; flex-direction: column; gap: 6px; padding: 2px; min-height: 0; overscroll-behavior: contain; }
 .body > * { flex-shrink: 0; }

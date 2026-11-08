@@ -230,7 +230,7 @@ const snapshotView = () => {
   };
 };
 const restoreView = (v, hadSheet) => {
-  const sameSheet = hadSheet && S.sheet?.title === v.sheet;
+  const sameSheet = hadSheet && sheetTitle() === v.sheet;
   const seen = {};
   for (const el of app.querySelectorAll(SCROLLERS)) {
     const k = el.className;
@@ -999,7 +999,7 @@ const send = async (retryText) => {
   // Your own message: show it going out. The reply then waits for you to look.
   setTimeout(() => scrollDown(true), 0);
   try {
-    await runChat(chat, text);
+    await runChat(chat, text, profileOf(chat));
     if (S.chat === chat) render();
   } catch (e) {
     if (!e.quiet) toast("Not sent: " + e.message, "error");
@@ -1077,13 +1077,15 @@ PP.askText = askText;
 
 // ---------- sheets ----------
 // opts: short (not full height), sub (a small line under the title), head (more header
-// buttons, a function), back (where ‹ goes; else a first child with class "back" moves up).
+// buttons, a function), back (where ‹ goes; else a first child with class "back" moves up),
+// onTitle (tapping the title does this, e.g. rename), id (which screen it is, for code). title may be a function (it can change).
 openSheet = (title, renderFn, opts = {}) => {
-  S.sheet = { title, render: renderFn, short: !!opts.short, sub: opts.sub || "", head: opts.head || null, back: opts.back || null };
+  S.sheet = { title, render: renderFn, short: !!opts.short, sub: opts.sub || "", head: opts.head || null, back: opts.back || null, onTitle: opts.onTitle || null, id: opts.id || "" };
   S.dd = {}; // dropdowns close when another screen opens
   syncLayer();
   render();
 };
+const sheetTitle = () => (typeof S.sheet?.title === "function" ? S.sheet.title() : S.sheet?.title);
 const closeSheet = () => {
   if (!S.sheet) return;
   S.sheet = null;
@@ -1134,18 +1136,21 @@ const renderSheet = () => {
   if (back) back.remove();
   const goBack = S.sheet.back || (back ? () => back.click() : null);
   const sub = typeof S.sheet.sub === "function" ? S.sheet.sub() : S.sheet.sub;
+  const title = sheetTitle();
   return h(
     "div",
     { class: "layer" },
     h("div", { class: "dim", onclick: closeSheet }),
     h(
       "section",
-      { class: "sheet" + (S.sheet.short ? "" : " tall"), role: "dialog", "aria-label": S.sheet.title },
+      { class: "sheet" + (S.sheet.short ? "" : " tall"), role: "dialog", "aria-label": title },
       h(
         "div",
         { class: "sh" },
         goBack ? h("button", { class: "ic", onclick: goBack, "aria-label": "Back" }, svgIcon("back")) : null,
-        h("span", { class: "grow" }, S.sheet.title, sub ? h("small", {}, sub) : null),
+        S.sheet.onTitle
+          ? h("button", { class: "grow ttl", onclick: S.sheet.onTitle, title: "Tap to rename" }, title, sub ? h("small", {}, sub) : null)
+          : h("span", { class: "grow" }, title, sub ? h("small", {}, sub) : null),
         ...(S.sheet.head ? [].concat(S.sheet.head()) : []),
         helpBtn(),
         h("button", { class: "ic", onclick: closeSheet, "aria-label": "Close", title: "Close (Esc)" }, svgIcon("close")),

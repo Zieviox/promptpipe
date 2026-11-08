@@ -76,8 +76,8 @@ const saveSwitches = (chat = S.chat) => chat.path && saveChat(chat, `switches: $
 // The message bar's Quick edit: the active profile's rows, switched on or off for this chat
 // (the profile's switches are where a chat starts), reordered for the profile, and text files.
 const openQuick = () => {
-  const prof = profile();
-  openSheet(prof.name, () => {
+  openSheet(() => profileOf(S.chat).name, () => {
+    const prof = profileOf(S.chat);
     const pre = presetOf(prof);
     const P = PP.pipeline;
     const mine = forChat(prof, S.chat).pipe; // the same rows, with this chat's switches
@@ -100,6 +100,7 @@ const openQuick = () => {
     const fileRow = (many) =>
       item({ icon: many ? "copy" : "quote", label: many ? "Several text files" : "Text file", sub: many ? "One after another, in the box" : "Put its text in the box", onclick: () => pickTextFiles(many) });
     return [
+      profileDropdown({ id: "plus", current: prof, showEdit: false, sub: "This chat's profile · tap to switch", pick: (p) => (switchProfile(p.id), rerenderSheet()) }),
       h("div", { class: "sub2" }, "Switches are this chat's own; a new chat starts with the profile's. Drag to reorder the profile."),
       ...(pre ? pre.rows.map(row) : [h("p", { class: "sub2" }, "This profile has no rows yet.")]),
       own ? item({ id: "plus.reset", icon: "retry", label: "Use the profile's switches", sub: (own === 1 ? "1 switch differs" : own + " switches differ") + " in this chat", onclick: () => (P.clearChatSwitches(S.chat), saveSwitches(), rerenderSheet(), render()) }) : null,
@@ -108,5 +109,5 @@ const openQuick = () => {
       fileRow(true),
       ...[...S.plugins.values()].flatMap((p) => (p.def?.menu || []).filter((m) => m.plus).map((m) => item({ label: m.label, onclick: () => (closeSheet(), Promise.resolve().then(() => m.run()).catch((e) => toast(e.message, "error"))) }))),
     ];
-  }, { short: true, sub: "Quick edit", head: () => h("button", { class: "pill", onclick: () => openProfileEditor(prof.id) }, svgIcon("edit"), "Edit profile") });
+  }, { id: "quick", short: true, sub: "Quick edit · tap the name to rename", onTitle: () => renameProfile(profileOf(S.chat)).then(() => (rerenderSheet(), render())), head: () => h("button", { class: "pill", onclick: () => openProfileEditor(profileOf(S.chat).id) }, svgIcon("edit"), "Edit profile") });
 };

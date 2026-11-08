@@ -52,8 +52,26 @@ const profileDropdown = ({ id, current, pick, sub, showEdit = true }) => {
 };
 
 // ---------- switching, making, removing ----------
+// Rename; chats saved with the old name still find it (aka).
+const renameProfile = async (prof) => {
+  const n = (await askText("Rename the profile", prof.name, "Rename"))?.trim();
+  if (!n || n === prof.name) return;
+  if (S.config.profiles.some((p) => p !== prof && p.name === n)) return toast(`There is already a profile “${n}”`, "error");
+  prof.aka = [...new Set([...(prof.aka || []), prof.name])].filter((x) => x !== n);
+  if (S.chat && profileNamed(S.chat.meta.profile) === prof) S.chat.meta.profile = n;
+  prof.name = n;
+  saveConfig();
+};
+// Switching sets the open chat's profile (its own switches start over from the new
+// profile's) and the one new chats start with.
 const switchProfile = (id) => {
   S.config.activeProfile = id;
+  const chat = S.chat;
+  if (chat && profileNamed(chat.meta.profile)?.id !== id) {
+    chat.meta.profile = profile().name;
+    PP.pipeline?.clearChatSwitches(chat);
+    saveSwitches(chat);
+  }
   saveConfig();
   render();
   toast("Profile: " + profile().name);
@@ -133,10 +151,7 @@ const editorBody = () => {
     item({ id: "plugins.add", label: "Add a row", sub: "System prompts and message plugins", chev: true, onclick: openAddRow }),
     h("div", { class: "lbl" }, "This profile"),
     isActive ? null : item({ id: "plugins.use", label: "Use this profile", sub: "Make it the active one", onclick: () => (switchProfile(prof.id), rerenderSheet()) }),
-    item({ id: "plugins.rename", label: "Rename", sub: prof.name, onclick: async () => {
-      const n = await askText("Rename the profile", prof.name, "Rename");
-      if (n && n.trim()) ((prof.name = n.trim()), redraw());
-    } }),
+    item({ id: "plugins.rename", label: "Rename", sub: prof.name, onclick: () => renameProfile(prof).then(redraw) }),
     item({ id: "plugins.dup", label: "Duplicate", sub: "A copy to change", onclick: () => ((S.editProfile = PP.pipeline.copyProfile(prof, uniqueName(prof.name + " copy")).id), rerenderSheet()) }),
     item({ id: "plugins.groups", label: "Groups", sub: (pre.groups || []).length ? (pre.groups || []).map((g) => g.name).join(", ") : "One switch for several rows", chev: true, onclick: openGroups }),
     item({ id: "plugins.preview", label: "What will be sent", sub: "The message with these rows", chev: true, onclick: openPreview }),
