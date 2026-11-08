@@ -44,7 +44,7 @@ const GUIDES = {
 // S.tour: { name, i, base } while a guide is open. base: counts when the step began.
 S.tour = null;
 const curStep = () => (S.tour ? GUIDES[S.tour.name].steps[S.tour.i] : null);
-const enterStep = (i) => ((S.tour.i = i), (S.tour.advancing = false), (S.tour.base = { turns: S.chat.turns.length, pins: pinCount() }));
+const enterStep = (i) => ((S.tour.i = i), (S.tour.advancing = false), (S.tour.base = { turns: S.chat.turns.length, pins: pinCount(), starters: S.config.profiles.length <= 1 }));
 // beginTour only sets the state (a redraw is on its way); startTour also redraws.
 const beginTour = (k) => {
   markSeen(k);
@@ -189,7 +189,7 @@ const tourBody = (G, i) => {
           sites.error ? h("div", { class: "sub2 error" }, "Couldn't load the list: " + sites.error + ". Install a site from a file later in Settings › Sites.") : null)
       : null,
     d.login ? loginBody() : null,
-    d.starter ? starterBody() : null,
+    d.starter && S.tour.base.starters ? starterBody() : null, // asked once: not when you have profiles of your own
     d.warn ? h("div", { class: "warnbox" }, d.warn) : null,
     d.note ? h("div", { class: "sub2" }, d.note) : null,
     d.hint ? h("div", { style: "color:var(--accent);font-weight:700;font-size:14px" }, d.hint) : null,
