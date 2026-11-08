@@ -7,7 +7,8 @@
 //   route       picks the site chat: a new one, an older one, or the current one.
 //               The other profile only lends its site and model (plugins: "active"),
 //               so the plugins of the profile picked at the top keep running.
-//   afterReply  saves which sub-chat the message ended up in
+//   afterReply  saves which sub-chat the message ended up in (and, for a sub-chat
+//               started under a reply, `cut`: how many messages it branched after)
 //   renderTurn  draws the dividers and the "next message" note
 const ID = "sub-chats";
 
@@ -57,9 +58,42 @@ const segments = (chat) => {
 const nextSeg = (segs) => segs.reduce((m, s) => Math.max(m, s.seg + 1), 0);
 const numberOf = (segs, seg) => segs.findIndex((s) => s.seg === seg) + 1;
 
+// ---------- branching: what a sub-chat started under a reply can see ----------
+// "New sub-chat here" under a reply branches from it: the sub-chat sees the chat
+// up to and including that reply (`cut` messages), then only its own messages.
+// What came after that reply in the other sub-chats is left out. Memory asks
+// visible() so it doesn't send those.
+const cutOf = (chat, seg) => {
+  const t = ((chat && chat.turns) || []).find((x) => dataOf(x) && dataOf(x).seg === seg && Number.isInteger(dataOf(x).cut));
+  return t ? dataOf(t).cut : null;
+};
+// null: the whole chat. Else { key, keep(turn) } for the message about to be sent
+// (key names this view, so Memory keeps its summaries of it apart).
+const visible = (chat) => {
+  const turns = settled(chat);
+  const idx = segIndex(turns);
+  const st = sending.get(chat);
+  let seg, cut;
+  if (st && st.mode === "new") {
+    if (!Number.isInteger(st.cut)) return null;
+    seg = nextSeg(segments(chat));
+    cut = st.cut;
+  } else {
+    // The message on its way, or (after a reply) the one just answered, may already say where it is.
+    const last = ((chat && chat.turns) || []).at(-1);
+    seg = st && st.mode === "go" ? st.seg : last && dataOf(last) ? dataOf(last).seg : idx.at(-1);
+    cut = cutOf(chat, seg);
+  }
+  if (!Number.isInteger(cut)) return null;
+  const inView = new Set(turns.filter((t, i) => i < cut || idx[i] === seg));
+  const done = new Set(turns);
+  return { key: `branch-${seg}-${cut}`, keep: (t) => !done.has(t) || inView.has(t) };
+};
+
 // ---------- state (per open chat, not saved) ----------
 const want = new WeakMap(); // chat -> { mode: "new", profile } | { mode: "go", seg }
 const sending = new WeakMap(); // chat -> what route decided for the message on its way
+const cutFor = new WeakMap(); // chat -> messages before the reply a new sub-chat is branched from
 
 const profiles = async () => {
   try {
@@ -71,17 +105,26 @@ const profiles = async () => {
 };
 
 const startNew = (chat, profile) => {
-  want.set(chat, { mode: "new", profile });
-  PP.toast(`Next message starts a sub-chat on ${profile}`);
+  const cut = cutFor.has(chat) ? cutFor.get(chat) : null;
+  want.set(chat, { mode: "new", profile, cut });
+  PP.toast(`Next message starts a sub-chat on ${profile}` + (cut ? `, after message ${cut}` : ""));
   PP.render();
 };
+// Under a reply: the next new sub-chat branches from it (the last reply has nothing after it).
+const branchAt = (chat, turn) => {
+  const turns = settled(chat);
+  const k = turns.indexOf(turn);
+  if (k >= 0 && k + 1 < turns.length) cutFor.set(chat, k + 1);
+  else cutFor.delete(chat);
+};
+const nextNote = (w, segs) => (w.mode === "new" ? `Next message: new sub-chat on ${w.profile}${w.cut ? `, after message ${w.cut}` : ""}` : `Next message: back to sub-chat ${numberOf(segs, w.seg)}`);
 const goTo = (chat, seg) => {
   const segs = segments(chat);
   want.set(chat, { mode: "go", seg });
   PP.toast(`Next message goes to sub-chat ${numberOf(segs, seg)}`);
   PP.render();
 };
-const cancel = (chat) => (want.delete(chat), PP.render());
+const cancel = (chat) => (want.delete(chat), cutFor.delete(chat), PP.render());
 const openGuide = async () => {
   let text = "";
   try {
@@ -106,10 +149,13 @@ const openSheet = (chat) => {
     return [
       h("h3", {}, "New sub-chat here"),
       h("p", { class: "muted" }, "Your next message opens a fresh chat on the profile you pick. Memory sends it what came before."),
+      cutFor.has(chat)
+        ? h("div", { class: "row" }, h("span", { class: "muted grow" }, `Branching after message ${cutFor.get(chat)}: what comes later stays out of its memory.`), h("button", { class: "small", onclick: () => (cutFor.delete(chat), PP.render()) }, "Use the latest"))
+        : null,
       h("div", { class: "row" },
         ...(names.length ? names : ["…"]).map((n) =>
           h("button", { class: "small" + (w && w.mode === "new" && w.profile === n ? " primary" : ""), onclick: () => startNew(chat, n) }, n))),
-      w ? h("div", { class: "row" }, h("span", { class: "muted grow" }, w.mode === "new" ? `Next message: new sub-chat on ${w.profile}` : `Next message: back to sub-chat ${numberOf(segs, w.seg)}`), h("button", { class: "small", onclick: () => cancel(chat) }, "Cancel")) : null,
+      w ? h("div", { class: "row" }, h("span", { class: "muted grow" }, nextNote(w, segs)), h("button", { class: "small", onclick: () => cancel(chat) }, "Cancel")) : null,
       h("h3", {}, "Sub-chats in this chat"),
       segs.length
         ? h("div", {}, ...segs.map((s, k) =>
@@ -132,12 +178,12 @@ PP.plugin({
     const segs = segments(chat);
     const w = want.get(chat);
     if (w && w.mode === "new") {
-      sending.set(chat, { active, mode: "new" });
+      sending.set(chat, { active, mode: "new", cut: w.cut });
       return { profile: w.profile || active, url: "new", plugins: "active" };
     }
     const go = w && w.mode === "go" && segs.find((s) => s.seg === w.seg && s.url);
     if (go) {
-      sending.set(chat, { active, mode: "go" });
+      sending.set(chat, { active, mode: "go", seg: go.seg });
       return { profile: go.profile || active, url: go.url, plugins: "active" };
     }
     sending.set(chat, { active });
@@ -170,7 +216,7 @@ PP.plugin({
     // ctx.siteProfile: the profile the site and model came from (app 0.6.1+);
     // ctx.profile: the one whose plugins ran (the profile picked at the top).
     const site = ctx.siteProfile || ctx.profile;
-    ctx.setTurnData({ seg, url: ctx.url || "", profile: site.name, active: st.active || ctx.profile.name });
+    ctx.setTurnData({ seg, url: ctx.url || "", profile: site.name, active: st.active || ctx.profile.name, ...(st.mode === "new" && Number.isInteger(st.cut) ? { cut: st.cut } : {}) });
     if (segs.length && !segs.some((s) => s.seg === seg)) ctx.note(`sub-chat ${segs.length + 1} started (${siteLabel(ctx.url)})`);
     return text;
   },
@@ -188,20 +234,20 @@ PP.plugin({
       const s = segs.find((x) => x.seg === idx[k]);
       out.before.push(
         h("button", { class: "ghost", style: "display:block;width:100%;text-align:center;opacity:.75;font-size:.85em;margin:.6em 0;border-top:1px solid var(--hair);border-radius:0;padding-top:.5em", title: "Sub-chats", onclick: () => openSheet(chat) },
-          `Sub-chat ${numberOf(segs, s.seg)} · ${siteLabel(s.url)} · ${s.profile || ""}`));
+          `Sub-chat ${numberOf(segs, s.seg)} · ${siteLabel(s.url)} · ${s.profile || ""}${cutOf(chat, s.seg) ? ` · after message ${cutOf(chat, s.seg)}` : ""}`));
     }
     const w = want.get(chat);
     if (w && k === turns.length - 1) {
       out.after.push(
         h("div", { class: "row", style: "justify-content:center;opacity:.8;font-size:.85em;margin:.4em 0" },
-          h("span", { class: "muted" }, w.mode === "new" ? `Next message: new sub-chat on ${w.profile}` : `Next message: back to sub-chat ${numberOf(segs, w.seg)}`),
+          h("span", { class: "muted" }, nextNote(w, segs)),
           h("button", { class: "small", onclick: () => cancel(chat) }, "Cancel")));
     }
     return out;
   },
 
   // Under every reply and in the ⋯ menu, so it's one tap on the phone.
-  messageActions: [{ label: "New sub-chat here", run: (raw, ctx) => (openSheet(ctx.chat), ctx.turn.reply) }],
+  messageActions: [{ label: "New sub-chat here", run: (raw, ctx) => (branchAt(ctx.chat, ctx.turn), openSheet(ctx.chat), ctx.turn.reply) }],
   menu: [{ label: "Sub-chats", run: () => openSheet(PP.chat) }],
 
   renderBlock(ctx) {
@@ -212,4 +258,4 @@ PP.plugin({
 });
 
 // For other plugins (Memory reads the turn data directly; this is a convenience).
-PP.subChats = { segments, segIndex, siteLabel, sameUrl };
+PP.subChats = { segments, segIndex, siteLabel, sameUrl, visible, branchAt, startNew };

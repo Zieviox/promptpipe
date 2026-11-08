@@ -61,3 +61,13 @@ and `renderTurn` hooks; see the plugin guide. It also sets
 `PP.subChats = { segments, segIndex, siteLabel, sameUrl }`:
 `PP.subChats.segments(chat)` returns
 `[{ seg, from, to, count, url, profile, at }]`.
+
+## Branching from a reply
+
+*New sub-chat here* under a reply branches from that reply: pick the profile
+and the next message starts a sub-chat that sees the chat **up to and
+including that reply**, then its own messages. What came after that reply in
+the other sub-chats is left out of its Memory. The divider says
+*after message N*. Under the last reply there is nothing after it, so it works
+as before. *Use the latest* in the sub-chats sheet drops the branch point.
+

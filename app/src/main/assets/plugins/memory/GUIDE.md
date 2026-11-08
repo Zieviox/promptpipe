@@ -112,3 +112,8 @@ Sub-chats.
 | Summaries | Your side and the AI's side apart (default), or one summary of both. |
 | Run the profile's plugins on the summary request | For example Base64. |
 | Characters kept of each older turn | Used when clipping. |
+
+A sub-chat branched from a reply (Sub-chats › *New sub-chat here*) sends only
+the chat up to that reply plus its own messages. It keeps its own summaries in
+a folder of its own next to the chat's.
+
