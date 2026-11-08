@@ -24,7 +24,7 @@ const GUIDES = {
     { t: "Log in to your site", b: ["PromptPipe has no AI of its own. It uses the chat site for you, like you would. So you need to be logged in there."], login: true, note: "You log in on the site's own page, not in a PromptPipe form. Use an account you can afford to lose. Sites may limit automated use.", next: "Done" },
   ] },
   chat: { title: "Chatting", sub: "Send, find, quick edit", steps: [
-    { t: "Say hello", b: ["Type a message, then tap send. The reply shows up above, live."], sel: ".comp", go: toChat, hint: "Try it now: type and send", done: (b) => S.chat.turns.length > b.turns },
+    { t: "Say hello", b: ["Pick how the AI should help, then type a message and tap send. The reply shows up above, live."], starter: true, sel: ".comp", go: toChat, hint: "Try it now: type and send", done: (b) => S.chat.turns.length > b.turns },
     { t: "Find anything", b: ["Find searches your chats and every setting, and lights up where each one lives."], sel: '[aria-label="Find chats and functions"]', go: toChat, hint: TRY, done: () => S.sheet?.title === "Find", after: closeSheet },
     { t: "Quick edit", b: ["This turns your profile's plugins on or off and reorders them, without leaving the chat."], sel: '[aria-label="Quick edit and add"]', go: toChat, hint: TRY, done: () => S.sheet?.sub === "Quick edit", after: closeSheet },
   ] },
@@ -130,6 +130,29 @@ const pickSite = async (ch) => {
 };
 const siteName = () => siteFor()?.name || "your site";
 
+// ---------- the chatting guide's starter profile ----------
+// A starter is a ready-made profile. Picking one makes it the active profile (made from the
+// starter the first time, found by name after that). Plain is the profile you already have.
+const STARTER_CHOICES = [
+  { id: "plain", name: "Plain", sub: "Just your message" },
+  { id: "story", name: "Story writing", sub: "A co-writer that keeps your story straight" },
+  { id: "feedback", name: "Writing feedback", sub: "An honest editor for your text" },
+  { id: "rp", name: "Role play", sub: "The AI plays the world and every other character" },
+];
+const starterProfile = (ch) => (ch.id === "plain" ? S.config.profiles[0] : S.config.profiles.find((p) => p.name === ch.name));
+const pickStarter = (ch) => {
+  const prof = starterProfile(ch) || PP.pipeline.makeProfile(ch.name, ch.id);
+  if (prof.id !== profile().id) switchProfile(prof.id);
+  else render();
+};
+const starterBody = () =>
+  h("div", { style: "display:flex;flex-direction:column;gap:6px", role: "radiogroup", "aria-label": "Starter profile" },
+    ...STARTER_CHOICES.map((ch) => {
+      const on = starterProfile(ch)?.id === profile().id;
+      return h("button", { class: "it", role: "radio", "aria-checked": String(on), onclick: () => pickStarter(ch) },
+        h("span", { class: "on" }, on ? "●" : "○"), h("div", { class: "g" }, ch.name, h("small", {}, ch.sub)));
+    }));
+
 // ---------- drawing ----------
 const tourDots = (G, i) =>
   h("div", { class: "chips", style: "justify-content:center" }, G.steps.map((x, k) =>
@@ -166,6 +189,7 @@ const tourBody = (G, i) => {
           sites.error ? h("div", { class: "sub2 error" }, "Couldn't load the list: " + sites.error + ". Install a site from a file later in Settings › Sites.") : null)
       : null,
     d.login ? loginBody() : null,
+    d.starter ? starterBody() : null,
     d.warn ? h("div", { class: "warnbox" }, d.warn) : null,
     d.note ? h("div", { class: "sub2" }, d.note) : null,
     d.hint ? h("div", { style: "color:var(--accent);font-weight:700;font-size:14px" }, d.hint) : null,
