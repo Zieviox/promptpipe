@@ -310,10 +310,13 @@
     // Activity = new reply text, new thinking text or a visible stop button.
     let lastActivity = Date.now();
     let thinkText = "";
+    // How long the reply must stay unchanged, with no stop signal, before it counts as finished. A site
+    // whose stop signal is certain sets site.settleMs lower; the default is the guess that fits any site.
+    const settle = Number(site.settleMs) > 0 ? Number(site.settleMs) : 2000;
     const timedOut = () => (maxMs > 0 && Date.now() - start >= maxMs) || (idleMs > 0 && Date.now() - lastActivity >= idleMs);
     while (!timedOut()) {
       if (cancelled) throw new Error("stopped waiting (if the site answers anyway, ⋯ → Add the page's newest reply)");
-      await sleep(500);
+      await sleep(250);
       let now = "";
       for (const s of site.reply || []) {
         const els = all(s);
@@ -331,7 +334,7 @@
       if (th && th !== thinkText && !now) status(`thinking… ${th.length} chars`, { thinking: th });
       thinkText = th;
       if (now && now === text && !busy) {
-        if (Date.now() - stableSince > 2000) return text;
+        if (Date.now() - stableSince > settle) return text;
       } else {
         if (now !== text) status(`writing… ${now.length} chars`, { thinking: thinkText, reply: now });
         text = now;
