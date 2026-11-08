@@ -330,12 +330,14 @@
       // Stop keeps what has come in (the whole reply, or the part so far); with nothing yet there is nothing to keep.
       if (cancelled) {
         if (text) return done(text);
-        throw new Error("stopped waiting before any reply came (if the site answers anyway, ⋯ → Add the page's newest reply)");
+        throw new Error("stopped waiting before any reply came (if the site answers anyway, ⋯ → Add the page's newest reply)" + (Date.now() - start > 30000 ? ". Waited: " + watchOf(log, start) : ""));
       }
       await sleep(250);
       let now = "";
+      let shown = 0; // reply elements on the page now (a virtual list shows only some)
       for (const s of site.reply || []) {
         const els = all(s);
+        shown = Math.max(shown, els.length);
         const last = textOf(els[els.length - 1]);
         const b = before[s] || { count: 0, last: "" };
         if (last && (els.length > b.count || last !== b.last)) {
@@ -345,7 +347,8 @@
       }
       const busy = !!first(site.stop);
       const th = textOf(lastThinking(site));
-      const now_sig = `${busy ? "stop on" : "stop off"}, reply ${now.length}, thinking ${th.length}`;
+      // The page's own view size too: a page with no room on screen may show no messages at all.
+      const now_sig = `${busy ? "stop on" : "stop off"}, reply ${now.length}, thinking ${th.length}, replies shown ${shown}, view ${innerWidth}x${innerHeight}${document.hidden ? " hidden" : ""}`;
       if (now_sig !== sig) (sig = now_sig), log.push(`${Math.round((Date.now() - start) / 1000)}s ${now_sig}`), log.length > 40 && log.shift();
       if (busy || th !== thinkText || now !== text) lastActivity = Date.now();
       if (th !== thinkText || now !== text) changedAt = Date.now();
@@ -365,7 +368,7 @@
       }
     }
     lastWatch = watchOf(log, start);
-    throw new Error(maxMs > 0 && Date.now() - start >= maxMs ? `no finished reply after ${Math.round(maxMs / 60000)} min (your limit in Settings)` : `no activity on the page for ${Math.round(idleMs / 60000)} min (your limit in Settings; or check the site plugin's reply selectors)`);
+    throw new Error((maxMs > 0 && Date.now() - start >= maxMs ? `no finished reply after ${Math.round(maxMs / 60000)} min (your limit in Settings)` : `no activity on the page for ${Math.round(idleMs / 60000)} min (your limit in Settings; or check the site plugin's reply selectors)`) + ". Waited: " + lastWatch);
   };
 
   const info = (site) => ({

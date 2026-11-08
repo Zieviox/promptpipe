@@ -41,7 +41,10 @@ class MainActivity : Activity(), Hub.Screen {
         val root = FrameLayout(this)
         rootView = root
         uiView = GeckoView(this)
-        siteStack = FrameLayout(this).apply { visibility = View.GONE }
+        // Hidden pages stay laid out at their real size, just moved off screen: a page with no
+        // size (a GONE view) gets no room to draw, and sites with virtual lists (DeepSeek) then
+        // take their messages off the page, so a finished reply can't be read.
+        siteStack = FrameLayout(this).apply { translationX = OFF_SCREEN }
         root.addView(uiView)
         root.addView(siteStack, FrameLayout.LayoutParams(-1, -1))
         // The keyboard or a turn of the phone changes the size: keep the page in its hole.
@@ -134,7 +137,7 @@ class MainActivity : Activity(), Hub.Screen {
     override fun showSite(show: Boolean) {
         val changed = siteShown != show
         siteShown = show
-        siteStack.visibility = if (show) View.VISIBLE else View.GONE
+        siteStack.translationX = if (show) 0f else OFF_SCREEN
         if (changed) app.hub.emit(JSONObject().put("type", "siteView").put("show", show))
         // Keep every page running even when hidden.
         app.hub.pages.forEach { it.session.setActive(true) }
@@ -279,5 +282,7 @@ class MainActivity : Activity(), Hub.Screen {
 
     companion object {
         const val PICK_PLUGIN = 7
+        // Far enough to the right that no screen shows it.
+        const val OFF_SCREEN = 100_000f
     }
 }
