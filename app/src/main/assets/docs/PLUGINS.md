@@ -123,8 +123,8 @@ the first chip above the message box): a list of rows, sent top to bottom.
 
 Presets are shared by profiles; each profile picks one and keeps its plugins'
 settings. Every installed plugin with hooks has a row in every preset (new
-ones come in off, at the end). The app ships with Plain, RP, Writing feedback
-and Story writing.
+ones come in off, at the end). The app ships with Plain, Writing feedback,
+Dialogue & Role play and Story & Prose.
 
 `ctx` has:
 

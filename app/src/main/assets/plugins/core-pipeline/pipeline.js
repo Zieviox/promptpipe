@@ -6,7 +6,7 @@
 //   message  where your message goes
 // A row can sit in a group: the group's switch turns all its rows on or off.
 // A profile owns its rows: prof.pipe = { groups, rows }. S.config.presets are the
-// starters (RP, Story writing ...) a profile can be made from; changing a profile
+// starters (Dialogue & Role play, Story & Prose ...) a profile can be made from; changing a profile
 // never changes a starter or another profile.
 // Plugin settings stay per profile (settingsFor); which steps run is the profile's.
 
@@ -33,53 +33,108 @@ const pluginPieces = () =>
   [...S.plugins.values()].filter((p) => isStep(p) && p.def?.pieces).flatMap((p) => Object.entries(p.def.pieces).map(([part, d]) => ({ plugin: p.id, part, name: `${pluginName(p.id)} · ${d.name || part}` })));
 
 // ---------- starter presets ----------
+// The text of the shipped blocks. Written and tested by Cadence (see the default prompts doc).
+const DEVELOPMENT = `Get the setting provided by the user or ask for one, in case you do not receive an answer, decide on a relevant setting
+
+output every stage of its commitment order BEFORE writing:
+
+What the character is already doing and wants.
+
+What they actually choose to do next.
+
+What happens as that action unfolds.
+
+Whether another independent decision is warranted.
+
+Only THEN rendering the prose.
+
+Now write the story.`;
+
+const SCENE_RULES = `There are two ways we work, depending on what I ask.
+
+If I play a character: you play the world and every character except mine. Stay in character, and never write my character's actions, words or thoughts. Other characters want their own things and only give way to mine when they have a reason. Keep each reply to a few paragraphs and end on something the world or another character does, at a point where my character can act. Don't summarise what happens next and don't ask me what I want.
+
+If I ask for a scene between characters: write the whole scene as dialogue with minimal narration. Narration appears only when a concrete action changes the scene. End on the last spoken line, in medias res, mid-exchange: no closing narration, no closing question, no character leaving.`;
+
+const DIALOGUE_CRAFT = `Echo (anadiplosis, epizeuxis): when a reply would repeat the previous speaker's words, answer the content instead.
+Stichomythia: vary line length within each speaker, so nobody is always long or always short. A speaker may hold the floor for a few sentences, but in sentences of different lengths, not one run-on.
+Backchannels: replace "Mm," "Right," and "Sure" with the speaker's actual reaction.
+On-the-nose dialogue: move every feeling into subtext. People show feeling through what they talk about instead, what they do, and what they avoid. This includes warmth: affection and happiness show as behavior and specifics, never as announcements.
+Exposition ("As you know, Bob"): a speaker says only what the listener doesn't already know.
+Metadialogue: characters never comment on how the other person talks or behaves.
+Sententia (aphorism): replace quotable, proverb-shaped lines with a concrete particular.
+Tidy resolution: no apology, lesson, or reconciliation closes the scene.
+Therapy-speak: speakers use their own register (job, age, class), never counselor phrasing.
+Over-fluency: give each speaker an idiolect and natural disfluency. A nervous or guarded speaker changes what they avoid saying, not how many words they use.
+Cross-purposes: each speaker pursues a private agenda and answers from it, not from the question asked.
+Stock names: choose names that belong to the setting, not the first that come to mind.`;
+
+const PROSE_CRAFT = `Filtering: write the thing perceived, not "she saw", "he felt" or "she noticed".
+Stock gesture (a held breath, a tightening jaw, a smile that doesn't reach the eyes): use an action only this character would do here, or none.
+Simile: at most one per scene, and only when it says what literal words can't.
+Correctio ("not X, but Y"): state the Y.
+Tricolon (lists of three): use as many items as the moment actually has.
+Sententia and closing summary: end on an event or a spoken line, never on what the scene meant.
+Sensory inventory: give the one detail that matters to the character, not a tour of the senses.
+Purple prose: use the plain word unless the character would use the fancy one.`;
+
+const PROSE_STYLE = `Write rhyme, not facts. Carry the pacing by emotion. And every sentence MUST be naturally connected to the other, and by that I mean: connect via the context and flow itself. No fragmented prose allowed.`;
+
+const BRIDGE = `The rule about connected sentences is for narration. Spoken lines follow speech, not prose: people interrupt each other, answer sideways, and leave gaps, so spoken lines do not have to connect smoothly to each other.`;
+
+const CO_WRITER = `We're writing a story together. Follow my outline and notes, and keep names, facts and tone consistent. Write in the tense and point of view I use. Where my notes leave something open, choose a specific detail that belongs to this story, not the first one that comes to mind. When I ask for a scene, write only that scene and stop.`;
+
+const EDITOR = `You are an honest, specific editor. For the text I send, say what works and what doesn't: quote the exact lines you mean and say why. Lead with the one or two changes that would matter most, then smaller points. Look at clarity, pacing, voice, dialogue and consistency. If a part works, say so in a line and move on; don't invent problems. Don't rewrite my text unless I ask; suggest, don't replace. Be direct, and skip praise that says nothing.`;
+
+// Every starter: the master system prompt first (empty, yours), the blocks that carry instructions,
+// then Base64 (off), then your message. Base64 changes everything above it, so when it is
+// switched on your message stays plain.
+const master = () => piece("Master system prompt", "", "every");
+const base64Off = () => step("base64", false, "above");
 const STARTERS = () => [
   {
     id: "plain",
     name: "Plain",
     groups: [],
-    rows: [messageRow()],
-  },
-  {
-    id: "rp",
-    name: "RP",
-    groups: [],
-    rows: [
-      piece(
-        "Role-play rules",
-        "Let's role-play. You play the world and every character except mine; I play my character. Stay in character. Never write my character's actions, words or thoughts. Keep each reply to a few paragraphs and stop where my character can act. Show, don't tell. Don't summarise what happens next and don't ask me what I want.",
-        "first",
-      ),
-      piece("Characters and setting", "", "first"),
-      step("memory"),
-      messageRow(),
-      piece("Reminder", "(Stay in character, and don't write for my character.)", "everyN", { n: 5 }),
-    ],
+    rows: [master(), messageRow()],
   },
   {
     id: "feedback",
     name: "Writing feedback",
     groups: [],
+    rows: [master(), piece("Editor", EDITOR, "every"), base64Off(), messageRow()],
+  },
+  {
+    id: "dialogue",
+    name: "Dialogue & Role play",
+    groups: [],
     rows: [
-      piece(
-        "Editor",
-        "You are an honest, specific editor. For the text I send, say what works and what doesn't: quote the exact lines you mean and say why. Look at clarity, pacing, voice, dialogue and consistency. Don't rewrite my text unless I ask; suggest, don't replace. Be direct, and skip praise that says nothing.",
-      ),
+      master(),
+      piece("Development", DEVELOPMENT, "first"),
+      piece("Scene rules", SCENE_RULES, "every"),
+      piece("Dialogue craft", DIALOGUE_CRAFT, "every"),
+      piece("Characters and setting", "", "first"),
+      step("memory"),
+      piece("Reminder", "(Stay in character, and don't write for my character.)", "everyN", { n: 5 }),
+      base64Off(),
       messageRow(),
     ],
   },
   {
     id: "story",
-    name: "Story writing",
+    name: "Story & Prose",
     groups: [],
     rows: [
-      piece(
-        "Co-writer",
-        "We're writing a story together. Follow my outline and notes, and keep names, facts and tone consistent. Write in the tense and point of view I use. When I ask for a scene, write only that scene and stop.",
-        "first",
-      ),
+      master(),
+      piece("Co-writer", CO_WRITER, "every"),
+      piece("Development", DEVELOPMENT, "every"),
+      piece("Prose style", PROSE_STYLE, "every"),
+      piece("Bridge", BRIDGE, "every"),
+      piece("Dialogue craft", DIALOGUE_CRAFT, "every"),
+      piece("Prose craft", PROSE_CRAFT, "every"),
       piece("Story notes", "", "first"),
       step("memory"),
+      base64Off(),
       messageRow(),
     ],
   },

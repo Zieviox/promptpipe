@@ -135,9 +135,9 @@ const siteName = () => siteFor()?.name || "your site";
 // starter the first time, found by name after that). Plain is the profile you already have.
 const STARTER_CHOICES = [
   { id: "plain", name: "Plain", sub: "Just your message" },
-  { id: "story", name: "Story writing", sub: "A co-writer that keeps your story straight" },
   { id: "feedback", name: "Writing feedback", sub: "An honest editor for your text" },
-  { id: "rp", name: "Role play", sub: "The AI plays the world and every other character" },
+  { id: "dialogue", name: "Dialogue & Role play", sub: "Dialogue scenes, or the AI plays the world and every other character" },
+  { id: "story", name: "Story & Prose", sub: "A co-writer for stories, with prose and dialogue craft" },
 ];
 const starterProfile = (ch) => (ch.id === "plain" ? S.config.profiles[0] : S.config.profiles.find((p) => p.name === ch.name));
 const pickStarter = (ch) => {
