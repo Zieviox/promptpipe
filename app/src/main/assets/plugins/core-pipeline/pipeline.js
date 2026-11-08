@@ -91,6 +91,7 @@ const EDITOR = `You are an honest, specific editor. For the text I send, say wha
 // switched on your message stays plain.
 const master = () => piece("Master system prompt", "", "every");
 const base64Off = () => step("base64", false, "above");
+const STARTERS_SET = 2; // raise it when the shipped starters change
 const STARTERS = () => [
   {
     id: "plain",
@@ -435,13 +436,22 @@ const setUp = async () => {
     delete prof.preset;
   }
   S.config.presets = presets().filter((p) => !made.has(p.id));
+  // Starters are shipped data: a new set of them replaces the old one (once per set). Profiles
+  // you made from a starter have their own rows and stay as they are.
+  const refreshed = S.config.startersSet !== STARTERS_SET;
+  if (refreshed) {
+    const shipped = STARTERS();
+    const ids = new Set(shipped.map((p) => p.id));
+    S.config.presets = [...shipped, ...presets().filter((p) => !ids.has(p.id) && p.id !== "rp")];
+    S.config.startersSet = STARTERS_SET;
+  }
   const prune = !S.config.rowsPruned;
   for (const pre of [...S.config.profiles.map((p) => p.pipe), ...presets()]) {
     if (prune) dropAutoRows(pre);
     syncRows(pre);
   }
   S.config.rowsPruned = true;
-  if (fresh || moved || prune) saveConfig();
+  if (fresh || moved || prune || refreshed) saveConfig();
 };
 on("plugins", setUp, null);
 
