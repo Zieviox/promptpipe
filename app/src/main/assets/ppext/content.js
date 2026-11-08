@@ -302,8 +302,16 @@
   // Set by the "cancel" command (Stop waiting in the app).
   let cancelled = false;
   // idleMs / maxMs: give up after that long with no activity / in total; 0 = never.
+  // What the last wait saw, as numbers only (no message text): when the stop signal and the
+  // lengths of the reply and the thinking changed. Shown in the message's notes for waits of 30 s+,
+  // so a wait that never ends can be diagnosed without sharing a private chat.
+  let lastWatch = "";
+  const watchOf = (log, start) => `${Math.round((Date.now() - start) / 1000)} s in total; last changes: ${log.slice(-10).join(" | ")}`;
   const waitReply = async (site, before, idleMs = 0, maxMs = 0) => {
     const start = Date.now();
+    const log = [];
+    let sig = "";
+    const done = (v) => ((lastWatch = Date.now() - start > 30000 ? watchOf(log, start) : ""), v);
     cancelled = false;
     let text = "";
     let stableSince = 0;
@@ -321,7 +329,7 @@
     while (!timedOut()) {
       // Stop keeps what has come in (the whole reply, or the part so far); with nothing yet there is nothing to keep.
       if (cancelled) {
-        if (text) return text;
+        if (text) return done(text);
         throw new Error("stopped waiting before any reply came (if the site answers anyway, ⋯ → Add the page's newest reply)");
       }
       await sleep(250);
@@ -337,23 +345,26 @@
       }
       const busy = !!first(site.stop);
       const th = textOf(lastThinking(site));
+      const now_sig = `${busy ? "stop on" : "stop off"}, reply ${now.length}, thinking ${th.length}`;
+      if (now_sig !== sig) (sig = now_sig), log.push(`${Math.round((Date.now() - start) / 1000)}s ${now_sig}`), log.length > 40 && log.shift();
       if (busy || th !== thinkText || now !== text) lastActivity = Date.now();
       if (th !== thinkText || now !== text) changedAt = Date.now();
       if (busy && now && now === text && Date.now() - changedAt > stuckMs) {
         status(`the site still shows it is writing, but the reply has not changed for ${Math.round(stuckMs / 1000)} s: using it`);
-        return text;
+        return done(text);
       }
       // Show the thinking live in the app while the model is still thinking.
       if (th && th !== thinkText && !now) status(`thinking… ${th.length} chars`, { thinking: th });
       thinkText = th;
       if (now && now === text && !busy) {
-        if (Date.now() - stableSince > settle) return text;
+        if (Date.now() - stableSince > settle) return done(text);
       } else {
         if (now !== text) status(`writing… ${now.length} chars`, { thinking: thinkText, reply: now });
         text = now;
         stableSince = Date.now();
       }
     }
+    lastWatch = watchOf(log, start);
     throw new Error(maxMs > 0 && Date.now() - start >= maxMs ? `no finished reply after ${Math.round(maxMs / 60000)} min (your limit in Settings)` : `no activity on the page for ${Math.round(idleMs / 60000)} min (your limit in Settings; or check the site plugin's reply selectors)`);
   };
 
@@ -472,7 +483,7 @@
       const replyEl = lastReplyEl(m.site);
       const thinkEl = nearThinking(m.site, replyEl);
       const users = pickAll(m.site.user);
-      return { raw: answerText(m.site, replyEl) || raw, thinking: mdOf(thinkEl), you: textOf(users[users.length - 1]), ...info(m.site) };
+      return { raw: answerText(m.site, replyEl) || raw, thinking: mdOf(thinkEl), you: textOf(users[users.length - 1]), watch: lastWatch, ...info(m.site) };
     },
     history: (m) => {
       const pick = pickAll;
@@ -506,6 +517,7 @@
       return {
         raw: answerText(m.site, replyEl) || raw,
         thinking: mdOf(thinkEl),
+        watch: lastWatch,
         ...info(m.site),
       };
     },

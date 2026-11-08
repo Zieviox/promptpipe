@@ -191,6 +191,7 @@ const runChat = (chat, prompt, prof = profile(), follow = false, onPage = null) 
         turn.you = r.you ? await inHooks(() => runHooks("afterReply", r.you, { ...ctx, notes: [] }, [], steps)).catch(() => r.you) : "(from the page)";
         turn.notes.push("added from the page");
       }
+      if (r.watch) turn.notes.push("waited: " + r.watch); // numbers only, for a wait that took long
       ctx.url = r.url; // afterReply sees the site chat the reply came from
       turn.secs = Math.max(1, Math.round((Date.now() - started) / 1000));
       turn.raw = r.raw;
