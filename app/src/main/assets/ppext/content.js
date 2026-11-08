@@ -313,9 +313,17 @@
     // How long the reply must stay unchanged, with no stop signal, before it counts as finished. A site
     // whose stop signal is certain sets site.settleMs lower; the default is the guess that fits any site.
     const settle = Number(site.settleMs) > 0 ? Number(site.settleMs) : 2000;
+    // A stop signal that stays on while the reply sits unchanged for this long is taken as stuck (the site
+    // changed its page): the reply that is there is used, instead of waiting for ever.
+    const stuckMs = Number(site.stuckMs) > 0 ? Number(site.stuckMs) : 45000;
+    let changedAt = Date.now();
     const timedOut = () => (maxMs > 0 && Date.now() - start >= maxMs) || (idleMs > 0 && Date.now() - lastActivity >= idleMs);
     while (!timedOut()) {
-      if (cancelled) throw new Error("stopped waiting (if the site answers anyway, ⋯ → Add the page's newest reply)");
+      // Stop keeps what has come in (the whole reply, or the part so far); with nothing yet there is nothing to keep.
+      if (cancelled) {
+        if (text) return text;
+        throw new Error("stopped waiting before any reply came (if the site answers anyway, ⋯ → Add the page's newest reply)");
+      }
       await sleep(250);
       let now = "";
       for (const s of site.reply || []) {
@@ -330,6 +338,11 @@
       const busy = !!first(site.stop);
       const th = textOf(lastThinking(site));
       if (busy || th !== thinkText || now !== text) lastActivity = Date.now();
+      if (th !== thinkText || now !== text) changedAt = Date.now();
+      if (busy && now && now === text && Date.now() - changedAt > stuckMs) {
+        status(`the site still shows it is writing, but the reply has not changed for ${Math.round(stuckMs / 1000)} s: using it`);
+        return text;
+      }
       // Show the thinking live in the app while the model is still thinking.
       if (th && th !== thinkText && !now) status(`thinking… ${th.length} chars`, { thinking: th });
       thinkText = th;
@@ -502,7 +515,7 @@
   // the AI page, gets these helpers, and returns the commands it replaces:
   //   return { async send(text, site) { ...; return { raw } }, last(site), list(site), info(site) }
   // Commands it leaves out use the selector based defaults above.
-  const helpers = { all, first, visible, sleep, textOf, typeInto, waitReply, snapshot, lastReply, lastReplyEl, lastThinking, answerText, toMarkdown: mdOf, list, info, status: (t, live) => status(t, live) };
+  const helpers = { cancelled: () => cancelled, all, first, visible, sleep, textOf, typeInto, waitReply, snapshot, lastReply, lastReplyEl, lastThinking, answerText, toMarkdown: mdOf, list, info, status: (t, live) => status(t, live) };
   // Driver plugins ("kind": "driver") bring the same kind of script for every
   // site (site.drivers). Order: the site's own script, then drivers (the last
   // installed wins), then the defaults above.
