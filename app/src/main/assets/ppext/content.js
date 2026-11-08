@@ -369,6 +369,18 @@
       if (t) t.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", keyCode: 27, bubbles: true }));
     }
   };
+  // Close the model list. Escape does not close a bottom drawer (Qwen on a phone), so if the
+  // options are still showing, press the Close button of the list's own dialog.
+  const closePicker = async (site) => {
+    pressEscape();
+    await sleep(300);
+    const opt = optionEls(site)[0];
+    if (!opt) return;
+    const dialog = opt.el.closest("[role=dialog], .ant-drawer, [class*=popup i]");
+    const x = dialog && [...dialog.querySelectorAll("[aria-label=Close i], [aria-label=close i], .ant-drawer-close, [class*=close i]")].find(visible);
+    if (x) x.click();
+    await sleep(300);
+  };
   const optionEls = (site) => {
     const seen = new Set();
     const out = [];
@@ -402,8 +414,7 @@
     async models(m) {
       await openPicker(m.site);
       const models = optionEls(m.site).map((o) => o.name);
-      pressEscape();
-      await sleep(200);
+      await closePicker(m.site);
       return { models, switches: switches(m.site), ...info(m.site) };
     },
     async setModel(m) {
@@ -411,11 +422,12 @@
       const want = m.model.toLowerCase();
       const opt = optionEls(m.site).find((o) => o.name.toLowerCase() === want) || optionEls(m.site).find((o) => o.name.toLowerCase().includes(want));
       if (!opt) {
-        pressEscape();
+        await closePicker(m.site);
         throw new Error(`model "${m.model}" is not in the site's list`);
       }
       opt.el.click();
       await sleep(600);
+      if (optionEls(m.site).length) await closePicker(m.site); // a list that stays open covers the page
       return { switches: switches(m.site), ...info(m.site) };
     },
     async setSwitch(m) {
