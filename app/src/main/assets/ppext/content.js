@@ -234,10 +234,11 @@
       (b) => visible(b) && /^\s*(log ?in|sign ?in|fazer login|entrar|iniciar sesi[oó]n|anmelden|se connecter|connexion|accedi|登录|ログイン)\s*$/i.test(textOf(b)),
     );
 
+  const noBox = () => new Error("chat input box not found on the page after 15s (tap the site name to look" + (loggedOut() ? "; it shows a Log in button" : "") + ")");
   const typeInto = async (site, text, snap) => {
     // The site may still be loading (it just opened or switched chats), so wait for the box.
     const el = await waitFor(() => first(site.input), 15000);
-    if (!el) throw new Error("chat input box not found on the page after 15s (tap the site name to look" + (loggedOut() ? "; it shows a Log in button" : "") + ")");
+    if (!el) throw noBox();
     el.focus();
     if (el.isContentEditable) {
       document.execCommand("selectAll", false, null);
@@ -508,6 +509,9 @@
     handlers[cmd] = async (m) => {
       const own = scriptFor(m.site)[cmd];
       if (!own) return builtin[cmd](m);
+      // A fresh chat may still be loading when the send arrives. The built-in send waits for the
+      // box; a site script's own send asks for it at once, so wait here, once, for every site plugin.
+      if (cmd === "send" && m.site && m.site.input && !(await waitFor(() => first(m.site.input), 15000))) throw noBox();
       const r = cmd === "send" ? await own(m.text, m.site, builtin.send.bind(null, m)) : await own(m.site);
       if (cmd === "list") return { chats: Array.isArray(r) ? r : (r && r.chats) || [], ...info(m.site) };
       return { ...info(m.site), ...(r || {}) };
