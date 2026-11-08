@@ -98,6 +98,12 @@ const decode = (text, s, ctx) => {
 PP.plugin({
   beforeSend(text, ctx) {
     const s = ctx.settings;
+    // Set to "only the blocks I pick": this is block i of n. Each encoded block is marked, and the
+    // instruction goes in once, in front of the first.
+    if (ctx.pick) {
+      const body = s.encodePrompt ? `[base64 block]\n${toBase64(text)}\n[end of base64 block]` : text;
+      return ctx.pick.i === 0 ? `${s.instruction}${s.encodePrompt ? "\nBlocks marked [base64 block] are base64 encoded UTF-8; decode them first." : ""}\n\n${body}` : body;
+    }
     if (s.encodePrompt) return `${s.instruction}\nMy message below is base64 encoded UTF-8; decode it first.\n\n${toBase64(text)}`;
     return `${s.instruction}\n\n${text}`;
   },
