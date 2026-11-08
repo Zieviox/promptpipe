@@ -10,7 +10,7 @@ from before it.
 Turn **Memory** on in the profile. Tap ⚙ for the settings and ☰ for this
 chat's summaries and the summary chat's system prompts.
 
-For summaries, set **Settings › Site pages at once** to 2 or more: a summary
+For summaries, keep **Settings › Sites › Max replies at once** at 2 or more: a summary
 is made in its own chat on a second site page while your message holds the
 first. With 1 page, Memory clips older messages instead and says so in the
 trace.
@@ -63,6 +63,24 @@ them, to be made again when needed.
 Summaries from Memory 2.1 (`memory-summaries.json`) aren't used any more.
 They are made again as parts when needed.
 
+## In the pipeline
+
+Memory is one row of your preset (⋯ → Pipeline): its text goes where the row
+is. To place its parts apart, use **Add plugin piece**:
+
+- **Pinned facts**
+- **Your side (summaries)**: what you said, did and want
+- **AI side (summaries)**: what the AI said: its characters, the story, facts
+- **Recent messages**: the latest messages word for word
+
+Each part is summarised twice: one request sees only your messages, the
+other only the AI's, so the AI can't take its own words for yours (that costs
+two requests per part). Each side is kept and sent under its own label.
+Summaries made before 2.5 that can't be split (one blob) go first under
+*Your side*, labelled "both sides together". *Summaries › One summary of both
+sides* makes one request per part, labelled the same way. Turn the whole Memory row off when you use the parts, or the
+memory goes twice.
+
 ## Sub-chats
 
 - **A new site chat always gets the memory,** even when ⚙ *Send memory every
@@ -91,5 +109,6 @@ Sub-chats.
 | Over the max | Summaries in parts, or just clip (no extra chat). |
 | Messages per summary part | Size of a part at every level (default 10). |
 | Summary request | The instruction sent with each part. |
+| Summaries | Your side and the AI's side apart (default), or one summary of both. |
 | Run the profile's plugins on the summary request | For example Base64. |
 | Characters kept of each older turn | Used when clipping. |

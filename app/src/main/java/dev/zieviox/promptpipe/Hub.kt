@@ -17,11 +17,11 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 // Owns the pages and connects them:
-// - uiSession shows the app's own chat UI (served by Server on 127.0.0.1).
+// - uiSession shows the app's own chat UI (served by the core on 127.0.0.1).
 // - pages are the AI site pages (1 by default, more for chats in parallel).
 //   The built-in extension's content script on each talks to us over its own
 //   native messaging port ("pp").
-// The UI reaches a page through Server -> request(cmd with "page") -> port -> content script.
+// The UI reaches a page through the core -> Shell -> request(cmd with "page") -> port -> content script.
 class Hub(private val app: App) {
     interface Screen {
         fun showSite(show: Boolean)
@@ -39,41 +39,34 @@ class Hub(private val app: App) {
 
     private val nextId = AtomicInteger(1)
 
-    // Events for the UI page, fetched by long polling /api/events.
-    private val lock = Object()
-    private val events = ArrayList<JSONObject>()
-    private var seq = 0
-    @Volatile var lastPoll = 0L
-
-    // Jobs from the local API, answered by the UI page.
-    val jobs = ConcurrentHashMap<String, CompletableFuture<JSONObject>>()
-
-    // ---------- events ----------
+    // Events for the app screen go through the core, which the screen long-polls.
     fun emit(e: JSONObject) {
-        synchronized(lock) {
-            seq++
-            events.add(e.put("seq", seq))
-            if (events.size > 200) events.removeAt(0)
-            lock.notifyAll()
-        }
+        app.core.emit(e)
+        if (e.optString("type") in listOf("site", "pages")) app.core.status()
     }
 
-    fun poll(after: Int, waitMs: Long): JSONObject {
-        lastPoll = System.currentTimeMillis()
-        synchronized(lock) {
-            val until = System.currentTimeMillis() + waitMs
-            while (seq <= after) {
-                val left = until - System.currentTimeMillis()
-                if (left <= 0) break
-                lock.wait(left)
+    // The app screen, opened with the security key once the core answers.
+    // Until then it shows "Starting…", and if the core doesn't answer, why.
+    fun openScreen() = kotlin.concurrent.thread(isDaemon = true) {
+        main.post { uiSession.loadUri(page("Starting promptpipe…", "")) }
+        for (i in 0 until 150) {
+            if (app.core.ready()) {
+                main.post { uiSession.loadUri("${App.base}/open?key=${app.core.key}") }
+                return@thread
             }
-            val out = JSONArray()
-            for (e in events) if (e.getInt("seq") > after) out.put(e)
-            return JSONObject().put("seq", seq).put("events", out)
+            Thread.sleep(200)
         }
+        val why = app.core.problem.ifEmpty { "the core didn't answer within 30 seconds" }
+        main.post { uiSession.loadUri(page("promptpipe couldn't start: $why", "Last lines of ${app.core.logFile.path}:\n\n${app.core.lastLog()}")) }
     }
 
-    fun uiAlive() = System.currentTimeMillis() - lastPoll < 40_000
+    // A plain page made on the spot (no server needed), in the app's dark colours.
+    private fun page(title: String, detail: String): String {
+        fun esc(s: String) = s.replace("&", "&amp;").replace("<", "&lt;")
+        val html = "<meta name=viewport content='width=device-width'><body style='background:#0b0c0f;color:#d8dbe2;font:16px system-ui;padding:24px'>" +
+            (if (detail.isEmpty()) "<style>@keyframes s{to{transform:rotate(360deg)}}</style><p style='display:flex;align-items:center;gap:12px'><span style='width:18px;height:18px;border-radius:50%;border:2px solid #9aa1ad;border-right-color:transparent;animation:s .9s linear infinite'></span>${esc(title)}</p>" else "<p>${esc(title)}</p>") + (if (detail.isEmpty()) "" else "<pre style='white-space:pre-wrap;font-size:12px;color:#9aa1ad'>${esc(detail)}</pre><p><a style='color:#e8875a' href='${App.base}/open?key=${app.core.key}'>Try again</a></p>")
+        return "data:text/html;charset=utf-8," + java.net.URLEncoder.encode(html, "UTF-8").replace("+", "%20")
+    }
 
     // ---------- site pages ----------
     inner class SitePage(val index: Int) {
@@ -149,11 +142,11 @@ class Hub(private val app: App) {
     val siteSession get() = pages[0].session
     val siteInfo get() = pages[0].info
 
-    fun page(i: Int): SitePage = pages.getOrNull(i) ?: throw IOException("there is no site page ${i + 1} (Settings › Site pages at once)")
+    fun page(i: Int): SitePage = pages.getOrNull(i) ?: throw IOException("there is no site page ${i + 1} (Settings › Sites › Max replies at once)")
 
     fun pagesInfo(): JSONArray = JSONArray().also { a -> pages.forEach { a.put(JSONObject().put("page", it.index).put("connected", it.port != null).put("url", it.info.optString("url")).put("title", it.info.optString("title"))) } }
 
-    // How many site pages run at once (1-4). Extra pages are closed from the end.
+    // How many site pages run at once (1-10). Extra pages are closed from the end.
     fun setPages(n: Int) {
         val want = n.coerceIn(1, MAX_PAGES)
         main.post {
@@ -224,7 +217,7 @@ class Hub(private val app: App) {
 
         // Links in chats open in the normal browser, not inside the app UI.
         override fun onLoadRequest(session: GeckoSession, request: GeckoSession.NavigationDelegate.LoadRequest): GeckoResult<AllowOrDeny>? {
-            if (request.uri.startsWith(App.base) || request.uri.startsWith("about:")) return GeckoResult.fromValue(AllowOrDeny.ALLOW)
+            if (request.uri.startsWith(App.base) || request.uri.startsWith("about:") || request.uri.startsWith("data:")) return GeckoResult.fromValue(AllowOrDeny.ALLOW)
             main.post { screen?.runAction("openUrl", JSONObject().put("url", request.uri)) }
             return GeckoResult.fromValue(AllowOrDeny.DENY)
         }
@@ -267,7 +260,7 @@ class Hub(private val app: App) {
         }
         s.setActive(true)
         screen?.reattach()
-        if (isUi) s.loadUri("${App.base}/")
+        if (isUi) openScreen()
         else {
             s.loadUri(pg!!.info.optString("url").ifEmpty { "about:blank" })
             emit(JSONObject().put("type", "error").put("text", "AI page ${if (pages.size > 1) "${pg.index + 1} " else ""}" + (if (crashed) "crashed" else "was stopped by Android") + " and was reloaded. Resend if a message was waiting."))
@@ -287,11 +280,10 @@ class Hub(private val app: App) {
         }
     }
 
-    // The Reload button over the AI page: the chat UI and the page on screen.
-    fun reloadAll(shown: Int = 0) {
+    // Reload one site page (the site view's reload button).
+    fun reloadPage(i: Int) {
         main.post {
-            if (!uiSession.isOpen) restore(uiSession, true) else uiSession.reload()
-            val s = (pages.getOrNull(shown) ?: pages[0]).session
+            val s = (pages.getOrNull(i) ?: pages[0]).session
             if (!s.isOpen) restore(s, true) else s.reload()
         }
     }
@@ -332,10 +324,10 @@ class Hub(private val app: App) {
                 Log.e(App.TAG, "extension failed", e)
                 emit(JSONObject().put("type", "error").put("text", "Built-in extension failed to load: $e"))
             })
-        uiSession.loadUri("${App.base}/")
+        openScreen()
     }
 
     companion object {
-        const val MAX_PAGES = 4
+        const val MAX_PAGES = 10
     }
 }

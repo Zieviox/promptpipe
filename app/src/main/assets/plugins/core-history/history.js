@@ -22,7 +22,7 @@ const tagsFile = () => ({ path: "tags.json", text: JSON.stringify(S.tags, null, 
 const newChat = (folder = S.folder) => ({
   path: null,
   folder,
-  meta: { title: "New chat", source: "", ai: "", model: "", profile: profile().name, tags: [], created: iso(), updated: iso() },
+  meta: { title: "New chat", source: "", site: "", ai: "", model: "", profile: profile().name, switches: {}, tags: [], created: iso(), updated: iso() },
   turns: [],
 });
 
@@ -47,6 +47,8 @@ const openChat = async (path) => {
   const r = await api("/api/history/file?path=" + encodeURIComponent(path));
   if (r.text == null) throw new Error("chat file not found: " + path);
   S.chat = ChatFile.fromMd(path, r.text);
+  const prof = profileNamed(S.chat.meta.profile);
+  if (prof) S.config.activeProfile = prof.id; // the chat's profile; new chats start with it too
   S.unseen = [];
   S.chat.folder = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
   S.config.lastChat = path;
@@ -61,7 +63,7 @@ const startNewChat = (folder) => {
   S.unseen = [];
   closeDrawer();
   render();
-  setTimeout(() => document.querySelector(".composer textarea")?.focus(), 0);
+  setTimeout(() => document.querySelector("#msg")?.focus(), 0);
 };
 
 const openSiteChat = async (c) => {
@@ -70,6 +72,7 @@ const openSiteChat = async (c) => {
   S.chat = newChat();
   S.chat.meta.title = c.title;
   S.chat.meta.source = c.url;
+  S.chat.meta.site = siteIdOf();
   S.chat.meta.ai = siteFor()?.name || "";
   closeDrawer();
   render();
@@ -98,13 +101,27 @@ const deleteChat = async (path) => {
   render();
 };
 
+// Makes the folder (a .gitkeep keeps it in git). Resolves true once it exists;
+// says why in a toast and resolves false when the name won't do.
 const makeFolder = async (name) => {
-  name = name.trim().replace(/^\/+|\/+$/g, "");
-  if (!name || name.split("/").some((p) => p === ".." || p.startsWith("."))) return toast("Not a valid folder name", "error");
-  await api("/api/history/save", { files: [{ path: name + "/.gitkeep", text: "" }], message: "folder: " + name });
-  S.openFolders.add(name);
+  const parts = name.replace(/\\/g, "/").split("/").map((p) => p.trim()).filter(Boolean);
+  if (!parts.length || parts.some((p) => p === ".." || p.startsWith("."))) {
+    toast("Not a valid folder name (no empty parts, no dots at the start)", "error");
+    return false;
+  }
+  name = parts.join("/");
+  // The folder itself is what matters (mkdir says why if it can't be made). The
+  // .gitkeep only lets git keep an empty folder, so a failure to write it is not an error.
+  await api("/api/history/save", { mkdir: [name] });
+  const r = await api("/api/history/save", { files: [{ path: name + "/.gitkeep", text: "" }], message: "folder: " + name }).catch((e) => ({ gitError: "", keepError: e.message }));
+  // Open it and every folder around it, or a subfolder would stay out of sight.
+  parts.forEach((_, i) => S.openFolders.add(parts.slice(0, i + 1).join("/")));
+  local("openFolders", [...S.openFolders]);
   await loadTree();
   render();
+  toast(`Folder "${name}" created`);
+  if (r.gitError) toast("Not saved to git: " + r.gitError, "error");
+  return true;
 };
 
 // ---------- tags ----------

@@ -1,7 +1,7 @@
 {
   "id": "memory",
   "name": "Memory",
-  "version": "2.2.0",
+  "version": "2.5.0",
   "description": "Puts your pinned facts and the earlier chat in front of every message, so a fresh AI chat has the context. Everything goes in full until the max is reached. After that, older messages are summarised in fixed parts (10 messages, then 10 parts, ...) kept as Markdown files next to the chat, one file per level of detail; the oldest go in at the coarsest level and recent messages stay word for word. Works across Sub-chats.",
   "main": "main.js",
   "block": {
@@ -74,6 +74,16 @@
       "label": "Summary request (sent with each part)",
       "default": "Summarise this part of a conversation so it can continue in a new chat that only sees summaries. Keep every name, fact, decision and promise, what each character wants and knows, open threads, the situation at the end of this part and the user's preferences. Leave out small talk. Write plain text, as short as possible without losing any of that. Reply with the summary only.",
       "help": "Goes after the summary's system prompts, before the turns."
+    },
+    "sides": {
+      "type": "select",
+      "label": "Summaries",
+      "options": {
+        "apart": "Your side and the AI's side apart (a summary request for each)",
+        "together": "One summary of both sides"
+      },
+      "default": "apart",
+      "help": "Apart: each part is summarised twice, once from only your messages and once from only the AI's, so the two can't be mixed up (two requests per part). In the Pipeline, Add plugin piece puts Pinned facts, Your side, AI side and Recent messages in rows of their own."
     },
     "summaryHooks": {
       "type": "bool",

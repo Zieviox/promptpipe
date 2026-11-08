@@ -1,6 +1,6 @@
 "use strict";
 // promptpipe core: the small part of the app that isn't a plugin. It talks to
-// the app over /api (see Server.kt), keeps the shared state, loads plugins and
+// the app over /api (served by the core, see core/), keeps the shared state, loads plugins and
 // the app parts ("kind": "core" / "ui" plugins), and passes app events on.
 // Everything else (sending, chat files, history, the screen) is a built-in
 // plugin you can replace. See /docs/PLUGINS.md ("App parts").
@@ -24,7 +24,7 @@ const h = (tag, props = {}, ...kids) => {
     else if (k === "value") e.value = v;
     else e.setAttribute(k, v === true ? "" : v);
   }
-  for (const k of kids.flat()) if (k != null && k !== false) e.append(k instanceof Node ? k : String(k));
+  for (const k of kids.flat(Infinity)) if (k != null && k !== false) e.append(k instanceof Node ? k : String(k));
   return e;
 };
 
@@ -33,6 +33,47 @@ const api = async (path, body) => {
   const j = await r.json().catch(() => ({ error: "bad answer from the app (" + r.status + ")" }));
   if (!r.ok || j.error) throw new Error(j.error || "HTTP " + r.status);
   return j;
+};
+
+// Copy through the app's clipboard module, which works after any wait (the
+// browser's only right after a tap); the browser's is the fallback. Says so either way.
+const copyText = async (text, done = "Copied") => {
+  try {
+    await api("/api/module", { module: "clipboard", call: "copy", args: { text: String(text ?? "") } });
+  } catch (e) {
+    try {
+      await navigator.clipboard.writeText(String(text ?? ""));
+    } catch (e2) {
+      toast("Couldn't copy: " + e.message, "error");
+      return false;
+    }
+  }
+  if (done) toast(done);
+  return true;
+};
+
+// Save a file for the user in <storage>/export/ (a folder other apps reach).
+// Resolves its path, or null after saying why.
+const exportFile = async (name, text) => {
+  try {
+    const r = await api("/api/export", { name, text });
+    toast("Saved " + r.path);
+    return r.path;
+  } catch (e) {
+    toast("Couldn't save the file: " + e.message, "error");
+    return null;
+  }
+};
+// Ask for text files; calls back with [{ name, text }] once they are read.
+const pickFiles = (done, { multiple = false, accept = ".json,.md,.txt,text/*" } = {}) => {
+  const input = h("input", { type: "file", multiple, accept });
+  input.onchange = async () => {
+    const files = [...(input.files || [])];
+    if (!files.length) return;
+    if (files.some((f) => f.size > 5_000_000)) return toast("A file is over 5 MB", "error");
+    done(await Promise.all(files.map(async (f) => ({ name: f.name, text: await f.text() }))));
+  };
+  input.click();
 };
 
 // Replaceable by the UI part (it may assign its own).
@@ -77,7 +118,9 @@ const S = {
   advOpen: !!local("advOpen"),
   query: "",
   traces: new WeakMap(), // turn -> full trace (this session only)
-  openTurns: new WeakSet(), // turns whose options are unfolded
+  openSent: new WeakSet(), // replies whose "Thought for / sent with" is unfolded
+  openLong: new WeakSet(), // long messages of yours opened with "Show more"
+  qaSet: new WeakMap(), // replies whose action row was opened or closed by hand
 };
 
 // S.site = the page the site view shows (most commands act on it).
@@ -104,11 +147,13 @@ const DEFAULT_CONFIG = () => ({
   lastChat: "",
   git: { enabled: true, name: "", email: "", remote: "", autoPush: false },
   api: { folder: "api" },
-  ui: { scale: 1, theme: "", enterSends: false },
+  ui: { scale: 1, theme: "", mode: "", accent: "", text: 16, enterSends: false },
   // Minutes to wait for a reply; 0 = no limit (Stop waiting is always there).
   wait: { idleMin: 0, maxMin: 0 },
-  // Site pages at once: sends (yours, plugins', other apps') run in parallel up to this many.
-  pages: 1,
+  // Max replies at once: sends (yours, plugins', other apps') run in parallel up to this many
+  // (5; 10 once moreReplies is on). Site pages open as they are needed.
+  maxReplies: 5,
+  moreReplies: false,
 });
 
 let configTimer = 0;
@@ -126,10 +171,23 @@ const PP = (window.PP = {
   },
   h,
   api,
+  // Copy text (the app's clipboard): resolves true, or false after saying why.
+  copy: (text, done) => copyText(text, done),
+  // Save a file for the user (<storage>/export/) and pick text files to read.
+  exportFile,
+  pickFiles,
+  // What to do when an imported name already exists: "ask" | "both" | "replace" (Settings › Import and export).
+  importMode: () => S.config.importClash || "ask",
   toast: (msg, kind) => toast(msg, kind),
   // App events (see "events" below): PP.on("job", fn), PP.emit("my-event", data).
   on: (type, fn) => on(type, fn),
   emit: (type, ev) => emit(type, ev),
+  // Ask before something you can't undo: resolves to true or null. The UI part
+  // brings its own (the browser's confirm() may be switched off in the app).
+  confirm: (msg) => Promise.resolve(window.confirm(msg) || null),
+  askText: (msg, value = "") => Promise.resolve(window.prompt(msg, value) || null),
+  // Change a plugin's setting for the active profile: PP.setSetting("id", "key", value).
+  setSetting: (id, key, value) => setSetting(id, key, value),
   // True in safe mode (only built-in plugins are loaded).
   safe: SAFE,
   md: (text) => mdToHtml(text),
@@ -145,9 +203,18 @@ const PP = (window.PP = {
   // A sheet of the plugin's own: render() returns its elements and runs again on PP.render().
   sheet: (title, renderFn) => openSheet(title, renderFn),
   render: () => render(),
+  // Add a system prompt row (a copy of the text) to the active profile, before "Your message".
+  addPromptRow: (name, text) => {
+    const prof = profile();
+    const at = prof.pipe.rows.findIndex((r) => r.type === "message");
+    prof.pipe.rows.splice(Math.max(0, at), 0, PP.pipeline.piece(name || "", text));
+    saveConfig();
+    render();
+    toast("Added to " + prof.name);
+  },
   // Another plugin's settings for the active profile (read only), e.g. PP.settings("system-prompt").stack.
   settings: (id) => settingsFor(id),
-  // The site plugin of the active profile ({ name, url, ... }).
+  // The site plugin of the open chat ({ name, url, ... }).
   get sitePlugin() {
     return siteFor();
   },
@@ -203,11 +270,15 @@ const pluginName = (id) => S.plugins.get(id)?.manifest?.name || id;
 
 // Every profile lists every non-site plugin once (new ones are added switched off).
 const syncProfiles = () => {
-  // A profile whose site isn't installed takes the first site that is.
-  const sites = [...S.plugins.values()].filter(isSite);
-  for (const prof of S.config.profiles) {
-    if (sites.length && !sites.some((p) => p.id === prof.site)) prof.site = sites[0].id;
+  // Sites belong to chats. Before, each profile had one: the active profile's
+  // site (and its settings) become the default for new chats, once.
+  if (S.config.site == null) {
+    const prof = profile();
+    S.config.site = prof.site || "";
+    S.config.siteSettings = { ...(S.config.siteSettings || {}), ...(prof.site && prof.siteSettings ? { [prof.site]: prof.siteSettings } : {}) };
   }
+  const sites = [...S.plugins.values()].filter(isSite);
+  if (sites.length && !sites.some((p) => p.id === S.config.site)) S.config.site = sites[0].id;
   for (const prof of S.config.profiles) {
     prof.plugins = prof.plugins.filter((e) => !S.plugins.has(e.id) || isStep(S.plugins.get(e.id)));
     for (const p of S.plugins.values()) {
@@ -217,31 +288,56 @@ const syncProfiles = () => {
 };
 
 const profile = () => S.config.profiles.find((p) => p.id === S.config.activeProfile) || S.config.profiles[0];
+// A chat's profile: the one named in its file (a renamed profile keeps its old names in
+// aka), else the active one. Opening a chat makes its profile the active one.
+const profileNamed = (n) => (n ? S.config.profiles.find((p) => p.name === n || (p.aka || []).includes(n)) : null) || null;
+const profileOf = (chat) => profileNamed(chat?.meta?.profile) || profile();
 const entryFor = (id, prof = profile()) => {
   let e = prof.plugins.find((x) => x.id === id);
   if (!e) prof.plugins.push((e = { id, on: false, settings: {} }));
   return e;
 };
 
-// Settings: what the profile saved, else the manifest's default.
+// A site plugin's own saved things (its settings, the model and switches you
+// picked): one per site, whatever the profile.
+const siteSaved = (id) => ((S.config.siteSettings = S.config.siteSettings || {})[id] = S.config.siteSettings[id] || {});
+// Settings: what the profile saved (a site's: what that site saved), else the manifest's default.
 const settingsFor = (id, prof = profile()) => {
   const man = S.plugins.get(id)?.manifest || {};
-  const saved = id === prof.site ? prof.siteSettings || {} : entryFor(id, prof).settings;
+  const saved = isSite(S.plugins.get(id)) ? siteSaved(id) : entryFor(id, prof).settings;
   const out = {};
   for (const [k, d] of Object.entries(man.settings || {})) out[k] = k in saved ? saved[k] : d.default;
   return out;
 };
 const setSetting = (id, key, value, prof = profile()) => {
-  if (id === prof.site) (prof.siteSettings = prof.siteSettings || {})[key] = value;
+  if (isSite(S.plugins.get(id))) siteSaved(id)[key] = value;
   else entryFor(id, prof).settings[key] = value;
   saveConfig();
 };
 
-const siteFor = (prof = profile()) => {
-  const p = S.plugins.get(prof.site);
+// The site plugin a chat uses: its own (meta.site), else the one its file names
+// (older chats: meta.ai), else the default for new chats (the last one picked).
+const siteIdOf = (chat = S.chat) => {
+  const ok = (id) => !!id && isSite(S.plugins.get(id));
+  if (chat && ok(chat.meta.site)) return chat.meta.site;
+  const byName = chat && chat.meta.ai && [...S.plugins.values()].find((p) => isSite(p) && p.manifest.name === chat.meta.ai);
+  if (byName) return byName.id;
+  return ok(S.config.site) ? S.config.site : "";
+};
+// Pick the site for a chat; new chats take it too from then on.
+const setChatSite = (id, chat = S.chat) => {
+  chat.meta.site = id;
+  chat.meta.ai = pluginName(id);
+  S.config.site = id;
+  saveConfig();
+};
+
+const siteFor = (chat = S.chat) => {
+  const p = S.plugins.get(siteIdOf(chat));
   if (!p || !isSite(p)) return null;
   const site = JSON.parse(JSON.stringify(p.manifest.site));
-  site.settings = settingsFor(p.id, prof);
+  site.id = p.id;
+  site.settings = settingsFor(p.id);
   if (site.settings.replySelector) site.reply = [site.settings.replySelector, ...site.reply];
   site.name = p.manifest.name;
   if (p.siteScript) site.script = p.siteScript;
@@ -263,27 +359,43 @@ const runRoute = async (ctx, prof) => {
   return null;
 };
 
-const activePlugins = (prof = profile()) => prof.plugins.filter((e) => e.on && S.plugins.get(e.id)?.def);
+// Which plugins run, and whether one is on. The pipeline part (core-pipeline)
+// replaces these with its presets; without it, the profile's switches decide.
+let activePlugins = (prof = profile()) => prof.plugins.filter((e) => e.on && S.plugins.get(e.id)?.def);
+let stepOn = (id, prof = profile()) => !!entryFor(id, prof).on;
+// The profile as a chat uses it (its own switches); without the pipeline part, the profile.
+let forChat = (prof) => prof;
+let setStepOn = (id, on, prof = profile()) => {
+  entryFor(id, prof).on = on;
+  saveConfig();
+};
+
+// What a plugin hook gets besides the text.
+const hookCtx = (id, ctx, prof, notes) => ({
+  ...ctx,
+  settings: settingsFor(id, prof),
+  note: (m) => notes.push(m),
+  // This plugin's own notes on the message, saved in the chat file.
+  turnData: ctx.turn?.data?.[id],
+  setTurnData: (v) => ctx.turn && ((ctx.turn.data = ctx.turn.data || {})[id] = v),
+});
 
 const runHooks = async (hook, text, ctx, trace, prof) => {
   for (const e of activePlugins(prof)) {
     const def = S.plugins.get(e.id).def;
     if (typeof def[hook] !== "function") continue;
     const notes = [];
-    const out = await def[hook](text, {
-      ...ctx,
-      settings: settingsFor(e.id, prof),
-      note: (m) => notes.push(m),
-      // This plugin's own notes on the message, saved in the chat file.
-      turnData: ctx.turn?.data?.[e.id],
-      setTurnData: (v) => ctx.turn && ((ctx.turn.data = ctx.turn.data || {})[e.id] = v),
-    });
+    const out = await def[hook](text, hookCtx(e.id, ctx, prof, notes));
     if (typeof out === "string") text = out;
     trace.push({ label: `${pluginName(e.id)} · ${hook === "beforeSend" ? "before" : "after"}`, text, notes });
     ctx.notes.push(...notes.map((n) => `${pluginName(e.id)}: ${n}`));
   }
   return text;
 };
+
+// The message that goes to the site: your text through the before-send steps.
+// The pipeline part replaces it (pieces, steps and your message, in rows).
+let buildMessage = (prompt, ctx, trace, prof) => runHooks("beforeSend", prompt, ctx, trace, prof);
 
 // ---------- AI page ----------
 const siteCmd = (cmd, extra = {}) => api("/api/site", { cmd, site: siteFor(), page: S.page, ...extra });
@@ -360,8 +472,7 @@ const pollEvents = async () => {
         } else if (first) continue; // old events from before this page loaded
         else if (ev.type === "pluginInstalled") {
           await loadPlugins();
-          entryFor(ev.id).on = true;
-          saveConfig();
+          setStepOn(ev.id, true);
           toast("Installed " + ev.id);
           rerenderSheet();
           render();
@@ -464,10 +575,13 @@ on("pluginBundle", (ev) => {
 });
 
 // ---------- start ----------
+// The screen before the UI part is there: a small spinner while it starts, the reason if it can't.
 const bootScreen = (msg, error) => {
   app.replaceChildren(
-    h("p", { class: (error ? "error" : "muted") + " boot" }, msg),
-    error ? h("div", { class: "row" }, h("button", { onclick: () => location.reload() }, "Retry"), SAFE ? null : h("button", { onclick: () => restart(true) }, "Open in safe mode")) : null,
+    ...[
+      h("p", { class: (error ? "error" : "muted") + " boot", role: error ? "alert" : "status" }, error ? null : h("span", { class: "spinner", "aria-hidden": "true" }), msg),
+      error ? h("div", { class: "row" }, h("button", { onclick: () => location.reload() }, "Retry"), SAFE ? null : h("button", { onclick: () => restart(true) }, "Open in safe mode")) : null,
+    ].filter(Boolean),
   );
 };
 const boot = async () => {

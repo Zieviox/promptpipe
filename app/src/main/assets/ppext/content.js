@@ -195,10 +195,12 @@
   // The reply as Markdown, without any thinking block inside it.
   const answerText = (site, el) => {
     if (!el) return "";
-    if (!(site.thinking || []).some((s) => { try { return el.querySelector(s); } catch (e) { return false; } })) return mdOf(el);
+    // "thinking" boxes and "strip" parts (e.g. source numbers like "-18") never belong in the reply text.
+    const drop = [...(site.thinking || []), ...(site.strip || [])];
+    if (!drop.some((s) => { try { return el.querySelector(s); } catch (e) { return false; } })) return mdOf(el);
     // Hidden parts are judged on the live page; mark them before cloning.
     const clone = el.cloneNode(true);
-    for (const s of site.thinking) try { clone.querySelectorAll(s).forEach((n) => n.remove()); } catch (e) {}
+    for (const s of drop) try { clone.querySelectorAll(s).forEach((n) => n.remove()); } catch (e) {}
     const host = document.createElement("div");
     host.style.cssText = "position:fixed;left:-99999px;top:0;width:800px";
     host.append(clone);
@@ -232,10 +234,11 @@
       (b) => visible(b) && /^\s*(log ?in|sign ?in|fazer login|entrar|iniciar sesi[oó]n|anmelden|se connecter|connexion|accedi|登录|ログイン)\s*$/i.test(textOf(b)),
     );
 
+  const noBox = () => new Error("chat input box not found on the page after 15s (tap the site name to look" + (loggedOut() ? "; it shows a Log in button" : "") + ")");
   const typeInto = async (site, text, snap) => {
     // The site may still be loading (it just opened or switched chats), so wait for the box.
     const el = await waitFor(() => first(site.input), 15000);
-    if (!el) throw new Error("chat input box not found on the page after 15s (tap the site name to look" + (loggedOut() ? "; it shows a Log in button" : "") + ")");
+    if (!el) throw noBox();
     el.focus();
     if (el.isContentEditable) {
       document.execCommand("selectAll", false, null);
@@ -342,6 +345,7 @@
     url: location.href,
     title: document.title,
     model: site ? textOf(first(site.model || [])) : "",
+    input: site ? !!first(site.input || []) : false, // the chat box shows (logged in, or a guest the site lets in)
   });
 
   const list = (site) => {
@@ -364,6 +368,18 @@
     for (const t of [document.activeElement, document.body]) {
       if (t) t.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", keyCode: 27, bubbles: true }));
     }
+  };
+  // Close the model list. Escape does not close a bottom drawer (Qwen on a phone), so if the
+  // options are still showing, press the Close button of the list's own dialog.
+  const closePicker = async (site) => {
+    pressEscape();
+    await sleep(300);
+    const opt = optionEls(site)[0];
+    if (!opt) return;
+    const dialog = opt.el.closest("[role=dialog], .ant-drawer, [class*=popup i]");
+    const x = dialog && [...dialog.querySelectorAll("[aria-label=Close i], [aria-label=close i], .ant-drawer-close, [class*=close i]")].find(visible);
+    if (x) x.click();
+    await sleep(300);
   };
   const optionEls = (site) => {
     const seen = new Set();
@@ -398,8 +414,7 @@
     async models(m) {
       await openPicker(m.site);
       const models = optionEls(m.site).map((o) => o.name);
-      pressEscape();
-      await sleep(200);
+      await closePicker(m.site);
       return { models, switches: switches(m.site), ...info(m.site) };
     },
     async setModel(m) {
@@ -407,11 +422,12 @@
       const want = m.model.toLowerCase();
       const opt = optionEls(m.site).find((o) => o.name.toLowerCase() === want) || optionEls(m.site).find((o) => o.name.toLowerCase().includes(want));
       if (!opt) {
-        pressEscape();
+        await closePicker(m.site);
         throw new Error(`model "${m.model}" is not in the site's list`);
       }
       opt.el.click();
       await sleep(600);
+      if (optionEls(m.site).length) await closePicker(m.site); // a list that stays open covers the page
       return { switches: switches(m.site), ...info(m.site) };
     },
     async setSwitch(m) {
@@ -505,6 +521,9 @@
     handlers[cmd] = async (m) => {
       const own = scriptFor(m.site)[cmd];
       if (!own) return builtin[cmd](m);
+      // A fresh chat may still be loading when the send arrives. The built-in send waits for the
+      // box; a site script's own send asks for it at once, so wait here, once, for every site plugin.
+      if (cmd === "send" && m.site && m.site.input && !(await waitFor(() => first(m.site.input), 15000))) throw noBox();
       const r = cmd === "send" ? await own(m.text, m.site, builtin.send.bind(null, m)) : await own(m.site);
       if (cmd === "list") return { chats: Array.isArray(r) ? r : (r && r.chats) || [], ...info(m.site) };
       return { ...info(m.site), ...(r || {}) };

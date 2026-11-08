@@ -74,14 +74,14 @@ The chat info sheet (tap the title) shows a chat's history.
 While promptpipe runs, apps on this phone can use it like an OpenAI API:
 
 - Base URL `http://127.0.0.1:7790/v1`, model = a profile name,
-  API key = the token from Settings → Advanced (any key while none is set).
-- Each request is one new chat on the site, one at a time.
-- Simple form: `POST http://127.0.0.1:7790/api/v1/chat` with
-  `{"prompt": "...", "chat": "new" | "current" | "<file path>"}`.
+  API key = the token from Settings → Advanced (always required).
+- Each request is one new chat on the site. Add `"chat": "<path>.md"` to
+  continue a saved chat instead (only the last message is sent).
+- Every reply says under `"promptpipe"` which chat it went to and what was sent.
 
 Termux test:
 
-    curl -s http://127.0.0.1:7790/v1/chat/completions -H 'content-type: application/json' \
+    curl -s http://127.0.0.1:7790/v1/chat/completions -H "Authorization: Bearer $TOKEN" \
       -d '{"model":"Base64","messages":[{"role":"user","content":"hi"}]}'
 
 ### Share into promptpipe
@@ -95,24 +95,28 @@ Settings → **Look**: UI scale, Enter sends, themes (themes are plugins too).
 Settings → **Waiting for replies**: optional limits in minutes; 0 = none.
 
 ### Chats in parallel
-Settings → **Site pages at once** (1 to 4). Each page is its own copy of the
-site, so that many chats get answered at the same time: yours, plugins'
+Settings › Sites › **Max replies at once** (5, or up to 10). Each reply runs on its
+own copy of the site (a page opens when a message has to wait), so that many chats
+get answered at the same time: yours, plugins'
 (`PP.ask`) and other apps' (local API). Anything more waits its turn. All
 pages share the login. In the site view, **Page 1/2** switches between them;
 Check and "Add the page's newest reply" use the page on screen. More pages use
 more memory, and many messages at once can look like a bot to the site.
 
 ### Writing your own plugins
-⋯ → **Writing plugins** (the guide), or `docs/PLUGINS.md` in the repo.
+Settings › Plugins › Library › **Plugin guide** (copy the instructions for an AI, then install its answer), or `docs/PLUGINS.md` in the repo.
 A plugin is a folder with `plugin.json` (+ `main.js`); site plugins are mostly
-CSS selectors. When a site changes, ⋯ → **Page report** shows what to fix.
+CSS selectors. When a site changes, the Page report plugin shows what to fix.
 The app itself is plugins too: Settings › App parts lists them, with **Copy**
 to change one and **Restart in safe mode** if one of yours breaks.
 
 ### Plugin updates
-Settings › App parts › **Update plugins** gets the latest plugins without a new
-APK (the app also checks once a day). If that fails, **Download the zip** and
-**Install the zip**. Restart the app after an update.
+Settings › **Plugins** (top right: **Update all**) gets the latest plugins without
+a new APK. A dot marks a plugin with an update; the app checks once a day. Each
+plugin has its own page with **Update**, **Roll back** and **Remove**. Library
+sources: the official one is always there; add others by their GitHub link.
+If the download fails, use Settings › App parts › **Download the zip** and
+**Install the zip**. Restart the app after an app update.
 
 ### Keyboard (optional)
 Ctrl+Enter send · Ctrl+K commands · Ctrl+B chats · Ctrl+F search · Ctrl+M model ·

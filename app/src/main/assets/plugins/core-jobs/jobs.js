@@ -1,5 +1,5 @@
 "use strict";
-// ---------- external jobs (other apps via /api/v1/chat) ----------
+// ---------- external jobs (other apps via the OpenAI-style /v1 API) ----------
 const runJob = async (ev) => {
   const req = ev.req || {};
   try {

@@ -2,8 +2,6 @@ package dev.zieviox.promptpipe
 
 import android.app.Application
 import android.os.Build
-import android.util.Log
-import fi.iki.elonen.NanoHTTPD
 import org.mozilla.geckoview.GeckoRuntime
 import org.mozilla.geckoview.GeckoRuntimeSettings
 import java.io.File
@@ -14,7 +12,8 @@ class App : Application() {
     lateinit var runtime: GeckoRuntime
     lateinit var store: Store
     lateinit var hub: Hub
-    lateinit var server: Server
+    lateinit var core: Core
+    lateinit var shell: Shell
 
     override fun onCreate() {
         super.onCreate()
@@ -26,14 +25,12 @@ class App : Application() {
             this,
             GeckoRuntimeSettings.Builder().consoleOutput(true).build(),
         )
-        // Server first: the UI page that Hub opens is served by it.
-        server = Server(this)
-        try {
-            server.start(NanoHTTPD.SOCKET_READ_TIMEOUT, true)
-        } catch (e: Exception) {
-            Log.e(TAG, "local server failed to start on port $PORT", e)
-        }
+        // The core first: it serves the app screen that Hub opens.
+        core = Core(this)
+        core.start()
         hub = Hub(this)
+        shell = Shell(this)
+        shell.start()
     }
 
     private fun processName(): String =

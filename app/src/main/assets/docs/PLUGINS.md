@@ -63,9 +63,15 @@ plugins/
 
 ```js
 PP.plugin({
-  // Before your message is sent. Return the new text.
+  // Before your message is sent: text is everything above this plugin's row
+  // in the pipeline (or only your message, if the row says so). Return the new text.
   beforeSend(text, ctx) {
     return text;
+  },
+  // Or, instead of beforeSend: text of your own, put where your row is
+  // (like a piece). ctx.message is your message. Return "" to add nothing.
+  piece(ctx) {
+    return ctx.settings.facts || "";
   },
   // After the reply arrives. Return the new text (this is what you see and what is saved).
   afterReply(text, ctx) {
@@ -98,7 +104,27 @@ PP.plugin({
 ```
 
 Hooks can be `async`. Throwing an error stops the message and shows the error.
-Plugins that are on run in the order shown in the Plugins screen (move them with ↑ ↓).
+
+### The pipeline
+
+What goes to the site is built by the profile's **preset** (⋯ → Pipeline, or
+the first chip above the message box): a list of rows, sent top to bottom.
+
+- **Piece**: text you wrote. *Send it*: every message, the first message of a
+  site chat, every N messages (and the first), at depth N, or off. Empty
+  pieces aren't sent. *At depth N* puts it N messages up inside the earlier
+  chat Memory sends (`ctx.depth`: a plugin that sends earlier messages places
+  them and sets `ctx.depth.used = true`); otherwise it goes just before your message.
+- **Step**: a plugin. `beforeSend` changes everything above its row (or only
+  your message: the row's *It changes* setting); `piece()` puts its own text
+  where its row is. `afterReply` hooks run in row order too.
+- **Your message**: where your message goes. Move it like any row.
+- **Groups**: one switch for several rows (the group chips above the box).
+
+Presets are shared by profiles; each profile picks one and keeps its plugins'
+settings. Every installed plugin with hooks has a row in every preset (new
+ones come in off, at the end). The app ships with Plain, Writing feedback,
+Dialogue & Role play and Story & Prose.
 
 `ctx` has:
 
@@ -143,6 +169,9 @@ afterReply(text, ctx) {
 | `PP.settings(id)` | another plugin's settings in the active profile |
 | `PP.sitePlugin` | the active profile's site (`name`, `url`, selectors) |
 | `PP.on(type, fn)` / `PP.emit(type, data)` | app events (below); your own events too |
+| `PP.copy(text, done)` | copy through the app's clipboard (works after a wait, unlike `navigator.clipboard`); shows `done` ("Copied") or why it failed |
+| `PP.confirm(text)` / `PP.askText(text, value)` | ask before something you can't undo / ask for a line of text; resolve to `true` / the text, or `null` (the app has no browser `confirm()`) |
+| `PP.pipeline` | presets and rows: `presets()`, `presetOf(profile)`, `previewMessage(profile)` ... |
 | `PP.safe` | true in safe mode |
 
 ### App events: `PP.on`
@@ -195,9 +224,9 @@ conversation, like "summarise this into memory".
 - `profile`: a profile name (default: the active one).
 - `hooks: true` runs that profile's plugins on it too (off by default).
 - It takes a free site page. Inside `beforeSend` / `afterReply` you need
-  **Settings › Site pages at once** at 2 or more (the message being answered
+  **Settings › Sites › Max replies at once** at 2 or more (the message being answered
   holds a page); with 1 page it fails with a clear error instead of hanging.
-- Several `PP.ask` calls at once run in parallel, up to the page count.
+- Several `PP.ask` calls at once run in parallel, up to Max replies at once.
 
 ```js
 afterReply: async (text, ctx) => {
@@ -237,7 +266,8 @@ Each list holds CSS selectors, tried in order. `input` is the message box,
 the AI is still writing, `reply` matches one reply (the newest is used),
 `user` matches one of your own messages (used to import a chat's history),
 `chatLinks` the chats in the site's sidebar, `model` where the model name shows,
-`thinking` the model's reasoning box (kept as a foldable "Thinking" part).
+`thinking` the model's reasoning box (kept as a foldable "Thinking" part),
+`strip` parts inside a reply that are not its text (e.g. source numbers like "-18").
 If no `send` selector matches, the last button after the message box is pressed.
 
 To find them: on the phone, open a chat on the site with a reply on screen, then
@@ -280,7 +310,7 @@ Replies are read as Markdown, so return `PP.answerText(site, el)` rather than
 its way; with `thinking` and/or `reply` the app shows them live (thinking open,
 the reply so far under it). The built-in wait does this for you.
 
-With several site pages (Settings › Site pages at once) each page runs its own
+With several site pages (Settings › Sites › Max replies at once) each page runs its own
 copy of your script; nothing to change.
 
 ### Site drivers
@@ -293,6 +323,15 @@ plugin. Drivers show under Settings › App parts.
 
 ## Themes
 
+The default look follows the system's light or dark setting; Settings › Look
+also has Light or dark, five accents and the text size. A theme plugin sets
+its own colours instead: it only redefines the variables at the top of
+`chat-ui/ui.css` (`--bg`, `--raise`, `--raise2`, `--hair`, `--focus`, `--text`,
+`--muted`, `--faint`, `--accent`, `--accent-hover`, `--on-accent`, `--ok`,
+`--err`, `--warn`, `--toast-*`, `--shadow*`, radii `--r*`, `--font`, `--dur`). Keep text
+at 4.5:1 contrast or more.
+
+
 A theme is a plugin with `"kind": "theme"` and a CSS file:
 
 ```json
@@ -302,9 +341,10 @@ A theme is a plugin with `"kind": "theme"` and a CSS file:
 ```css
 /* theme.css: set the colour variables, add any other CSS you like */
 :root {
-  --bg: #0b0c0f; --raise: #14161b; --raise2: #1b1e25; --hair: #23262e;
-  --text: #e6e7ea; --muted: #8b909c; --faint: #5d626d;
-  --accent: #8f9cff; --accent-bg: #8f9cff1f; --ok: #6fd3a0; --err: #ff8a8a; --warn: #e7c46a;
+  --bg: #120f0d; --raise: #1c1815; --raise2: #251f1b; --hair: #2e2723; --focus: #463b34;
+  --text: #ece4dc; --muted: #a3968b; --faint: #85796f;
+  --accent: #f0a35e; --accent-hover: #f5b67d; --on-accent: #120f0d;
+  --ok: #9ccf7a; --err: #ff8a7a; --warn: #f0c86e;
 }
 ```
 
@@ -319,6 +359,7 @@ The app itself is built-in plugins with `"kind": "core"` (and one `"kind": "ui"`
 |---|---|---|
 | `core-markdown` | Markdown to HTML | `mdToHtml` |
 | `core-chatfile` | the chat file format | `ChatFile.toMd`, `fromMd`, `parseFront` |
+| `core-pipeline` | presets, pieces, steps, groups | `activePlugins`, `stepOn`, `setStepOn`, `buildMessage`, `presetOf`, `previewMessage` |
 | `core-send` | page pool, queue, sending, `PP.ask` | `runChat`, `askSite`, `acquire`, `release`, `pageCount`, `setPageCount`, `warmSite`, `showSite`, `applySiteChoices` ... |
 | `core-history` | chat files, folders, git, tags | `newChat`, `openChat`, `saveChat`, `startNewChat`, `moveChat`, `deleteChat`, `loadTree`, tag functions ... |
 | `core-jobs` | other apps' requests (local API) | `runJob` (on the `job` event) |
@@ -327,7 +368,9 @@ The app itself is built-in plugins with `"kind": "core"` (and one `"kind": "ui"`
 Under them is the core (`/ui/core.js`, not a plugin): `S` (all state:
 `S.config`, `S.chat`, `S.chats`, `S.plugins`, `S.pages` ...), `h`, `api`,
 `toast`, `PP`, `on`/`emit`, plugin settings (`profile()`, `settingsFor`,
-`siteFor`, `runHooks`, `runRoute`), and `siteCmd`/`openSite`.
+`siteFor`, `runHooks`, `runRoute`, `hookCtx`), and `siteCmd`/`openSite`. Its
+`activePlugins`, `stepOn`, `setStepOn` and `buildMessage` are plain switches and
+`beforeSend` in plugin order until the pipeline part replaces them.
 
 How parts load:
 
