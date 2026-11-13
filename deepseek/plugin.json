@@ -1,0 +1,48 @@
+{
+  "id": "deepseek",
+  "name": "DeepSeek",
+  "version": "1.1.3",
+  "description": "The free DeepSeek web chat (chat.deepseek.com), used with your own login inside the app. Selectors from page reports of 2026-11-06.",
+  "kind": "site",
+  "site": {
+    "url": "https://chat.deepseek.com/",
+    "input": [
+      "textarea.ds-scroll-area"
+    ],
+    "send": [
+      ".ds-button--primary.ds-button--circle[role=button]:not(.ds-button--disabled)"
+    ],
+    "stop": [
+      ".ds-virtual-list-visible-items > div:last-child:not(:has(> .ds-message + .ds-flex))"
+    ],
+    "reply": [
+      ".ds-assistant-message-main-content"
+    ],
+    "thinking": [
+      ".ds-message > div:has(> .ds-think-content)"
+    ],
+    "strip": [
+      ".ds-markdown-cite",
+      "a:has(> .ds-markdown-cite)"
+    ],
+    "user": [
+      ".ds-message:not(:has(.ds-assistant-message-main-content, .ds-think-content))"
+    ],
+    "chatLinks": [
+      "a[href*='/a/chat/s/']"
+    ],
+    "model": [],
+    "switches": [
+      { "name": "DeepThink", "selector": ".ds-toggle-button", "text": "DeepThink" },
+      { "name": "Search", "selector": ".ds-toggle-button", "text": "Search" }
+    ]
+  },
+  "settings": {
+    "replySelector": {
+      "type": "text",
+      "label": "Reply selector (tried first)",
+      "default": "",
+      "help": "CSS selector for one reply, if replies are not detected."
+    }
+  }
+}

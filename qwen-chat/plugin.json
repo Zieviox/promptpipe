@@ -1,0 +1,70 @@
+{
+  "id": "qwen-chat",
+  "name": "Qwen Chat",
+  "version": "1.6.6",
+  "description": "The free Qwen web chat (chat.qwen.ai), used with your own login inside the app.",
+  "kind": "site",
+  "siteScript": "site.js",
+  "site": {
+    "settleMs": 500,
+    "url": "https://chat.qwen.ai/",
+    "input": [
+      "textarea.message-input-textarea",
+      "textarea#chat-input"
+    ],
+    "send": [
+      "button.send-button:not(.disabled)",
+      "#send-message-button"
+    ],
+    "stop": [
+      "#stop-message-button"
+    ],
+    "reply": [
+      ".response-message-content.phase-answer",
+      ".chat-response-message .custom-qwen-markdown",
+      ".chat-response-message .qwen-markdown"
+    ],
+    "user": [
+      ".chat-user-message .user-message-content",
+      ".user-message-content"
+    ],
+    "chatLinks": [
+      "a[href*='/c/']"
+    ],
+    "model": [
+      ".mms-trigger__name"
+    ],
+    "thinking": [
+      ".qwen-chat-thinking-and-sources-content-thinking-container",
+      ".response-message-content.phase-think",
+      ".response-message-content.phase-thinking"
+    ],
+    "modelPicker": {
+      "open": [
+        ".mms-trigger"
+      ],
+      "options": [
+        "[class*='mms'] [role=option]",
+        "[class*='mms'] [role=menuitem]",
+        "[class*='mms-item']"
+      ]
+    },
+    "switches": [
+      { "name": "Thinking", "selector": "button", "text": "Thinking" },
+      { "name": "Search", "selector": "button", "text": "Search" }
+    ]
+  },
+  "settings": {
+    "replySelector": {
+      "type": "text",
+      "label": "Reply selector (tried first)",
+      "default": "",
+      "help": "CSS selector for one reply, if replies are not detected."
+    },
+    "idleMinutes": {
+      "type": "number",
+      "label": "Give up after this many minutes with no activity",
+      "default": 10
+    }
+  }
+}

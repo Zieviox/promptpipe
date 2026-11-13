@@ -121,7 +121,12 @@ const installOffer = async ({ src, entry }) => {
     const sure = await askUser(`${entry.name || entry.id} is already here (${where}). Replace it with the one from ${srcName(srcKey(src))}?`, { ok: "Replace" });
     if (!sure) return null;
   }
-  const r = await api("/api/plugins/install", { url: rawOf(src, entry.path.replace(/\/$/, "") + "/plugin.json") });
+  // The catalogue's hash for this plugin: the core refuses files that don't match it. The official
+  // list must carry one (tools/hash.py in the plugins repo writes them); a core too old to check
+  // hashes installs as before.
+  const canCheck = ((S.app || {}).features || []).includes("hash");
+  if (canCheck && src.official && !entry.sha256) throw new Error(`${entry.name || entry.id} has no hash in the official list (run tools/hash.py in the plugins repo)`);
+  const r = await api("/api/plugins/install", { url: rawOf(src, entry.path.replace(/\/$/, "") + "/plugin.json"), sha256: entry.sha256 || "" });
   S.config.pluginFrom = { ...(S.config.pluginFrom || {}), [r.id]: srcKey(src) };
   return { id: r.id, fresh: !have };
 };

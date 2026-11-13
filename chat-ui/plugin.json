@@ -1,7 +1,7 @@
 {
   "id": "chat-ui",
   "name": "Chat screen",
-  "version": "1.14.2",
+  "version": "1.14.3",
   "kind": "ui",
   "order": 50,
   "description": "App part: the whole chat UI. Copy it to change anything you see.",

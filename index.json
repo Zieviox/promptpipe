@@ -7,7 +7,8 @@
       "path": "deepseek",
       "version": "1.1.3",
       "default": true,
-      "note": "chat.deepseek.com with your own login; DeepThink and Search switches."
+      "note": "chat.deepseek.com with your own login; DeepThink and Search switches.",
+      "sha256": "58bceb289519be098e1b9ae6240885b29d4e90fe17e115890927bee87523da89"
     },
     {
       "id": "qwen-chat",
@@ -16,16 +17,18 @@
       "path": "qwen-chat",
       "version": "1.6.6",
       "default": true,
-      "note": "chat.qwen.ai with your own login (guests get \"no permission\"); Thinking and Search switches."
+      "note": "chat.qwen.ai with your own login (guests get \"no permission\"); Thinking and Search switches.",
+      "sha256": "7bb55f97c4ad55b4a572eaac606f77d20e5f727d205c7b5a415a3d7978400703"
     },
     {
       "id": "chat-ui",
       "name": "Chat screen",
       "kind": "ui",
       "path": "chat-ui",
-      "version": "1.14.2",
+      "version": "1.14.3",
       "default": false,
-      "note": "App part: the whole chat UI. Copy it to change anything you see."
+      "note": "App part: the whole chat UI. Copy it to change anything you see.",
+      "sha256": "14d174d54890f884d68de6eb49d83aa35a51ab79b20854e3cb04a2f3597b4fae"
     },
     {
       "id": "core-chatfile",
@@ -34,7 +37,8 @@
       "path": "core-chatfile",
       "version": "1.2.0",
       "default": false,
-      "note": "App part: the chat file format (ChatFile: Markdown with front matter). Replace it to save chats differently."
+      "note": "App part: the chat file format (ChatFile: Markdown with front matter). Replace it to save chats differently.",
+      "sha256": "8c1d5c6ea4f2dad799c51b9005a06c34d1134057a104b02f5aafa7773f3f0634"
     },
     {
       "id": "core-history",
@@ -43,7 +47,8 @@
       "path": "core-history",
       "version": "1.2.0",
       "default": false,
-      "note": "App part: chat files, folders, git and tags."
+      "note": "App part: chat files, folders, git and tags.",
+      "sha256": "c868f4b2be24aacdd01a4e230d9bf10ff6194c98a79f78e045005ccc93882424"
     },
     {
       "id": "core-jobs",
@@ -52,7 +57,8 @@
       "path": "core-jobs",
       "version": "1.0.0",
       "default": false,
-      "note": "App part: answers other apps' requests to the local API (/api/v1/chat, /v1/chat/completions) with runChat."
+      "note": "App part: answers other apps' requests to the local API (/api/v1/chat, /v1/chat/completions) with runChat.",
+      "sha256": "b18c209e26b1bc809cf43e3c9488932518504cdcfcb7984e76c07763bdc5852b"
     },
     {
       "id": "core-markdown",
@@ -61,7 +67,8 @@
       "path": "core-markdown",
       "version": "1.0.0",
       "default": false,
-      "note": "App part: Markdown to HTML for replies and docs (mdToHtml). Replace it to change how Markdown looks."
+      "note": "App part: Markdown to HTML for replies and docs (mdToHtml). Replace it to change how Markdown looks.",
+      "sha256": "5f1ea93c83a4fab58ccd54ed19bc2f95c2012cae14624cf63cc5cb56345d3255"
     },
     {
       "id": "core-pipeline",
@@ -70,7 +77,8 @@
       "path": "core-pipeline",
       "version": "1.6.0",
       "default": false,
-      "note": "App part: what goes to the site. Presets of pieces (your text), steps (plugins) and your message, in order, with groups and switches."
+      "note": "App part: what goes to the site. Presets of pieces (your text), steps (plugins) and your message, in order, with groups and switches.",
+      "sha256": "beca042afe25582bc2728ff8e73fa0108d33ab7802a7c9fa94d75a3cb48296b2"
     },
     {
       "id": "core-send",
@@ -79,7 +87,8 @@
       "path": "core-send",
       "version": "1.4.2",
       "default": false,
-      "note": "App part: the send pipeline, page pool, queue and PP.ask."
+      "note": "App part: the send pipeline, page pool, queue and PP.ask.",
+      "sha256": "d39e0a1cc1309bf37413672e0aaccad484043d0073c467a4481de975ea0fc3f3"
     }
   ]
 }
