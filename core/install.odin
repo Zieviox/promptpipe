@@ -280,29 +280,61 @@ install_url :: proc(raw: string) -> (id: string, err: string) {
 	return pid, ""
 }
 
+// The newest release's tag, read from the public release feed (not the rate-limited API).
+release_from_feed :: proc(repo: string) -> (tag: string, err: string) {
+	feed, e := fetch_url(fmt.tprintf("https://github.com/%s/releases.atom", repo))
+	if e != "" do return "", e
+	s := string(feed)
+	marker := fmt.tprintf("https://github.com/%s/releases/tag/", repo)
+	i := strings.index(s, marker)
+	if i < 0 do return "", "no releases found"
+	rest := s[i + len(marker):]
+	j := strings.index_byte(rest, '"')
+	if j <= 0 do return "", "couldn't read the release list"
+	if !safe_name(rest[:j]) do return "", "odd release name"
+	return rest[:j], ""
+}
+
 // The plugin bundle (promptpipe-plugins-<version>.zip) of `repo`'s latest release.
 update_from_release :: proc(repo: string, force: bool) -> (result: string, err: string) {
 	parts := strings.split(repo, "/")
 	if len(parts) != 2 || !safe_name(parts[0]) || !safe_name(parts[1]) do return "", fmt.tprintf("updates come from owner/repo, not '%s'", repo)
-	rdata, e10 := fetch_url(fmt.tprintf("https://api.github.com/repos/%s/releases/latest", repo))
-	if e10 != "" do return "", e10
-	rel, _ := parse_obj(rdata)
 	asset_url, asset_name := "", ""
-	for a in get_arr(rel, "assets") {
-		ao, _ := a.(json.Object)
-		n := get_str(ao, "name")
-		if strings.has_prefix(n, "promptpipe-plugins") && strings.has_suffix(n, ".zip") {
-			asset_url, asset_name = get_str(ao, "browser_download_url"), n
-			break
+	from_feed := false
+	tag := ""
+	rdata, e10 := fetch_url(fmt.tprintf("https://api.github.com/repos/%s/releases/latest", repo))
+	if e10 == "" {
+		rel, _ := parse_obj(rdata)
+		tag = get_str(rel, "tag_name")
+		for a in get_arr(rel, "assets") {
+			ao, _ := a.(json.Object)
+			n := get_str(ao, "name")
+			if strings.has_prefix(n, "promptpipe-plugins") && strings.has_suffix(n, ".zip") {
+				asset_url, asset_name = get_str(ao, "browser_download_url"), n
+				break
+			}
 		}
+	} else if strings.has_prefix(e10, "HTTP 403") || strings.has_prefix(e10, "HTTP 429") {
+		// GitHub's API allows 60 anonymous calls an hour per IP, then answers 403. The release
+		// feed and the download links have no such limit, so go the long way round.
+		t, ef := release_from_feed(repo)
+		if ef != "" do return "", fmt.tprintf("GitHub's hourly limit is used up (%s) and the release list didn't load either: %s", e10, ef)
+		tag, from_feed = t, true
+		asset_name = fmt.tprintf("promptpipe-plugins-%s.zip", strings.trim_prefix(tag, "v"))
+		asset_url = fmt.tprintf("https://github.com/%s/releases/download/%s/%s", repo, tag, asset_name)
+	} else {
+		return "", e10
 	}
-	if asset_url == "" do return "", fmt.tprintf("release %s has no plugin bundle", get_str(rel, "tag_name"))
+	if asset_url == "" do return "", fmt.tprintf("release %s has no plugin bundle", tag)
 	version := strings.trim_suffix(strings.trim_prefix(strings.trim_prefix(asset_name, "promptpipe-plugins-"), "v"), ".zip")
 	have_o, _ := parse_obj(transmute([]byte)bundle_info())
 	have := get_str(have_o, "version")
 	if !force && have != "" && !version_newer(version, have) do return fmt.tprintf(`{{"version":%s,"upToDate":true}}`, quote(have)), ""
 	data, e11 := fetch_url(asset_url)
-	if e11 != "" do return "", e11
+	if e11 != "" {
+		if from_feed && strings.has_prefix(e11, "HTTP 404") do return "", fmt.tprintf("release %s has no plugin bundle", tag)
+		return "", e11
+	}
 	files, e12 := unzip(data)
 	if e12 != "" do return "", e12
 	plugins, is_bundle, bjson, e13 := plugins_in_zip(files)
