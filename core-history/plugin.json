@@ -1,0 +1,11 @@
+{
+  "id": "core-history",
+  "name": "History",
+  "version": "1.2.0",
+  "kind": "core",
+  "order": 30,
+  "description": "App part: chat files, folders, git and tags.",
+  "scripts": [
+    "history.js"
+  ]
+}

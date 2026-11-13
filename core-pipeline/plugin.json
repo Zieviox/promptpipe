@@ -1,0 +1,11 @@
+{
+  "id": "core-pipeline",
+  "name": "Pipeline",
+  "version": "1.6.0",
+  "kind": "core",
+  "order": 15,
+  "description": "App part: what goes to the site. Presets of pieces (your text), steps (plugins) and your message, in order, with groups and switches.",
+  "scripts": [
+    "pipeline.js"
+  ]
+}

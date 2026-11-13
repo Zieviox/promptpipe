@@ -1,0 +1,11 @@
+{
+  "id": "core-markdown",
+  "name": "Markdown",
+  "version": "1.0.0",
+  "kind": "core",
+  "order": 10,
+  "description": "App part: Markdown to HTML for replies and docs (mdToHtml). Replace it to change how Markdown looks.",
+  "scripts": [
+    "md.js"
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": "chat-ui",
+  "name": "Chat screen",
+  "version": "1.14.2",
+  "kind": "ui",
+  "order": 50,
+  "description": "App part: the whole chat UI. Copy it to change anything you see.",
+  "scripts": [
+    "ui.js",
+    "drawer.js",
+    "quick.js",
+    "profiles.js",
+    "chat-sheet.js",
+    "siteview.js",
+    "find.js",
+    "plugins-screen.js",
+    "settings.js",
+    "help.js",
+    "tour.js"
+  ],
+  "css": [
+    "ui.css"
+  ]
+}

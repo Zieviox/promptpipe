@@ -1,83 +1,47 @@
-# promptpipe
+# promptpipe-plugins
 
-A chat app for Android on top of the AI web chats you already use. You log in
-to the chat site once, inside the app; promptpipe types your messages there,
-reads the replies, runs them through your plugins, and keeps every chat as a
-Markdown file on your phone.
+Site plugins for [promptpipe](https://github.com/Zieviox/promptpipe). A site plugin teaches promptpipe how to use one AI chat website: where the message box is, how to send, and where the reply and its thinking appear.
 
-- **Plugins for everything**: steps before your message and after the reply,
-  AI sites, themes, and the app itself (sending, chat files, history, the
-  whole screen) as built-in plugins you can copy and change. Safe mode if one
-  breaks; plugin updates download without a new APK.
-- **Your chats stay yours**: Markdown files in `/sdcard/PromptPipe/history/`,
-  a git repository (optional push to your own GitHub).
-- **Tags, folders, full-text search**, per-message tags, counter tags (`part#`).
-- **Model thinking kept**, folded under each reply.
-- **Local API**: other apps on the same phone can use it like an OpenAI API at
-  `http://127.0.0.1:7790/v1`. Only reachable from the phone itself.
-- **Chats in parallel**: up to 4 site pages at once, for you, your plugins and
-  other apps; more messages wait in a queue.
-- **Memory**: long chats keep their context; older turns get summarised in a
-  side chat before the limit is reached.
-- **System prompt library**: save, pin and stack prompts.
-- Touch first, with keyboard shortcuts for a hardware keyboard.
+The app installs these with one tap ("Get site plugins"). You can also install a single plugin from its folder link.
 
-promptpipe ships **without AI site plugins**. Install the one for the site you
-use (a `.zip` or a link) under Plugins. Using a chat site through automation
-may be against that site's terms; it's your account and your call.
+## Plugins
 
-## Install
+| Plugin | Version | Notes |
+| --- | --- | --- |
+| [DeepSeek](deepseek) | 1.1.1 | Exact selectors, finish detection, DeepThink and Search switches, source numbers like "-18" stripped (needs app 0.7.0-alpha7 or newer). No model name on the page, so none is shown. |
+| [Qwen Chat](qwen-chat) | 1.6.0 | Exact selectors only, thinking from the current reply, stops on Qwen's error messages, shows the model name the page shows. |
 
-1. Download `promptpipe.apk` from the latest
-   [release](../../releases/latest) and open it (allow installs from your
-   browser or file manager the first time).
-2. Open promptpipe, allow notifications (it keeps running in the background
-   with one) and grant file access when asked.
-3. ⋯ → **Plugins** → **Install from a file** (or paste a link) to add a site plugin.
-4. Tap the site name in the header and log in on the site once.
+## Layout
 
-New versions install over the old one; chats, plugins and logins stay.
+One folder per site, named by plugin id:
 
-## Guides
+```
+<id>/
+  plugin.json   selectors for each part of the page, settings, version
+  site.js       optional: code for things selectors can't do
+```
 
-- [Quick start](app/src/main/assets/docs/QUICKSTART.md): everything from first
-  message to tags, profiles, git backup and the local API.
-- [Writing plugins](app/src/main/assets/docs/PLUGINS.md): steps, AI sites,
-  site scripts, themes.
+Version numbers only go up. The app's updater keeps the higher number.
 
-Both are also in the app (⋯ menu).
+`index.json` lists every plugin for the app's "Get site plugins" sheet: `id`, `name`, `path` (its folder), `version` (same as its plugin.json), `default` (ticked for new users) and a one-line `note`. Change it together with the plugin.
 
-## Build it yourself
+## Updating plugins and app parts
 
-With the Android SDK and NDK and Odin installed, build the core first, then
-the app:
+Every plugin, including the app's own parts (`chat-ui` and the `core-*` ones), is updated from this repo: change the folder, raise `version` in its `plugin.json` **and** in `index.json`, push. The app offers the update next time it checks, and an app part needs a restart.
 
-    ANDROID_NDK_HOME=<ndk folder> sh scripts/build-core-android.sh
-    gradle assembleDebug   # Gradle 9.8 or newer
+- `minApp` (optional, in `index.json`): the oldest app build the new version works with, like `"minApp": "0.7.0-alpha43"`. Set it whenever a plugin needs something a newer app added. Older apps then skip that update and say so.
+- No `minApp`: the app just tries the update. If it can't be written, the old version stays. If it breaks while loading, the app goes back to the version before it.
 
-The APK lands in `app/build/outputs/apk/debug/`. Put a `debug.keystore` next to
-`settings.gradle.kts` to sign every build with the same key (so updates install
-over each other); without it Gradle's usual debug key is used.
+## Rules for every plugin
 
-## Code
+- **Hands only.** A plugin only does what you could do yourself with your fingers on the site: type, tap, read. No hidden API calls.
+- **No getting around the site's protections.** No bypassing bot checks, captchas, rate limits or safety filters.
+- **Read what the page shows.** The model name, the reply and the thinking come from what is on the page, from the current reply only.
+- **Strict selectors.** Exact selectors from a page report, no broad guesses. When a plugin can't find something, it says so instead of guessing.
 
-- `core/`: the portable core in Odin: local HTTP on 127.0.0.1:7790 with the
-  security key, files, plugin store, page bridge, OpenAI-style API. Every
-  platform's shell starts it (see `core/README.md`).
-- `app/src/main/java/dev/zieviox/promptpipe/`: the Android shell in Kotlin.
-  `Core` (starts the core, hands the key to the app screen), `Shell` (answers
-  the core's calls: site pages, app actions, fetch, git, clipboard, vibration,
-  share), `Hub` (the pages and the bridge to them), `Store` (folders),
-  `GitStore` (JGit), `MainActivity`, `KeepAlive` (foreground service).
-- `app/src/main/assets/ui/`: the core (`core.js`): state, plugin loader, app
-  events, safe mode. Everything else is a plugin.
-- `app/src/main/assets/ppext/`: the built-in extension whose content script
-  drives the AI page.
-- `app/src/main/assets/plugins/`: built-in plugins: the app parts
-  (`core-*`, `chat-ui`), Base64, System prompt, Memory, Page report, themes.
-- `scripts/plugin-bundle.sh`: makes the release's plugin bundle zip.
+## Use at your own risk
 
-Built on Odin, GeckoView (Firefox's engine) and JGit.
+Using a chat website through an app may break that site's terms. Don't use an account you can't afford to lose. Use a separate account, or sign in by hand inside the app.
 
 ## License
 

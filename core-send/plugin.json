@@ -1,0 +1,11 @@
+{
+  "id": "core-send",
+  "name": "Sending",
+  "version": "1.4.2",
+  "kind": "core",
+  "order": 20,
+  "description": "App part: the send pipeline, page pool, queue and PP.ask.",
+  "scripts": [
+    "send.js"
+  ]
+}

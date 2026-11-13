@@ -1,0 +1,11 @@
+{
+  "id": "core-jobs",
+  "name": "Local API jobs",
+  "version": "1.0.0",
+  "kind": "core",
+  "order": 40,
+  "description": "App part: answers other apps' requests to the local API (/api/v1/chat, /v1/chat/completions) with runChat.",
+  "scripts": [
+    "jobs.js"
+  ]
+}
