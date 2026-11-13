@@ -101,7 +101,9 @@ const applySiteChoices = async (site, page = S.page, turn = null) => {
     pg(page).model = r.model;
   }
   for (const [name, on] of Object.entries(want.switches)) {
-    if ((site.switches || []).some((x) => x.name === name)) await api("/api/site", { cmd: "setSwitch", site, page, name, on });
+    if (!(site.switches || []).some((x) => x.name === name)) continue;
+    try { await api("/api/site", { cmd: "setSwitch", site, page, name, on }); }
+    catch (e) { toast(`Sending without the "${name}" switch: ${e.message}`, "error"); }
   }
 };
 

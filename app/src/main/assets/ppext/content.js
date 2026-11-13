@@ -432,7 +432,12 @@
     btn.click();
     for (let i = 0; i < 10 && !optionEls(site).length; i++) await sleep(200);
   };
-  const switchEl = (sw) => all(sw.selector || "button, [role=button]").find((el) => visible(el) && (!sw.text || textOf(el).includes(sw.text)));
+  const switchEl = (sw) => {
+    const want = (sw.text || "").toLowerCase();
+    const label = (el) => [textOf(el), el.getAttribute("aria-label"), el.getAttribute("title")].filter(Boolean).join(" ").toLowerCase();
+    const ok = (el) => visible(el) && (!want || label(el).includes(want));
+    return all(sw.selector || "button, [role=button]").find(ok) || (want ? all("button, [role=button], [role=switch], [role=checkbox], [role=menuitemcheckbox]").find(ok) : undefined);
+  };
   const switchOn = (el) =>
     !!el && (el.getAttribute("aria-pressed") === "true" || el.getAttribute("aria-checked") === "true" || /(^|[\s_-])(active|selected|checked|on)([\s_-]|$)/i.test(el.className && el.className.baseVal !== undefined ? el.className.baseVal : el.className || ""));
   const switches = (site) => (site.switches || []).map((sw) => {
