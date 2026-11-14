@@ -101,7 +101,9 @@ const applySiteChoices = async (site, page = S.page, turn = null) => {
     pg(page).model = r.model;
   }
   for (const [name, on] of Object.entries(want.switches)) {
-    if ((site.switches || []).some((x) => x.name === name)) await api("/api/site", { cmd: "setSwitch", site, page, name, on });
+    if (!(site.switches || []).some((x) => x.name === name)) continue;
+    try { await api("/api/site", { cmd: "setSwitch", site, page, name, on }); }
+    catch (e) { toast(`Sending without the "${name}" switch: ${e.message}`, "error"); }
   }
 };
 
@@ -191,6 +193,7 @@ const runChat = (chat, prompt, prof = profile(), follow = false, onPage = null) 
         turn.you = r.you ? await inHooks(() => runHooks("afterReply", r.you, { ...ctx, notes: [] }, [], steps)).catch(() => r.you) : "(from the page)";
         turn.notes.push("added from the page");
       }
+      if (r.watch) turn.notes.push("waited: " + r.watch); // numbers only, for a wait that took long
       ctx.url = r.url; // afterReply sees the site chat the reply came from
       turn.secs = Math.max(1, Math.round((Date.now() - started) / 1000));
       turn.raw = r.raw;
@@ -217,6 +220,21 @@ const runChat = (chat, prompt, prof = profile(), follow = false, onPage = null) 
       markUnseen(chat, turn);
       return turn;
     } catch (e) {
+      // Some of the reply had loaded (the waiting message showed it): keep it as the reply,
+      // marked as cut short, instead of losing it to the error.
+      const part = ((turn.live && turn.live.reply) || "").trim();
+      if (part && !e.quiet) {
+        turn.raw = part;
+        turn.reply = part;
+        turn.error = `${e.message}. The reply so far is kept.`;
+        turn.notes.push("cut short: " + e.message);
+        if (!chat.meta.title || chat.meta.title === "New chat") chat.meta.title = (turn.you || "Chat").split("\n")[0].slice(0, 60);
+        delete turn.pending;
+        turn.tags = tagsForNewMessage(chat);
+        await saveChat(chat, `chat: ${chat.meta.title} (#${chat.turns.length}, cut short)`, [tagsFile()]);
+        markUnseen(chat, turn);
+        return turn;
+      }
       // Nothing came back: the message moves to the chat's failed list (not
       // saved to the file), where it can be retried, checked or edited.
       chat.turns.splice(chat.turns.indexOf(turn), 1);

@@ -302,21 +302,42 @@
   // Set by the "cancel" command (Stop waiting in the app).
   let cancelled = false;
   // idleMs / maxMs: give up after that long with no activity / in total; 0 = never.
+  // What the last wait saw, as numbers only (no message text): when the stop signal and the
+  // lengths of the reply and the thinking changed. Shown in the message's notes for waits of 30 s+,
+  // so a wait that never ends can be diagnosed without sharing a private chat.
+  let lastWatch = "";
+  const watchOf = (log, start) => `${Math.round((Date.now() - start) / 1000)} s in total; last changes: ${log.slice(-10).join(" | ")}`;
   const waitReply = async (site, before, idleMs = 0, maxMs = 0) => {
     const start = Date.now();
+    const log = [];
+    let sig = "";
+    const done = (v) => ((lastWatch = Date.now() - start > 30000 ? watchOf(log, start) : ""), v);
     cancelled = false;
     let text = "";
     let stableSince = 0;
     // Activity = new reply text, new thinking text or a visible stop button.
     let lastActivity = Date.now();
     let thinkText = "";
+    // How long the reply must stay unchanged, with no stop signal, before it counts as finished. A site
+    // whose stop signal is certain sets site.settleMs lower; the default is the guess that fits any site.
+    const settle = Number(site.settleMs) > 0 ? Number(site.settleMs) : 2000;
+    // A stop signal that stays on while the reply sits unchanged for this long is taken as stuck (the site
+    // changed its page): the reply that is there is used, instead of waiting for ever.
+    const stuckMs = Number(site.stuckMs) > 0 ? Number(site.stuckMs) : 45000;
+    let changedAt = Date.now();
     const timedOut = () => (maxMs > 0 && Date.now() - start >= maxMs) || (idleMs > 0 && Date.now() - lastActivity >= idleMs);
     while (!timedOut()) {
-      if (cancelled) throw new Error("stopped waiting (if the site answers anyway, ⋯ → Add the page's newest reply)");
-      await sleep(500);
+      // Stop keeps what has come in (the whole reply, or the part so far); with nothing yet there is nothing to keep.
+      if (cancelled) {
+        if (text) return done(text);
+        throw new Error("stopped waiting before any reply came (if the site answers anyway, ⋯ → Add the page's newest reply)" + (Date.now() - start > 30000 ? ". Waited: " + watchOf(log, start) : ""));
+      }
+      await sleep(250);
       let now = "";
+      let shown = 0; // reply elements on the page now (a virtual list shows only some)
       for (const s of site.reply || []) {
         const els = all(s);
+        shown = Math.max(shown, els.length);
         const last = textOf(els[els.length - 1]);
         const b = before[s] || { count: 0, last: "" };
         if (last && (els.length > b.count || last !== b.last)) {
@@ -326,19 +347,28 @@
       }
       const busy = !!first(site.stop);
       const th = textOf(lastThinking(site));
+      // The page's own view size too: a page with no room on screen may show no messages at all.
+      const now_sig = `${busy ? "stop on" : "stop off"}, reply ${now.length}, thinking ${th.length}, replies shown ${shown}, view ${innerWidth}x${innerHeight}${document.hidden ? " hidden" : ""}`;
+      if (now_sig !== sig) (sig = now_sig), log.push(`${Math.round((Date.now() - start) / 1000)}s ${now_sig}`), log.length > 40 && log.shift();
       if (busy || th !== thinkText || now !== text) lastActivity = Date.now();
+      if (th !== thinkText || now !== text) changedAt = Date.now();
+      if (busy && now && now === text && Date.now() - changedAt > stuckMs) {
+        status(`the site still shows it is writing, but the reply has not changed for ${Math.round(stuckMs / 1000)} s: using it`);
+        return done(text);
+      }
       // Show the thinking live in the app while the model is still thinking.
       if (th && th !== thinkText && !now) status(`thinking… ${th.length} chars`, { thinking: th });
       thinkText = th;
       if (now && now === text && !busy) {
-        if (Date.now() - stableSince > 2000) return text;
+        if (Date.now() - stableSince > settle) return done(text);
       } else {
         if (now !== text) status(`writing… ${now.length} chars`, { thinking: thinkText, reply: now });
         text = now;
         stableSince = Date.now();
       }
     }
-    throw new Error(maxMs > 0 && Date.now() - start >= maxMs ? `no finished reply after ${Math.round(maxMs / 60000)} min (your limit in Settings)` : `no activity on the page for ${Math.round(idleMs / 60000)} min (your limit in Settings; or check the site plugin's reply selectors)`);
+    lastWatch = watchOf(log, start);
+    throw new Error((maxMs > 0 && Date.now() - start >= maxMs ? `no finished reply after ${Math.round(maxMs / 60000)} min (your limit in Settings)` : `no activity on the page for ${Math.round(idleMs / 60000)} min (your limit in Settings; or check the site plugin's reply selectors)`) + ". Waited: " + lastWatch);
   };
 
   const info = (site) => ({
@@ -402,7 +432,12 @@
     btn.click();
     for (let i = 0; i < 10 && !optionEls(site).length; i++) await sleep(200);
   };
-  const switchEl = (sw) => all(sw.selector || "button, [role=button]").find((el) => visible(el) && (!sw.text || textOf(el).includes(sw.text)));
+  const switchEl = (sw) => {
+    const want = (sw.text || "").toLowerCase();
+    const label = (el) => [textOf(el), el.getAttribute("aria-label"), el.getAttribute("title")].filter(Boolean).join(" ").toLowerCase();
+    const ok = (el) => visible(el) && (!want || label(el).includes(want));
+    return all(sw.selector || "button, [role=button]").find(ok) || (want ? all("button, [role=button], [role=switch], [role=checkbox], [role=menuitemcheckbox]").find(ok) : undefined);
+  };
   const switchOn = (el) =>
     !!el && (el.getAttribute("aria-pressed") === "true" || el.getAttribute("aria-checked") === "true" || /(^|[\s_-])(active|selected|checked|on)([\s_-]|$)/i.test(el.className && el.className.baseVal !== undefined ? el.className.baseVal : el.className || ""));
   const switches = (site) => (site.switches || []).map((sw) => {
@@ -456,7 +491,7 @@
       const replyEl = lastReplyEl(m.site);
       const thinkEl = nearThinking(m.site, replyEl);
       const users = pickAll(m.site.user);
-      return { raw: answerText(m.site, replyEl) || raw, thinking: mdOf(thinkEl), you: textOf(users[users.length - 1]), ...info(m.site) };
+      return { raw: answerText(m.site, replyEl) || raw, thinking: mdOf(thinkEl), you: textOf(users[users.length - 1]), watch: lastWatch, ...info(m.site) };
     },
     history: (m) => {
       const pick = pickAll;
@@ -490,6 +525,7 @@
       return {
         raw: answerText(m.site, replyEl) || raw,
         thinking: mdOf(thinkEl),
+        watch: lastWatch,
         ...info(m.site),
       };
     },
@@ -499,7 +535,7 @@
   // the AI page, gets these helpers, and returns the commands it replaces:
   //   return { async send(text, site) { ...; return { raw } }, last(site), list(site), info(site) }
   // Commands it leaves out use the selector based defaults above.
-  const helpers = { all, first, visible, sleep, textOf, typeInto, waitReply, snapshot, lastReply, lastReplyEl, lastThinking, answerText, toMarkdown: mdOf, list, info, status: (t, live) => status(t, live) };
+  const helpers = { cancelled: () => cancelled, all, first, visible, sleep, textOf, typeInto, waitReply, snapshot, lastReply, lastReplyEl, lastThinking, answerText, toMarkdown: mdOf, list, info, status: (t, live) => status(t, live) };
   // Driver plugins ("kind": "driver") bring the same kind of script for every
   // site (site.drivers). Order: the site's own script, then drivers (the last
   // installed wins), then the defaults above.

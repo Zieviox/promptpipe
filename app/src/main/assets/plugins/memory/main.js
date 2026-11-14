@@ -504,10 +504,20 @@ const openGuide = async () => {
 // One memory per message, however many of its pieces the pipeline has
 // (keyed by the message's notes list, which every piece of it shares).
 const memo = new WeakMap();
-const prepared = (ctx) => {
-  const key = ctx.notes || ctx.turn;
+// Sub-chats branched from a reply: that sub-chat sees the chat up to the reply and
+// its own messages, so Memory works on that view of the chat. The view has its own
+// folder of summaries (their positions differ from the whole chat's).
+const branched = (ctx) => {
+  const v = PP.subChats && PP.subChats.visible && ctx.chat && PP.subChats.visible(ctx.chat);
+  if (!v) return ctx;
+  const chat = ctx.chat;
+  return { ...ctx, chat: { ...chat, turns: (chat.turns || []).filter(v.keep), path: chat.path ? chat.path.replace(/\.md$/, "") + "/" + v.key + ".md" : chat.path } };
+};
+const prepared = (ctx0) => {
+  const key = ctx0.notes || ctx0.turn;
   if (key && memo.has(key)) return memo.get(key);
   const run = (async () => {
+    const ctx = branched(ctx0);
     const text = ctx.message || "";
     const every = Math.max(1, Math.round(num(ctx.settings.every, 1)));
     const turns = turnsOf(ctx, text);
@@ -537,7 +547,7 @@ PP.plugin({
     if (ctx.setTurnData && ctx.url) ctx.setTurnData({ url: ctx.url });
     // ctx.chat still holds this turn as pending; summarise what's already settled.
     try {
-      ahead(ctx);
+      ahead(branched(ctx));
     } catch (e) {}
     return text;
   },

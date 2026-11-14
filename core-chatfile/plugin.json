@@ -1,0 +1,11 @@
+{
+  "id": "core-chatfile",
+  "name": "Chat file",
+  "version": "1.2.0",
+  "kind": "core",
+  "order": 12,
+  "description": "App part: the chat file format (ChatFile: Markdown with front matter). Replace it to save chats differently.",
+  "scripts": [
+    "chatfile.js"
+  ]
+}

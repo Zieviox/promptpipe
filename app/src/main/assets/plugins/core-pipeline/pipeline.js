@@ -196,6 +196,18 @@ const pieceGoes = (r, ctx, count) => {
   return true; // every, depth
 };
 
+// The blocks a step changes when it is set to "only the blocks I pick": [{ key, name }] of the
+// rows above it plus your message.
+const pickable = (pre, r) => {
+  const i = pre.rows.indexOf(r);
+  const above = pre.rows.slice(0, i < 0 ? pre.rows.length : i).filter((x) => (x.type === "piece" && x.when !== "depth") || (x.type === "step" && (x.part || typeof S.plugins.get(x.plugin)?.def?.piece === "function")));
+  return [...above.map((x) => ({ key: rowKey(x), name: rowName(x) })), { key: "message", name: "Your message" }];
+};
+const pickedNames = (pre, r) => {
+  const names = pickable(pre, r).filter((b) => (r.pick || []).includes(b.key)).map((b) => b.name);
+  return names.length ? names.join(", ") : "no block yet";
+};
+
 // ---------- the parts the rest of the app calls ----------
 activePlugins = (prof = profile()) => {
   const pre = presetOf(prof);
@@ -228,7 +240,9 @@ buildMessage = async (prompt, ctx, trace, prof = profile()) => {
   const count = ctx.chat ? ctx.chat.turns.length : 1;
   let msg = prompt;
   let parts = []; // strings, or MSG where the message goes
+  let keys = []; // the row each part came from (rowKey, or "message"), for a step that changes only the blocks picked
   const MSG = {};
+  const add = (x, key) => (parts.push(x), keys.push(key));
   const joined = () => parts.map((x) => (x === MSG ? msg : x)).filter((x) => x.trim()).join(JOIN);
   const sent = [];
   // "At depth N" pieces go N messages up inside the earlier chat a plugin sends
@@ -238,7 +252,7 @@ buildMessage = async (prompt, ctx, trace, prof = profile()) => {
   ctx = { ...ctx, depth };
   for (const r of pre.rows) {
     if (r.type === "message") {
-      parts.push(MSG);
+      add(MSG, "message");
       continue;
     }
     if (!rowLive(pre, r)) continue;
@@ -246,7 +260,7 @@ buildMessage = async (prompt, ctx, trace, prof = profile()) => {
       if (r.when === "depth") continue;
       const text = (r.text || "").trim();
       if (!text || !pieceGoes(r, ctx, count)) continue;
-      parts.push(text);
+      add(text, rowKey(r));
       sent.push(rowName(r));
       trace.push({ label: "Piece · " + rowName(r), text, notes: [] });
       continue;
@@ -260,20 +274,34 @@ buildMessage = async (prompt, ctx, trace, prof = profile()) => {
       const d = partOf(r);
       if (!d || typeof d.text !== "function") continue;
       const text = await d.text({ ...hctx, message: msg });
-      if (typeof text === "string" && text.trim()) parts.push(text.trim());
+      if (typeof text === "string" && text.trim()) add(text.trim(), rowKey(r));
       out = text || "(nothing)";
     } else if (typeof p.def.piece === "function") {
       const text = await p.def.piece({ ...hctx, message: msg });
-      if (typeof text === "string" && text.trim()) parts.push(text.trim());
+      if (typeof text === "string" && text.trim()) add(text.trim(), rowKey(r));
       out = text || "(nothing)";
     } else if (typeof p.def.beforeSend === "function") {
       if (r.scope === "message") {
         const t = await p.def.beforeSend(msg, hctx);
         if (typeof t === "string") msg = t;
         out = msg;
+      } else if (r.scope === "pick") {
+        // Only the blocks picked (and maybe your message). The plugin gets each one on its own,
+        // with ctx.pick = { i, n } (this is block i of n), so it can mark them and say so once.
+        const want = new Set(r.pick || []);
+        const at = parts.map((x, i) => (x !== MSG && want.has(keys[i]) ? i : -1)).filter((i) => i >= 0);
+        const total = at.length + (want.has("message") ? 1 : 0);
+        let k = 0;
+        const one = async (t) => {
+          const o = await p.def.beforeSend(t, { ...hctx, pick: { i: k++, n: total } });
+          return typeof o === "string" ? o : t;
+        };
+        for (const i of at) parts[i] = await one(parts[i]);
+        if (want.has("message")) msg = await one(msg);
+        out = total ? joined() : "(no block picked)";
       } else {
         const t = await p.def.beforeSend(joined(), hctx);
-        if (typeof t === "string") parts = [t];
+        if (typeof t === "string") (parts = [t]), (keys = [""]);
         out = joined();
       }
     } else continue;
@@ -306,7 +334,7 @@ const previewMessage = (prof = profile(), opts = {}) => {
       if (partOf(r)) out.push(`⟨${rowName(r)} goes here⟩`);
     } else if (changesText(S.plugins.get(r.plugin))) {
       const p = S.plugins.get(r.plugin);
-      out.push(typeof p.def.piece === "function" ? `⟨${pluginName(r.plugin)} adds its text here⟩` : `⟨${pluginName(r.plugin)} changes ${r.scope === "message" ? "your message" : "everything above"}⟩`);
+      out.push(typeof p.def.piece === "function" ? `⟨${pluginName(r.plugin)} adds its text here⟩` : `⟨${pluginName(r.plugin)} changes ${r.scope === "message" ? "your message" : r.scope === "pick" ? pickedNames(pre, r) : "everything above"}⟩`);
     }
   }
   const depth = pre.rows.filter((r) => r.type === "piece" && r.when === "depth" && rowLive(pre, r) && (r.text || "").trim());
@@ -456,4 +484,4 @@ const setUp = async () => {
 on("plugins", setUp, null);
 
 // Shared with the UI part and plugins.
-PP.pipeline = { rowKey, groupKey, chatSwitches, forChat, setChatSwitch, clearChatSwitches, step, pipeSteps, partRow, pluginPieces, partOf, WHEN, presets, presetOf, rowLive, rowName, whenLabel, previewMessage, piece, promptLibrary, applyStarter, makeProfile, copyProfile, clonePipe, syncRows, moveRow, moveRowTo, addGroup, removeGroup };
+PP.pipeline = { pickable, rowKey, groupKey, chatSwitches, forChat, setChatSwitch, clearChatSwitches, step, pipeSteps, partRow, pluginPieces, partOf, WHEN, presets, presetOf, rowLive, rowName, whenLabel, previewMessage, piece, promptLibrary, applyStarter, makeProfile, copyProfile, clonePipe, syncRows, moveRow, moveRowTo, addGroup, removeGroup };

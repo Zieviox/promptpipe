@@ -219,7 +219,11 @@ const openRowPage = (r) =>
       ...(scoped
         ? [h("div", { class: "lbl" }, "It changes"),
            item({ label: "Everything above it", radio: r.scope !== "message", onclick: () => ((r.scope = "above"), redraw()) }),
-           item({ label: "Only your message", radio: r.scope === "message", onclick: () => ((r.scope = "message"), redraw()) })]
+           item({ label: "Only your message", radio: r.scope === "message", onclick: () => ((r.scope = "message"), redraw()) }),
+           item({ label: "Only the blocks I pick", sub: "Rows above it, and your message", radio: r.scope === "pick", onclick: () => ((r.scope = "pick"), (r.pick = r.pick || ["message"]), redraw()) }),
+           ...(r.scope === "pick"
+             ? P.pickable(pre, r).map((b) => item({ label: b.name, toggle: (r.pick || []).includes(b.key), onclick: () => ((r.pick = (r.pick || []).includes(b.key) ? r.pick.filter((k) => k !== b.key) : [...(r.pick || []), b.key]), redraw()) }))
+             : [])]
         : [item({ label: own ? "Its text goes where this row is." : "It doesn't change the message (it works on replies or chats), so its place doesn't matter." })]),
       ...groupRows(),
       h("div", { class: "lbl" }, "More"),

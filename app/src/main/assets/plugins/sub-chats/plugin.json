@@ -1,7 +1,7 @@
 {
   "id": "sub-chats",
   "name": "Sub-chats",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Start a new site chat inside this chat, on any profile (another site or model). The chat stays one conversation: a divider marks each sub-chat, you can go back to an older one, Memory carries the context across, and the plugins of the profile picked at the top keep running.",
   "main": "main.js",
   "block": {

@@ -24,4 +24,11 @@ else
   gh release create "$TAG" $FILES --repo "$REPO" --target "$(git rev-parse HEAD)" --prerelease \
     --title "promptpipe $V" --notes "Local build $V ($(git rev-parse --short HEAD))."
 fi
+# The app's update check only sees non-pre-releases (GitHub's "latest"), so make this one the latest.
+# PRERELEASE=1 keeps it a pre-release.
+if [ -n "$PRERELEASE" ]; then
+  gh release edit "$TAG" --prerelease --repo "$REPO"
+else
+  gh release edit "$TAG" --prerelease=false --latest --repo "$REPO"
+fi
 echo "Published: https://github.com/$REPO/releases/tag/$TAG"

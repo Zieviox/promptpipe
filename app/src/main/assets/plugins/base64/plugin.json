@@ -1,7 +1,7 @@
 {
   "id": "base64",
   "name": "Base64",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Asks the AI to answer in base64 (and encodes your message), then decodes the reply. Small AI mistakes in the base64 are repaired.",
   "main": "main.js",
   "block": {
