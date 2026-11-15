@@ -513,7 +513,7 @@ const openSiteSheet = () =>
       profileDropdown({ id: "site", current: prof, pick: (p) => (switchProfile(p.id), rerenderSheet()) }),
       site ? h("div", { class: "lbl" }, "AI site (for this chat)") : null,
       site ? item({ id: "site.sitesw", label: site.name, sub: sites.length > 1 ? "Switch site" : "The only site plugin installed", onclick: sites.length > 1 ? () => ((S.sheet = null), (S.siteMenu = true), syncLayer(), render()) : openGetSites }) : null,
-      site ? pageItem("Show the page", `${site.name} · ${st.words}${S.site.url ? " · " + S.site.url : ""}`, () => showSite(), "show") : null,
+      site ? pageItem("Show the page", `${site.name} · ${st.words}${S.site.url ? " · " + S.site.url : ""}`, () => (closeSheet(), showSite()), "show") : null,
       site ? item({ id: "site.model", label: S.site.model || want || "Choose a model", sub: "Model and switches" + (want && S.site.model && !S.site.model.toLowerCase().includes(want.toLowerCase()) ? " · you picked " + want : ""), key: "Ctrl+M", onclick: openModels }) : null,
       h("div", { class: "lbl" }, "This chat and the page"),
       pageItem("Link this chat to the open page", null, linkToSite, "link"),
@@ -1086,6 +1086,7 @@ PP.askText = askText;
 // buttons, a function), back (where ‹ goes; else a first child with class "back" moves up),
 // onTitle (tapping the title does this, e.g. rename), id (which screen it is, for code). title may be a function (it can change).
 openSheet = (title, renderFn, opts = {}) => {
+  S.sv = false; // the site page would cover the sheet: one or the other (#239)
   S.sheet = { title, render: renderFn, short: !!opts.short, sub: opts.sub || "", head: opts.head || null, back: opts.back || null, onTitle: opts.onTitle || null, id: opts.id || "" };
   S.dd = {}; // dropdowns close when another screen opens
   syncLayer();

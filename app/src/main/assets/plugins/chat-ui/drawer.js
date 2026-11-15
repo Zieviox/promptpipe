@@ -428,6 +428,7 @@ const tagFilter = () => {
 
 // ---------- the drawer ----------
 const openDrawer = () => {
+  S.sv = false; // the site page would cover the list: one or the other (#239)
   S.drawer = true;
   syncLayer();
   render();

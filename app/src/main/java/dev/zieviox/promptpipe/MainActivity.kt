@@ -28,7 +28,8 @@ class MainActivity : Activity(), Hub.Screen {
     private lateinit var uiView: GeckoView
     // What shows behind the pages; its colour follows the app's theme ("theme" action).
     private lateinit var rootView: FrameLayout
-    // One view per site page, stacked; the shown one is on top.
+    // One view per site page. Only the shown one sits in the page's place; the others
+    // are each moved off screen (#236: their surfaces ignore the order of the views).
     private lateinit var siteStack: FrameLayout
     private val siteViews = ArrayList<GeckoView>()
     private var shown = 0
@@ -142,7 +143,13 @@ class MainActivity : Activity(), Hub.Screen {
         // Keep every page running even when hidden.
         app.hub.pages.forEach { it.session.setActive(true) }
         app.hub.uiSession.setActive(true)
-        (if (show) siteViews.getOrNull(shown) ?: uiView else uiView).requestFocus()
+        // Focus moves only when the site view opens or closes, never on a move (#240:
+        // the keyboard resizes the screen, and taking the focus then broke the address bar).
+        if (changed) focusShown()
+    }
+
+    private fun focusShown() {
+        (if (siteShown) siteViews.getOrNull(shown) ?: uiView else uiView).requestFocus()
     }
 
     // Put the page stack in the hole the UI left for it.
@@ -170,11 +177,14 @@ class MainActivity : Activity(), Hub.Screen {
         placeSite()
     }
 
-    // Bring site page i to the front (the others keep running under it).
+    // Put site page i in the page's place and move every other page off screen. Each
+    // page draws on its own surface, and a surface made later stays on top whatever
+    // the view order (#236), so two pages never share a place. Hidden pages keep their
+    // real size (#96); they keep running.
     private fun showPage(i: Int) {
         shown = i.coerceIn(0, siteViews.size - 1)
-        siteViews[shown].bringToFront()
-        if (siteShown) siteViews[shown].requestFocus()
+        siteViews.forEachIndexed { j, v -> v.translationX = if (j == shown) 0f else OFF_SCREEN }
+        siteViews[shown].bringToFront() // touches follow the view order
         app.hub.emit(JSONObject().put("type", "shown").put("page", shown))
     }
 
@@ -206,7 +216,10 @@ class MainActivity : Activity(), Hub.Screen {
         val v = siteViews.getOrNull(shown) ?: return
         v.releaseSession()
         v.setSession(session ?: app.hub.pages[shown].session)
-        if (session != null) showSite(true)
+        if (session != null) {
+            showSite(true)
+            focusShown()
+        }
     }
 
     // Dark or light system bar icons on Android 10 (newer ones use insetsController).
@@ -220,8 +233,12 @@ class MainActivity : Activity(), Hub.Screen {
         when (action) {
             "site" -> {
                 takeHole(data)
+                val wasShown = siteShown
+                val tab = data.has("page") && data.optInt("page") != shown
                 if (data.has("page")) showPage(data.optInt("page"))
                 showSite(true)
+                // A tab chosen in an open site view takes the focus; a move doesn't (#240).
+                if (wasShown && tab) focusShown()
             }
             "siteHole" -> takeHole(data)
             "chat" -> showSite(false)
@@ -272,10 +289,12 @@ class MainActivity : Activity(), Hub.Screen {
 
     @Deprecated("Back handling for the two stacked pages")
     override fun onBackPressed() {
+        // The screen first when it has a layer open (a sheet or the chats list has a history
+        // entry): it is drawn over the site view, so Back closes it before the site view (#239).
         when {
             app.hub.popup != null -> app.hub.closePopup()
-            siteShown -> showSite(false)
             app.hub.uiCanGoBack -> app.hub.uiSession.goBack()
+            siteShown -> showSite(false)
             else -> moveTaskToBack(true)
         }
     }

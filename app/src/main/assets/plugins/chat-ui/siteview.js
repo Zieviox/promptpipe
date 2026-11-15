@@ -8,8 +8,8 @@
 // S.sv: the site view is open. S.svPage: the page whose tab is chosen.
 S.sv = false;
 S.svPage = 0;
-// What we last told the shell: shown or not, and where the hole was.
-const SV = { shown: false, key: "" };
+// What we last told the shell: shown or not, the page, and where the hole was.
+const SV = { shown: false, page: -1, key: "" };
 // Other parts may add a strip under the page (the welcome's login card): functions giving a node or null.
 const siteViewFoot = [];
 
@@ -100,6 +100,7 @@ const syncSiteView = () => {
   if (!S.sv) {
     if (SV.shown) {
       SV.shown = false;
+      SV.page = -1;
       SV.key = "";
       api("/api/app/action", { action: "chat" }).catch(() => {});
     }
@@ -115,15 +116,21 @@ const syncSiteView = () => {
   const page = Math.min(S.svPage || 0, Math.max(1, pageCount()) - 1);
   const key = [page, f.l, f.t, f.r, f.b].map((x) => x.toFixed(4)).join(" ");
   if (key === SV.key) return;
+  // Opening the site view or choosing a tab gives the page the focus ("site"); a move
+  // (the keyboard, a turn of the phone) only places it ("siteHole"), so the address bar
+  // keeps the focus while typing (#240).
+  const action = SV.shown && page === SV.page ? "siteHole" : "site";
   SV.key = key;
   SV.shown = true;
-  api("/api/app/action", { action: "site", page, hole: f }).catch((e) => toast(e.message, "error"));
+  SV.page = page;
+  api("/api/app/action", { action, page, hole: f }).catch((e) => toast(e.message, "error"));
 };
 addEventListener("resize", () => S.sv && syncSiteView());
 
 // The shell hid or showed the page itself (Back, Alt+S, a login popup).
 on("siteView", (ev) => {
   SV.shown = !!ev.show;
+  SV.page = -1; // the shell chose the page: say which one on the next sync
   if (!ev.show) SV.key = "";
   if (!!S.sv === !!ev.show) return;
   S.sv = !!ev.show;
