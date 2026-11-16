@@ -76,6 +76,9 @@ const showSite = (page) => {
   const t = Object.values(S.pageTurns).find((x) => S.chat?.turns.includes(x));
   if (!t) warmSite();
   S.svPage = page ?? (t ? t.page : S.page);
+  // The site page is drawn over the screen: a sheet or the chats list can't stay open under it (#230, #239).
+  if (S.sheet && typeof closeSheet === "function") closeSheet();
+  if (S.drawer) closeDrawer();
   S.sv = true;
   render();
 };

@@ -289,12 +289,12 @@ class MainActivity : Activity(), Hub.Screen {
 
     @Deprecated("Back handling for the two stacked pages")
     override fun onBackPressed() {
-        // The screen first when it has a layer open (a sheet or the chats list has a history
-        // entry): it is drawn over the site view, so Back closes it before the site view (#239).
+        // The screen never keeps a sheet or the chats list open together with the site view
+        // (opening one closes the other, #239), so the site view is always the top layer here.
         when {
             app.hub.popup != null -> app.hub.closePopup()
-            app.hub.uiCanGoBack -> app.hub.uiSession.goBack()
             siteShown -> showSite(false)
+            app.hub.uiCanGoBack -> app.hub.uiSession.goBack()
             else -> moveTaskToBack(true)
         }
     }
