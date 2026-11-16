@@ -234,11 +234,36 @@
       (b) => visible(b) && /^\s*(log ?in|sign ?in|fazer login|entrar|iniciar sesi[oó]n|anmelden|se connecter|connexion|accedi|登录|ログイン)\s*$/i.test(textOf(b)),
     );
 
+  // A site script may say that the site refused the message (an error line instead of a reply, a
+  // human check): its error(site) returns nothing, a text, or { text, el } with the element showing it.
+  // An error whose element was already showing before the send (`old`) belongs to an earlier message.
+  const siteError = (site, old) => {
+    const fn = site && scriptFor(site).error;
+    if (!fn) return null;
+    let r;
+    try {
+      r = fn(site);
+    } catch (e) {
+      return null;
+    }
+    if (typeof r === "string") r = { text: r };
+    if (!r || !r.text || (r.el && old && old.has(r.el))) return null;
+    return r;
+  };
+  // Before a send: errors on the page now are old ones, except one with no element (a human
+  // check over the whole page), which stops the send at once.
+  const oldErrors = (site) => {
+    const r = siteError(site);
+    if (r && !r.el) throw new Error(r.text);
+    return new Set(r ? [r.el] : []);
+  };
+
   const noBox = () => new Error("chat input box not found on the page after 15s (tap the site name to look" + (loggedOut() ? "; it shows a Log in button" : "") + ")");
-  const typeInto = async (site, text, snap) => {
+  const typeInto = async (site, text, snap, old) => {
     // The site may still be loading (it just opened or switched chats), so wait for the box.
     const el = await waitFor(() => first(site.input), 15000);
     if (!el) throw noBox();
+    if (!old) old = oldErrors(site);
     el.focus();
     if (el.isContentEditable) {
       document.execCommand("selectAll", false, null);
@@ -286,6 +311,8 @@
     // Sent = the box emptied or was replaced, the page moved to a new chat, or
     // the stop button showed up. Try once more, then say so.
     const went = () => {
+      const err = siteError(site, old);
+      if (err) throw new Error(err.text);
       const now = first(site.input);
       const grew = (snap && (site.reply || []).some((s) => all(s).length > (snap[s] || { count: 0 }).count)) || pickAll(site.user).length > usersBefore;
       return grew || !el.isConnected || location.href !== startUrl || !boxText() || (now && now !== el && !(now.isContentEditable ? now.innerText : now.value || "").trim()) || !!first(site.stop);
@@ -307,7 +334,8 @@
   // so a wait that never ends can be diagnosed without sharing a private chat.
   let lastWatch = "";
   const watchOf = (log, start) => `${Math.round((Date.now() - start) / 1000)} s in total; last changes: ${log.slice(-10).join(" | ")}`;
-  const waitReply = async (site, before, idleMs = 0, maxMs = 0) => {
+  // old: errors showing before the send (see oldErrors); without it every error the site script sees counts.
+  const waitReply = async (site, before, idleMs = 0, maxMs = 0, old = null) => {
     const start = Date.now();
     const log = [];
     let sig = "";
@@ -333,6 +361,12 @@
         throw new Error("stopped waiting before any reply came (if the site answers anyway, ⋯ → Add the page's newest reply)" + (Date.now() - start > 30000 ? ". Waited: " + watchOf(log, start) : ""));
       }
       await sleep(250);
+      // The site refused the message: say so now instead of waiting for a reply that won't come.
+      const err = siteError(site, old);
+      if (err) {
+        lastWatch = Date.now() - start > 30000 ? watchOf(log, start) : "";
+        throw new Error(err.text);
+      }
       let now = "";
       let shown = 0; // reply elements on the page now (a virtual list shows only some)
       for (const s of site.reply || []) {
@@ -516,8 +550,9 @@
     async send(m) {
       const snap = snapshot(m.site);
       const thinkBefore = thinkCount(m.site);
-      await typeInto(m.site, m.text, snap);
-      const raw = await waitReply(m.site, snap, m.idleMs || 0, m.maxMs || 0);
+      const old = oldErrors(m.site);
+      await typeInto(m.site, m.text, snap, old);
+      const raw = await waitReply(m.site, snap, m.idleMs || 0, m.maxMs || 0, old);
       await sleep(300); // let the address update for a new chat
       const replyEl = lastReplyEl(m.site);
       // Thinking: a new thinking block anywhere, or one sitting next to this reply.

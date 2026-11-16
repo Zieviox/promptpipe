@@ -291,8 +291,21 @@ return {
   last(site) { return { raw: PP.textOf(PP.first(site.reply)) }; },
   list(site) { return PP.all("nav a").map((a) => ({ url: a.href, title: PP.textOf(a) })); },
   info(site) { return { model: PP.textOf(PP.first([".model"])) }; },
+  // Not a command: the built-in send and wait ask it every moment. Return nothing, or the reason
+  // the site refused the message; the send then ends at once with that reason.
+  error(site) {
+    const el = PP.first([".error-line"]);
+    return el ? { el, text: "My AI refused it: " + PP.textOf(el) } : null;
+  },
 };
 ```
+
+`error` may return a text or `{ text, el }`. With `el` (the element showing the
+error), an error that was already on the page before the send is taken as an
+older message's and skipped. Without `el` it stops a send before typing too,
+which suits something over the whole page such as a human check. A script
+that waits with `PP.waitReply` itself passes the errors seen before its send
+as the fifth argument (a `Set` of elements).
 
 Helpers: `all(sel)`, `first(selectors)`, `textOf(el)` (plain text),
 `toMarkdown(el)` (the element as Markdown: bold, lists, headings, code,

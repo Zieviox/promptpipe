@@ -275,3 +275,17 @@ Sections 9 to 11 against alpha45: the screen code is the same (`chat-ui` 1.14.1 
 Also seen once, not counted as a bug yet: just after Send, with the keyboard gone, the message box stayed in the middle of the screen with an empty band under it for some seconds. It may only be the slow emulated phone; watch for it on the real one.
 
 What this pass did not cover on the phone: real sites, logging in and replies (no internet), sign-in pop-ups, several tabs opened from the screen, the chats list, Settings, Plugins and Find (those were walked on the desktop, sections 10 and 11), and the real phone's graphics.
+
+---
+
+## 13. From a DeepSeek page report, 2026-11-16
+
+The report was copied from a chat where nothing came back. DeepSeek's page was in Portuguese (`pt_BR`), and the newest item in the chat list was your message with "Conteúdo muito longo. Encurte e tente novamente." ("Content too long. Shorten and try again.") under it, with no reply.
+
+| # | Bug | Status | Notes |
+|---|---|---|---|
+| 245 | When DeepSeek refuses a message ("Content too long"), the app waits for ever | fixed in code (stub page only), waiting for Gtex phone check | Cause: the refusal is a line beside your message in the chat list, not a reply. The plugin's "still writing" sign is "the newest item has no action row", which stays true with no reply under it, so the wait saw "stop on, reply 0" for ever (the 45 s stuck rule needs some reply, and the idle limit counts the stop sign as activity). **Fix:** site scripts can now have `error(site)`, which the built-in send and wait check every moment (`content.js`, needs the new APK). DeepSeek 1.2.0 has a `site.js` with only that: text beside your message in the newest item (buttons left out) ends the send with "DeepSeek refused the message: "…"", and the message goes to the failed list with Retry and Edit. A refusal already on the page from an earlier message is skipped. Tried on a stub of the reported page: a refusal ends the send in under 1 s, a normal reply right after a refusal still comes through. **On the phone:** send something far too long to DeepSeek: the failure card shows DeepSeek's own words within a second or two. |
+| 246 | DeepSeek's DeepThink and Search switches aren't found when the page isn't in English | fixed in code (stub page only), waiting for Gtex phone check | The plugin found them by their text ("DeepThink", "Search"); in Portuguese they read "Pensamento Profundo" and "Pesquisa inteligente". DeepSeek 1.2.0 finds them by place (the first and the second toggle under the message box), which works in any language and on the current APK. **On the phone:** Profile and site › Model and switches: both switches show and turning them on or off changes the page. |
+| 247 | DeepSeek's human check ("One more step before you proceed...") isn't recognised | fixed in code (stub page only), waiting for Gtex phone check | The report has Cloudflare's check (`#cf-overlay`, `#cf-turnstile`) in the page. It may have been hidden; the report doesn't say. When it shows, DeepSeek 1.2.0 (with the new APK) stops the send at once with "DeepSeek wants to check that you're human. Tap the site name, finish the check on the page, then Retry." Not seen working on a real page. |
+
+Not covered: DeepSeek refusals shown as a pop-up message (`.ds-notification-container`) rather than in the chat list, for example "too many messages". None was in the report; a page report taken while one shows would tell where it sits.
