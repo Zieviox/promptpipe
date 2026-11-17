@@ -9,7 +9,14 @@
 set -e
 cd "$(dirname "$0")/.."
 VNAME="${1:-0.7.0-local}"
-VCODE="${2:-100}"
+# The version code must not go below an earlier build's, or Android refuses the APK as an update
+# (Samsung says "package appears to be invalid"). Without a code, the next one after build/ is used.
+TOP=$(ls build/*.apk >/dev/null 2>&1 && python3 scripts/apk-version.py build/*.apk 2>/dev/null | awk '$1 ~ /^[0-9]+$/ {print $1}' | sort -n | tail -1)
+VCODE="${2:-$(( ${TOP:-99} + 1 ))}"
+if [ -n "$TOP" ] && [ "$VCODE" -lt "$TOP" ]; then
+  echo "Version code $VCODE is lower than $TOP (the highest in build/): Android would refuse it as an update. Use $((TOP + 1)) or higher."
+  exit 1
+fi
 step() { echo; echo "== $*"; }
 t0=$(date +%s)
 
