@@ -2,7 +2,7 @@
 # Builds the whole app on an arm64 phone (Termux + proot Arch): the Odin core,
 # linked with the host clang against the NDK's sysroot (the NDK's own tools
 # only run on x86), then the APK. Prints every step.
-# Usage: sh scripts/build-local.sh [versionName] [versionCode]
+# Usage: sh scripts/build-local.sh [versionName] [versionCode]   (codes: see README, "Version codes")
 # Needs: odin, clang, lld, JDK 17, Gradle, ANDROID_HOME (or sdk.dir in
 # local.properties) with an NDK, and debug.keystore next to settings.gradle.kts
 # so the APK installs over earlier ones.

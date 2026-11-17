@@ -106,6 +106,7 @@ Build the current batch: `cd /root/promptpipe && git pull origin claude/project-
 | 54 | Local build slow / silent, memory limits, GeckoView re-download | fixed (`scripts/build-local.sh`, status line, GeckoView reuse) | `GECKOVIEW=latest` to update. |
 | 55 | Termux clips long pastes | fixed (use scripts) | |
 | 56 | APK attachment only previews on the phone; GitHub rejects files over 100 MB | worked around | Build locally now. |
+| 248 | alpha46 wouldn't install: "App not installed as package appears to be invalid" | fixed (`build-local.sh` checks the code) | 2026-11-17. The file was fine (same hash on both sides, signature verified, same key as alpha45). The cause was the version code: alpha42 to alpha45 had been built as 200 to 203, which was in no shell history, and alpha46 was built as 56, then 147, both lower than the installed alpha45. Samsung words a refused downgrade as "invalid". Now `build-local.sh` refuses a code below the highest in `build/` and picks the next one when none is given, and `scripts/apk-version.py` reads an APK's code without aapt2. The scheme from here: alpha number + 158 (alpha46 = 204). See README, "Version codes". |
 
 ## 7. Not bugs / decided
 

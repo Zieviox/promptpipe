@@ -59,6 +59,27 @@ The APK lands in `app/build/outputs/apk/debug/`. Put a `debug.keystore` next to
 `settings.gradle.kts` to sign every build with the same key (so updates install
 over each other); without it Gradle's usual debug key is used.
 
+On the phone itself (Termux + proot), `scripts/build-local.sh <versionName> <versionCode>`
+does all of it and copies the APK to `/sdcard/Download/promptpipe.apk`.
+
+### Version codes
+
+An update only installs if its version code is at least the installed one's.
+A lower code is refused, and Samsung's installer words it as "App not installed
+as package appears to be invalid", which looks like a broken file but isn't.
+
+- The codes so far: alpha3 to alpha41 used 13 to 52; **alpha42 to alpha45 used
+  200 to 203** (alpha45 = 203). From there, code = alpha number + 158: alpha46 = 204,
+  alpha47 = 205, and so on.
+- `build-local.sh` refuses a code lower than the highest APK in `build/`, and
+  without a code it takes the next one.
+- `python3 scripts/apk-version.py build/*.apk | sort -n` lists the code and name
+  of each APK (no aapt2 needed). On the phone, `pm path dev.zieviox.promptpipe`
+  gives the installed APK's path to check the same way.
+- If an update is refused with the code right, compare the signing key:
+  `apksigner verify --print-certs <apk>`. Every local build so far is signed with
+  `CN=promptpipe debug`, SHA-256 `9436d54f…a20f8d`.
+
 ## Code
 
 - `core/`: the portable core in Odin: local HTTP on 127.0.0.1:7790 with the
