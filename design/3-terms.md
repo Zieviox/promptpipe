@@ -16,7 +16,7 @@ app's own plugins.
 | Odin program | HTTP server, files, plugin store, verification, bridge, local API | core | **core** |
 | Kotlin app | starts the core, browser views, OS services | shell | **platform** |
 | The app's own plugins | the app's logic and screen (sending, history, profiles, chat files, the screen) | core plugins, tag `core` | **runtime**, tag `runtime` ("runtime plugins") |
-| `ui/core.js` | starts the runtime: state record, plugin loader, events, `PP` | the core (JS) | **loader** (proposed, to confirm) |
+| `ui/core.js` | starts the runtime: state record, plugin loader, events, `PP` | the core (JS) | **loader** |
 | `ppext/content.js` | runs in each site page, drives it | page script | **page script** |
 | A provider's `content.js` | the provider's additions in the page | content script | **content script** |
 | `chat-ui` | everything you see (a runtime plugin tagged `runtime` and `ui`) | the screen | **screen** |
@@ -157,9 +157,6 @@ message" block), `turn.sent` what was sent after blocks and hooks, `turn.reply`,
 
 ## Decisions
 
-Decided: the layers (core, platform, runtime), `snake_case` everywhere, "Catalogue" (2026-11-20).
-
-Open:
-1. "Loader" for `ui/core.js`.
-
-Also confirm or change: `repo` for git, the turn fields (`message`, `sent`), and the verb list.
+Decided (2026-11-20): the layers (core, platform, runtime), the loader (`ui/core.js`),
+`snake_case` everywhere, "Catalogue", `repo` for git, the turn fields `message` and `sent`, and
+the verb list.
