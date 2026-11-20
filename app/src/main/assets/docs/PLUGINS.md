@@ -501,14 +501,19 @@ mode** does it by hand (the address is `/?safe=1`).
 
 ## Plugin updates
 
-Plugins › Library checks the sources (the official one and any you add) for
-newer versions; **Update all** takes them. A plugin whose `minApp` is newer than
-your app waits for an app update.
+Every plugin, the built-in ones included, lives in the
+[promptpipe-plugins](https://github.com/Zieviox/promptpipe-plugins) repo; its
+`index.json` is the catalogue, and marks the plugins that ship with the app
+(`"builtin": true`). An APK carries a copy of those as they were when it was built.
 
-Each release also carries a plugin bundle, `promptpipe-plugins-<version>.zip`:
-`bundle.json` plus one folder per plugin. The app can download it from the latest
-release (once a day at start, or Settings › Core plugins › **Update plugins**) and
-uses a plugin from it when its version is newer than the built-in one. Your
+Plugins › Library checks the sources (the official one and any you add) for
+newer versions, once a day and when you open it; **Update all** takes them. A
+plugin whose `minApp` is newer than your app waits for an app update.
+
+A fallback: each release also carries a plugin bundle,
+`promptpipe-plugins-<version>.zip` (`bundle.json` plus one folder per plugin).
+Settings › Core plugins › **Update plugins** downloads it, or once a day if you
+switch that on there; a plugin from it is used when its version is newer than the built-in one. Your
 own plugins folder still wins, and safe mode uses only what came with the app.
 Restart the app after an update.
 

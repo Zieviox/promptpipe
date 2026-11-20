@@ -8,6 +8,7 @@ set -e
 v="$1"
 [ -n "$v" ] || { echo "usage: sh scripts/plugin-bundle.sh <version> [out-dir]"; exit 1; }
 out=$(cd "${2:-.}" && pwd)
+python3 "$(dirname "$0")/copy-plugins.py" >/dev/null # the built-in plugins, fresh from promptpipe-plugins
 cd "$(dirname "$0")/../app/src/main/assets/plugins"
 for p in qwen-chat deepseek; do
   [ -d "$p" ] && { echo "private provider plugin '$p' is here: run this in the public repo"; exit 1; }

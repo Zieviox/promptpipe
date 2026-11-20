@@ -7,8 +7,8 @@
 //   node scripts/ux/standin.js          then open http://127.0.0.1:7790 (or run driver.js)
 //
 // PP_PLUGINS=<folder>: a checkout of promptpipe-plugins (default: ../promptpipe-plugins, next
-// to this repo). With it, the core plugins are the newer ones from there and "Get plugins"
-// installs from it. Without it, the parts are the ones this repo ships.
+// to this repo). Every plugin comes from there: the built-in ones (index.json "builtin"), and
+// "Get plugins" installs the others from it.
 // PP_PORT=<port>: default 7790. PP_DATA=<folder>: default build/ux-data. Each start begins from a
 // first launch (the data folder is emptied).
 // The fake site answers every message with one reply (list, table, code, link, thinking).
@@ -22,21 +22,21 @@ const APP = path.join(ROOT, "app/src/main/assets");
 const REPO = process.env.PP_PLUGINS || path.join(ROOT, "../promptpipe-plugins");
 const DATA = process.env.PP_DATA || path.join(ROOT, "build/ux-data");
 const PORT = +process.env.PP_PORT || 7790;
-const CORE = ["chat-ui", "core-chatfile", "core-history", "core-jobs", "core-markdown", "core-profiles", "core-send"];
+// The built-in plugins: the ones the plugins repo's index.json marks "builtin" (what an APK built now
+// would carry, see scripts/copy-plugins.py), read straight from the plugins repo.
+const BUILTIN = Object.fromEntries(JSON.parse(fs.readFileSync(path.join(REPO, "index.json"), "utf8")).plugins.filter((e) => e.builtin).map((e) => [e.id, path.join(REPO, e.path)]));
 fs.rmSync(DATA, { recursive: true, force: true });
 for (const d of ["history", "plugins", "export"]) fs.mkdirSync(path.join(DATA, d), { recursive: true });
 
 const MIME = { html: "text/html", js: "text/javascript", css: "text/css", json: "application/json", md: "text/markdown", svg: "image/svg+xml", png: "image/png" };
 const safe = (rel) => !!rel && !rel.startsWith("/") && rel.split("/").every((p) => p && p !== "." && p !== "..");
-// The newest core plugins are the ones in the plugins repo (what an updated phone runs).
 const pluginDir = (id, builtinOnly) => {
   const user = path.join(DATA, "plugins", id);
   if (!builtinOnly && fs.existsSync(path.join(user, "plugin.json"))) return { dir: user, source: "user" };
-  if (CORE.includes(id) && fs.existsSync(path.join(REPO, id, "plugin.json"))) return { dir: path.join(REPO, id), source: "builtin" };
-  return { dir: path.join(APP, "plugins", id), source: "builtin" };
+  return { dir: BUILTIN[id] || path.join(REPO, id), source: "builtin" };
 };
 const listPlugins = (builtinOnly) => {
-  const ids = new Set([...fs.readdirSync(path.join(APP, "plugins")), ...CORE, ...(builtinOnly ? [] : fs.readdirSync(path.join(DATA, "plugins")))]);
+  const ids = new Set([...Object.keys(BUILTIN), ...(builtinOnly ? [] : fs.readdirSync(path.join(DATA, "plugins")))]);
   const out = [];
   for (const id of [...ids].sort()) {
     const { dir, source } = pluginDir(id, builtinOnly);

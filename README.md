@@ -52,10 +52,16 @@ Both are also in the app (⋯ menu).
 
 ## Build it yourself
 
+Every plugin, the built-in ones included, lives in
+[promptpipe-plugins](https://github.com/Zieviox/promptpipe-plugins): clone it next
+to this repo. Each build copies the built-in ones (index.json `"builtin": true`)
+into the APK as they are in that checkout; this repo holds no copies.
+
 With the Android SDK and NDK and Odin installed, build the core first, then
 the app:
 
     ANDROID_NDK_HOME=<ndk folder> sh scripts/build-core-android.sh
+    python3 scripts/copy-plugins.py   # the built-in plugins, from ../promptpipe-plugins
     gradle assembleDebug   # Gradle 9.8 or newer
 
 The APK lands in `app/build/outputs/apk/debug/`. Put a `debug.keystore` next to
@@ -63,7 +69,7 @@ The APK lands in `app/build/outputs/apk/debug/`. Put a `debug.keystore` next to
 over each other); without it Gradle's usual debug key is used.
 
 On the phone itself (Termux + proot), `scripts/build-local.sh <versionName> <versionCode>`
-does all of it and copies the APK to `/sdcard/Download/promptpipe.apk`.
+does all of it (the plugin copy included) and copies the APK to `/sdcard/Download/promptpipe.apk`.
 
 ### Version codes
 
@@ -97,13 +103,14 @@ as package appears to be invalid", which looks like a broken file but isn't.
   events, safe mode. Everything else is a plugin.
 - `app/src/main/assets/ppext/`: the built-in extension whose content script
   drives the AI page.
-- `app/src/main/assets/plugins/`: built-in plugins: the core plugins
-  (`core-*`, `chat-ui`), Base64, Memory, Sub-chats, Page report, themes.
+- `app/src/main/assets/plugins/`: the built-in plugins, made by
+  `scripts/copy-plugins.py` from promptpipe-plugins at each build (not in git;
+  `plugins-revision.txt` next to it says which commit).
 - `scripts/terms-check.py`: finds old words from before the rename of 2026-11-20
   (the words are in PLUGINS.md, "Words").
 - `scripts/ux/`: the stand-in core for looking at the screen in a desktop browser,
   and the checks run against it (`redraw-check.js`, `migration-check.js`, `morph-test.js`).
-- `scripts/plugin-bundle.sh`: makes the release's plugin bundle zip.
+- `scripts/plugin-bundle.sh`: makes the release's plugin bundle zip (a fallback for updates).
 
 Built on Odin, GeckoView (Firefox's engine) and JGit.
 

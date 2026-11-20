@@ -26,6 +26,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLUGINS = os.environ.get("PP_PLUGINS") or os.path.join(os.path.dirname(ROOT), "promptpipe-plugins")
 EXT = (".js", ".json", ".md", ".py", ".css", ".odin", ".kt", ".sh", ".html")
 SKIP_DIRS = {".git", "build", "node_modules", "notes", "docs", ".gradle"}
+SKIP_PATHS = {os.path.join("app", "src", "main", "assets", "plugins")}  # made by copy-plugins.py from the plugins repo
 SKIP_FILES = {"BUGS.md", "terms-check.py", "migration-check.js"}  # the migration check holds old saved data on purpose
 
 # (name, pattern, allowed-line pattern or None[, files where this word means something else]).
@@ -53,7 +54,7 @@ def files():
     for base in (ROOT, PLUGINS):
         for d, dirs, fs in os.walk(base):
             # docs/ at a repo's top is the website (not checked); app/.../docs holds the guides (checked)
-            dirs[:] = [x for x in dirs if x not in SKIP_DIRS or (x == "docs" and d != base)]
+            dirs[:] = [x for x in dirs if (x not in SKIP_DIRS or (x == "docs" and d != base)) and os.path.relpath(os.path.join(d, x), base) not in SKIP_PATHS]
             for f in fs:
                 if f.endswith(EXT) and f not in SKIP_FILES:
                     yield os.path.join(d, f)

@@ -4,3 +4,5 @@ local.properties
 debug.keystore
 *.jks
 app/src/main/jniLibs/
+app/src/main/assets/plugins/
+app/src/main/assets/plugins-revision.txt

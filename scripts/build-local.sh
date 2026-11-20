@@ -1,7 +1,9 @@
 #!/bin/sh
 # Builds the whole app on an arm64 phone (Termux + proot Arch): the Odin core,
 # linked with the host clang against the NDK's sysroot (the NDK's own tools
-# only run on x86), then the APK. Prints every step.
+# only run on x86), then the APK. Prints every step. The built-in plugins are
+# copied in from the promptpipe-plugins checkout next to this one (its current
+# state, see scripts/copy-plugins.py); PP_PLUGINS=<folder> for another one.
 # Usage: sh scripts/build-local.sh [versionName] [versionCode]   (codes: see README, "Version codes")
 # Needs: odin, clang, lld, JDK 17, Gradle, ANDROID_HOME (or sdk.dir in
 # local.properties) with an NDK, and debug.keystore next to settings.gradle.kts
@@ -39,6 +41,9 @@ GV="$GECKOVIEW"
 [ -z "$GV" ] || [ "$GV" = latest ] && GV=$(curl -fsSL https://maven.mozilla.org/maven2/org/mozilla/geckoview/geckoview/maven-metadata.xml | sed -n 's:.*<release>\(.*\)</release>.*:\1:p')
 [ -n "$GV" ] || { echo "Couldn't read the GeckoView version; set GECKOVIEW=<version>."; exit 1; }
 echo "sdk $SDK"; echo "ndk $NDK"; echo "gradle $GRADLE"; echo "geckoview $GV"; echo "version $VNAME ($VCODE)"
+
+step "0/4 built-in plugins from promptpipe-plugins"
+python3 scripts/copy-plugins.py
 
 step "1/4 compiling core (Odin)"
 mkdir -p build app/src/main/jniLibs/arm64-v8a

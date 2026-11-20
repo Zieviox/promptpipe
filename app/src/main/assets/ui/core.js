@@ -568,10 +568,12 @@ const updatePlugins = async ({ quiet = false, force = false } = {}) => {
     rerenderSheet();
   }
 };
+// The Library (the plugins repo's catalogue) is where plugins update. The release's plugin bundle
+// is a fallback: checked once a day only when it is turned on in Settings › Core plugins (updates.bundle).
 on("ready", async () => {
   S.updates = { bundle: await api("/api/plugins/bundle").catch(() => ({})) };
   const u = S.config.updates || {};
-  if (SAFE || u.auto === false) return;
+  if (SAFE || u.auto === false || u.bundle !== true) return;
   if (u.checked && Date.now() - Date.parse(u.checked) < 20 * 3600000) return;
   updatePlugins({ quiet: true });
 });
