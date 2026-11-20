@@ -5,25 +5,28 @@ to the chat site once, inside the app; promptpipe types your messages there,
 reads the replies, runs them through your plugins, and keeps every chat as a
 Markdown file on your phone.
 
-- **Plugins for everything**: steps before your message and after the reply,
-  AI sites, themes, and the app itself (sending, chat files, history, the
-  whole screen) as built-in plugins you can copy and change. Safe mode if one
-  breaks; plugin updates download without a new APK.
+- **Plugins for everything**: plugins that work on your message and the reply,
+  providers (one per AI website), themes, and the app itself (sending, chat files,
+  history, the whole screen) as built-in plugins you can copy and change. Safe
+  mode if one breaks; plugin updates download without a new APK.
 - **Your chats stay yours**: Markdown files in `/sdcard/PromptPipe/history/`,
   a git repository (optional push to your own GitHub).
 - **Tags, folders, full-text search**, per-message tags, counter tags (`part#`).
 - **Model thinking kept**, folded under each reply.
 - **Local API**: other apps on the same phone can use it like an OpenAI API at
   `http://127.0.0.1:7790/v1`. Only reachable from the phone itself.
-- **Chats in parallel**: up to 4 site pages at once, for you, your plugins and
-  other apps; more messages wait in a queue.
+- **Chats in parallel**: up to 5 site pages at once (10 if you allow it), for you,
+  your plugins and other apps; more messages wait in a queue.
 - **Memory**: long chats keep their context; older turns get summarised in a
   side chat before the limit is reached.
-- **System prompt library**: save, pin and stack prompts.
+- **Profiles**: an ordered list of blocks (System prompts, plugins, your message)
+  sent with each message; groups and per-chat toggles; templates to start from.
+- **Prompt library**: save and pin System prompts, and link them into profiles:
+  one edit changes every profile that links it.
 - Touch first, with keyboard shortcuts for a hardware keyboard.
 
-promptpipe ships **without AI site plugins**. Install the one for the site you
-use (a `.zip` or a link) under Plugins. Using a chat site through automation
+promptpipe ships **without providers** (the plugins for AI websites). Install the
+one for the site you use under Plugins › Get providers (or a `.zip` or a link). Using a chat site through automation
 may be against that site's terms; it's your account and your call.
 
 ## Install
@@ -33,8 +36,8 @@ may be against that site's terms; it's your account and your call.
    browser or file manager the first time).
 2. Open promptpipe, allow notifications (it keeps running in the background
    with one) and grant file access when asked.
-3. ⋯ → **Plugins** → **Install from a file** (or paste a link) to add a site plugin.
-4. Tap the site name in the header and log in on the site once.
+3. ⋯ → **Plugins** → **Get providers** (or install one from a file or a link).
+4. Tap the provider's name in the header and log in on the site once.
 
 New versions install over the old one; chats, plugins and logins stay.
 
@@ -42,8 +45,8 @@ New versions install over the old one; chats, plugins and logins stay.
 
 - [Quick start](app/src/main/assets/docs/QUICKSTART.md): everything from first
   message to tags, profiles, git backup and the local API.
-- [Writing plugins](app/src/main/assets/docs/PLUGINS.md): steps, AI sites,
-  site scripts, themes.
+- [Writing plugins](app/src/main/assets/docs/PLUGINS.md): the words (plugins,
+  tags, blocks, toggles), plugins for messages, providers and content scripts, themes.
 
 Both are also in the app (⋯ menu).
 
@@ -94,8 +97,12 @@ as package appears to be invalid", which looks like a broken file but isn't.
   events, safe mode. Everything else is a plugin.
 - `app/src/main/assets/ppext/`: the built-in extension whose content script
   drives the AI page.
-- `app/src/main/assets/plugins/`: built-in plugins: the app parts
-  (`core-*`, `chat-ui`), Base64, System prompt, Memory, Page report, themes.
+- `app/src/main/assets/plugins/`: built-in plugins: the core plugins
+  (`core-*`, `chat-ui`), Base64, Memory, Sub-chats, Page report, themes.
+- `scripts/terms-check.py`: finds old words from before the rename of 2026-11-20
+  (the words are in PLUGINS.md, "Words").
+- `scripts/ux/`: the stand-in core for looking at the screen in a desktop browser,
+  and the checks run against it (`redraw-check.js`, `migration-check.js`, `morph-test.js`).
 - `scripts/plugin-bundle.sh`: makes the release's plugin bundle zip.
 
 Built on Odin, GeckoView (Firefox's engine) and JGit.

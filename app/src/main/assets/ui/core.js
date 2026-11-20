@@ -275,7 +275,7 @@ const migrateConfig = (c) => {
   delete c.site;
   delete c.siteSettings;
   if (c.ui && c.ui.part && !c.ui.screen) c.ui.screen = c.ui.part; // legacy: ui.part
-  if (c.ui) delete c.ui.part;
+  if (c.ui) delete c.ui.part; // legacy
   for (const prof of c.profiles || []) {
     // legacy: prof.plugins = [{ id, on, settings }]; "on" is now the profile's blocks (core-profiles)
     if (Array.isArray(prof.plugins)) {

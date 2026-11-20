@@ -7,7 +7,7 @@
 //   node scripts/ux/standin.js          then open http://127.0.0.1:7790 (or run driver.js)
 //
 // PP_PLUGINS=<folder>: a checkout of promptpipe-plugins (default: ../promptpipe-plugins, next
-// to this repo). With it, the app parts are the newer ones from there and "Get plugins"
+// to this repo). With it, the core plugins are the newer ones from there and "Get plugins"
 // installs from it. Without it, the parts are the ones this repo ships.
 // PP_PORT=<port>: default 7790. PP_DATA=<folder>: default build/ux-data. Each start begins from a
 // first launch (the data folder is emptied).
@@ -28,7 +28,7 @@ for (const d of ["history", "plugins", "export"]) fs.mkdirSync(path.join(DATA, d
 
 const MIME = { html: "text/html", js: "text/javascript", css: "text/css", json: "application/json", md: "text/markdown", svg: "image/svg+xml", png: "image/png" };
 const safe = (rel) => !!rel && !rel.startsWith("/") && rel.split("/").every((p) => p && p !== "." && p !== "..");
-// The newest app parts are the ones in the plugins repo (what an updated phone runs).
+// The newest core plugins are the ones in the plugins repo (what an updated phone runs).
 const pluginDir = (id, builtinOnly) => {
   const user = path.join(DATA, "plugins", id);
   if (!builtinOnly && fs.existsSync(path.join(user, "plugin.json"))) return { dir: user, source: "user" };

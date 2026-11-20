@@ -26,7 +26,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLUGINS = os.environ.get("PP_PLUGINS") or os.path.join(os.path.dirname(ROOT), "promptpipe-plugins")
 EXT = (".js", ".json", ".md", ".py", ".css", ".odin", ".kt", ".sh", ".html")
 SKIP_DIRS = {".git", "build", "node_modules", "notes", "docs", ".gradle"}
-SKIP_FILES = {"BUGS.md", "terms-check.py"}
+SKIP_FILES = {"BUGS.md", "terms-check.py", "migration-check.js"}  # the migration check holds old saved data on purpose
 
 # (name, pattern, allowed-line pattern or None[, files where this word means something else]).
 # Case-sensitive unless (?i).
@@ -44,15 +44,16 @@ WORDS = [
     ("row", r"(?i)(?<!\.\.)\.rows\b|add a row|(profile|plugin|prompt|preset)('s)? rows?\b|\brows? (on or off|above it)|switch rows|\b(its|this|the plugin's|a) row\b(?! of)|where (its|the) row", r"(?i)\bsheet\b|chats list|r\.steps|grid", r"drawer\.js$|chat-sheet\.js$"),
     ("app part", r"(?i)\bapp parts?\b|isPart\b|appParts|\bS\.parts\b|\bpart:|\"part\"|thinking\" part|\bui\.part\b", None),
     ("message plugin", r"(?i)\bmessage plugins?\b", None),
-    ("tool", r'(?i)\btools?\b(?! *\()|"tool"', r"(?i)tools/hash|hash\.py|build-tools|toolchain|tooltip|devtools"),
+    ("tool", r'(?i)\btools?\b(?! *\()|"tool"', r"(?i)tools/hash|hash\.py|build-tools|toolchain|tooltip|devtools|own tools", r"qwen-chat/content\.js$"),
     ("site view tab", r"(?i)svtab|newTab\b|closeTab\b|pickTab\b|new tab\b|close tab\b|tab closed|tab is chosen|choosing a tab", None),
-    ("system prompt plugin", r'system-prompt\b|"System prompts"|openLibrary\(ctx', None),
+    ("system prompt plugin", r'system-prompt\b|openLibrary\(ctx', None),
 ]
 
 def files():
     for base in (ROOT, PLUGINS):
         for d, dirs, fs in os.walk(base):
-            dirs[:] = [x for x in dirs if x not in SKIP_DIRS]
+            # docs/ at a repo's top is the website (not checked); app/.../docs holds the guides (checked)
+            dirs[:] = [x for x in dirs if x not in SKIP_DIRS or (x == "docs" and d != base)]
             for f in fs:
                 if f.endswith(EXT) and f not in SKIP_FILES:
                     yield os.path.join(d, f)

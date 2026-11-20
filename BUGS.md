@@ -130,7 +130,7 @@ Not started. Same statuses as above. Fixes first, then the release items.
 | 67 | Can't even switch profile from the dropdown | open | Not looked at yet. Likely the same cause as #66. Reproduce first. |
 | 68 | Menu holds duplicates and items that belong in the main UI | fixed (waiting for Gtex phone check) | Alpha9 (UI redesign step 1): the ⋯ menu is gone. Find (magnifier, Ctrl+K, F3) lists every function and setting once, with its path and shortcut, and flashes the control. |
 | 69 | Plugins should be on top | open | Presumably the Plugins entry first in the menu and Settings. Confirm what "on top" means (menu order, or the plugin switches above other rows). |
-| 70 | The whole system-prompt stack can only go in one place; can't decide which system prompt applies before or after which plugin | open | Cause known from the code: the System prompt plugin is one pipeline step, so its whole stack is sent as a unit. Fix: each stacked prompt becomes its own pipeline piece (the way Memory's pieces work), placeable anywhere. |
+| 70 | The whole system-prompt stack can only go in one place; can't decide which system prompt applies before or after which plugin | fixed in code (stand-in), waiting for Gtex phone check | **2026-11-20, section 15:** the System prompt plugin is gone; its stack became linked System prompt blocks, each placed and timed on its own. Earlier note: the System prompt plugin was one pipeline step, so its whole stack was sent as a unit. |
 
 ### Release items (after the fixes)
 
@@ -308,4 +308,19 @@ Checked in a desktop browser at phone size with the stand-in (`scripts/ux/redraw
 | 253 | "Plugin update failed: unexpected end of stream on com.android.okhttp.Address@…" on start | fixed in code (needs the new APK), waiting for Gtex phone check | Seen by Gtex 2026-11-20. The daily automatic check downloads the release's plugin bundle; Android reused a connection to GitHub the server had already closed, and the shell's fetch gave up at once with Android's own words. Now (`Shell.kt`) every fetch asks for a fresh connection, a cut-off one is tried once more, and a failure says what happened with the host ("the connection to github.com was cut off, twice"). And (`core.js`) the automatic check fails quietly: Settings › App parts and Plugins › Library show "Last check: …"; a check you start still says so. Not built here. |
 
 Find drew its results by hand into its own list, which the patcher would have broken; its results are now part of the sheet. What 2.0.0 also changes, for anyone editing the screen: every list carries keys (`data-key`, or the existing `data-row` names); a handler acts on its event's element, not on an element kept from the build; a field's value is changed only when the render asks for a different one and never while it has the focus. See PLUGINS.md, "Your own screens".
+
+---
+
+## 15. One set of words, 2026-11-20
+
+Gtex found the wording messed up (the same thing under several names, made-up words) and decided each term in this session; everything was renamed in one pass, code and plugin files included (alpha: no compatibility kept for old plugin files; old saved data is moved over on first start). The table is in PLUGINS.md, "Words". `scripts/terms-check.py` finds any old word and must stay at 0.
+
+What changed, in short: every plugin is a **plugin** with **tags** (`provider`, `theme`, `passive`, `core`, `driver`) instead of `kind`; a site plugin is a **provider** (`provider` in its file, its in-page script a **contentScript**, its switches **options**); a profile is a list of **blocks** (System prompt, plugin, Your message) instead of rows / pieces / steps / a pipeline; starters are **templates**; a plugin's on/off is a **toggle**; the site view's tabs are **pages**; App parts are **core plugins**. The System prompt plugin is merged into **System prompt blocks**: own text, or **linked** from the **prompt library** (`history/prompt-library.json`), so one edit changes every profile that links it (#70).
+
+Needs the new APK (core.js, the page script and the core's install read the new names) together with the plugin updates (catalogue `minApp` 0.7.0-alpha47). Checked in a desktop browser with the stand-in: redraw check 22/22, migration check 17/17 (an old config with a System prompt stack, the old library file and an old chat file), every sheet opened with redraws and no errors. Not built here (Odin and Kotlin untouched apart from one field name and comments), not seen on a phone.
+
+| # | Bug | Status | Notes |
+|---|---|---|---|
+| 254 | The same thing has several names across screens, guides and code | fixed in code (stand-in), waiting for Gtex phone check | See above. **On the phone:** Plugins › Library shows "Plugin · provider", "Plugin · theme", "Plugin · passive"; Plugins › Profile has blocks and Add a block; Settings has Prompt library and Core plugins; your profiles, System prompts and chats are all still there after the update. Your own plugin (Prompt tests) needs its plugin.json moved to the new fields (`tags`, `toggle` instead of `kind`, `block`). |
+| 255 | A group of blocks shared by several profiles (edit once, used everywhere), not just at the start | open (feature, Gtex 2026-11-20) | Gtex: "the bunch of add-ons you store as one group and reuse across profiles", modular, added to any profile at any time. Today a group lives in one profile and templates are one-time copies; linked System prompt blocks are the first shared piece (one prompt). Next step: a shared group in the library that a profile links as one block. |
 

@@ -458,19 +458,19 @@ const migrateLegacy = () => {
       prof.blocks = [promptBlock("Master system prompt", "", "every"), messageBlock()];
       const on = prof.legacyPluginsOn;
       if (on["system-prompt"]) prof.blocks.splice(1, 0, ...legacyBlocks([{ type: "step", plugin: "system-prompt", on: true }], prof));
-      for (const [id, v] of Object.entries(on)) if (v && id !== "system-prompt") prof.blocks.push(pluginBlock(id, true));
+      for (const [id, v] of Object.entries(on)) if (v && id !== "system-prompt") prof.blocks.push(pluginBlock(id, true)); // legacy
       changed = true;
     }
     if (prof.pipe || prof.legacyPluginsOn || prof.preset != null) changed = true; // legacy
     delete prof.pipe; // legacy
     delete prof.preset; // legacy
     delete prof.legacyPluginsOn;
-    if (prof.pluginSettings && prof.pluginSettings["system-prompt"]) {
+    if (prof.pluginSettings && prof.pluginSettings["system-prompt"]) { // legacy
       delete prof.pluginSettings["system-prompt"]; // legacy: its stack is linked blocks now
       changed = true;
     }
-    if (prof.blocks.some((b) => b.type === "plugin" && b.plugin === "system-prompt")) {
-      prof.blocks = prof.blocks.filter((b) => !(b.type === "plugin" && b.plugin === "system-prompt"));
+    if (prof.blocks.some((b) => b.type === "plugin" && b.plugin === "system-prompt")) { // legacy
+      prof.blocks = prof.blocks.filter((b) => !(b.type === "plugin" && b.plugin === "system-prompt")); // legacy
       changed = true;
     }
   }
