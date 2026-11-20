@@ -196,6 +196,19 @@ Words in this file are today's glossary words; `3-terms.md` proposes the final o
 - **M2** Renames are deterministic (a table, applied everywhere) and checked by terms-check (U).
 - **M3** Function names put the noun first (`file_write`) for sorting and autocomplete (U 2026-11-20).
 
+## O. The rewrite itself
+
+- **O1** The new app is written from zero from the design; the current code is read-only reference
+  and nothing is copied from it (U 2026-11-20: "start fresh. From zero. Not edit").
+- **O2** Both repos are rewritten: the core, the host, the runtime, the page script, and every
+  plugin (core plugins, providers, block plugins, themes).
+- **O3** The user's saved data opens in the new app: chat files, config, prompt library,
+  profiles, plugin settings (K4).
+- **O4** The old app stays usable until the new one passes every requirement; then the old code is
+  removed in one change.
+- **O5** The core targets the current Odin release (dev-2026-11 today); the phone's compiler must
+  match (`odin version`).
+
 ## N. Not now (YAGNI)
 
 - **N1** A desktop or iOS shell (only the boundaries are kept ready).

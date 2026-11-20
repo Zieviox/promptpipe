@@ -3,6 +3,25 @@
 The rules every later part of the design (requirements, terms, functions) is checked against.
 They come first because they decide what counts as a good answer.
 
+## Rewrite from zero, not edit
+
+The refactor is a rewrite: new code, written from this design, in new files. The current code is
+not edited, moved or copied in.
+
+- **The old code is a reference, read-only.** It tells what the app does and the edge cases
+  learned the hard way (a site's quirks, Android's timing, the bugs in BUGS.md). Each lesson is
+  written into the requirements or the function list first, then implemented fresh.
+- **No copy-paste from the old code.** Copying brings its names, its duplicates and its hidden
+  assumptions back. Even a function that looks right is rewritten to the new names and rules.
+- **What carries over is data, not code**: the user's chat files, config, prompt library and
+  profiles must open in the new app (migrated on first start, requirement K4).
+- **The old app keeps working until the new one does everything** in the requirements, checked
+  requirement by requirement. Then the old code is removed in one change.
+- **Each part is built against its checks** (the core's route tests, the stand-in checks, terms
+  and clone checks) from its first commit, so nothing is "finished later".
+- **The language reference is current**: the Odin docs and the core library index for the
+  release the phone builds with (`sh scripts/odin-reference.sh`, into `build/odin-reference/`).
+
 ## DRY, KISS, YAGNI
 
 - **DRY (Don't Repeat Yourself).** Every item of knowledge has one source: a data format, a

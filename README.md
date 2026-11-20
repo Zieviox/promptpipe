@@ -111,6 +111,8 @@ as package appears to be invalid", which looks like a broken file but isn't.
 - `scripts/ux/`: the stand-in core for looking at the screen in a desktop browser,
   and the checks run against it (`redraw-check.js`, `migration-check.js`, `morph-test.js`).
 - `scripts/plugin-bundle.sh`: makes the release's plugin bundle zip (a fallback for updates).
+- `scripts/odin-reference.sh`: downloads the Odin language docs and an index of the core library
+  packages the core uses into `build/odin-reference/` (not in git), for one compiler release.
 - `.claude/skills/clone-detection/`: a Claude Code skill that finds duplicate code across both
   repos (token-based with jscpd, token-bag for near-miss copies, and a by-hand inventory of jobs
   done twice); `jobs.md` and `accepted.md` hold what earlier runs found and kept.
