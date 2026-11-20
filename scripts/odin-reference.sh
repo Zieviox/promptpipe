@@ -26,7 +26,7 @@ done
 
 # The packages the core imports, plus the ones the rewrite is expected to need (signatures for
 # the catalog, hashing, paths). Edit this list when the core starts using another package.
-PKGS="base/builtin base/runtime core/bytes core/compress/zlib core/crypto core/crypto/sha2 core/crypto/ed25519
+PKGS="base/builtin base/runtime core/bytes core/compress/deflate core/compress/zlib core/crypto core/crypto/sha2 core/crypto/ed25519
 core/crypto/hash core/encoding/base64 core/encoding/endian core/encoding/hex core/encoding/json core/fmt core/io
 core/mem core/mem/virtual core/net core/os core/path/filepath core/path/slashpath core/slice core/sort core/strconv
 core/strings core/sync core/thread core/time core/unicode/utf8"

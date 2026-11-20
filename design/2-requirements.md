@@ -8,12 +8,12 @@ Words in this file are today's glossary words; `3-terms.md` proposes the final o
 
 ## A. Platforms and layers
 
-- **A1** The core is portable: one code base (Odin) that every platform's shell starts. Today
-  Android; a desktop shell later (F, core/README).
-- **A2** Platform code lives only in the shell (Kotlin on Android): starting the core, the
+- **A1** The core is portable: one code base (Odin) that every platform starts. Today
+  Android; a desktop platform later (F, core/README).
+- **A2** Platform code lives only in the platform layer (Kotlin on Android): starting the core, the
   browser engine views (the screen and site pages), OS services (files permission, notifications
   and keep-alive, clipboard, vibration, share, secure storage, the repository library).
-- **A3** The shell holds no app logic. The APK changes only when native code must (U 2026-11-20:
+- **A3** The platform holds no app logic. The APK changes only when native code must (U 2026-11-20:
   "Unless you REALLY can't do without APK, do NOT put into APK code").
 - **A4** Everything that can be a plugin is a plugin, updatable from the catalogue without a new
   APK: the screen, sending, chat files, history, profiles, markdown, jobs, providers (F, #206).
@@ -24,7 +24,7 @@ Words in this file are today's glossary words; `3-terms.md` proposes the final o
 - **A7** A missing platform feature is never hidden: the call fails with "not supported on this
   platform" and why (F, core/README).
 - **A8** The page script works on any browser engine that can inject a script into a page; the
-  engine-specific part is in the shell's adapter.
+  engine-specific part is in the platform's adapter.
 
 ## B. Chatting with a provider
 
@@ -87,7 +87,7 @@ Words in this file are today's glossary words; `3-terms.md` proposes the final o
 - **D7** A plugin that needs a newer app says so (`minApp`) (F).
 - **D8** Every download is checked against the catalogue's hash (#201), and the catalogue is
   signed (#202). The release bundle is an opt-in fallback (F).
-- **D9** Safe mode: if a core plugin of yours fails to load, start with built-in plugins only, say
+- **D9** Safe mode: if a runtime plugin of yours fails to load, start with built-in plugins only, say
   which failed (F).
 - **D10** The plugin surface (`PP`) is the only way in: named, versioned, documented; a plugin
   says which version it was made for (#210).
@@ -136,7 +136,7 @@ Words in this file are today's glossary words; `3-terms.md` proposes the final o
   tags (U 2026-11-20).
 - **H2** Each secret is write-only (plugins can use it, never read it back) or read-write
   (plugins can read it); write-only is the default (U).
-- **H3** A write-only secret is bound to exact hosts, a header name and a prefix; the shell adds
+- **H3** A write-only secret is bound to exact hosts, a header name and a prefix; the platform adds
   it to requests to those hosts only (U, best practice).
 - **H4** Encrypted with the platform's key store (Android Keystore), excluded from backups,
   never in exports, config, git or logs (U, best practice).
@@ -160,10 +160,10 @@ Words in this file are today's glossary words; `3-terms.md` proposes the final o
 ## J. Security
 
 - **J1** Every call to the core needs the security key; the Host header is checked (F).
-- **J2** The shell checks it talks to its own core (challenge, not sending the key); "port in
+- **J2** The platform checks it talks to its own core (challenge, not sending the key); "port in
   use" is reported (#203).
 - **J3** Code and settings on shared storage are checked: a plugin or config changed outside the
-  app is shown, core plugins wait for a tap (#204, decision pending).
+  app is shown, runtime plugins wait for a tap (#204, decision pending).
 - **J4** Plain HTTP only to 127.0.0.1 (#215).
 - **J5** Zips are checked before unpacking, with size and count limits (#213).
 - **J6** Releases are release builds with their own signing key; the engine version is pinned
@@ -200,8 +200,8 @@ Words in this file are today's glossary words; `3-terms.md` proposes the final o
 
 - **O1** The new app is written from zero from the design; the current code is read-only reference
   and nothing is copied from it (U 2026-11-20: "start fresh. From zero. Not edit").
-- **O2** Both repos are rewritten: the core, the host, the runtime, the page script, and every
-  plugin (core plugins, providers, block plugins, themes).
+- **O2** Both repos are rewritten: the core, the platform, the loader, the page script, and every
+  plugin (runtime plugins, providers, block plugins, themes).
 - **O3** The user's saved data opens in the new app: chat files, config, prompt library,
   profiles, plugin settings (K4).
 - **O4** The old app stays usable until the new one passes every requirement; then the old code is
@@ -211,7 +211,7 @@ Words in this file are today's glossary words; `3-terms.md` proposes the final o
 
 ## N. Not now (YAGNI)
 
-- **N1** A desktop or iOS shell (only the boundaries are kept ready).
+- **N1** A desktop or iOS platform (only the boundaries are kept ready).
 - **N2** Fingerprint lock, spending hints for keys (H7).
 - **N3** Shared groups across profiles (#255) and the Memory reminder for API chats (B4) come
   after the refactor.
@@ -221,12 +221,12 @@ Words in this file are today's glossary words; `3-terms.md` proposes the final o
 
 The main sequences (each becomes one readable chain of calls in the function list):
 
-1. **Start**: the shell waits for storage, starts the core, checks it's its own core, opens the
-   screen; the screen loads config, migrates saved data, loads plugins (core plugins in order, then
+1. **Start**: the platform waits for storage, starts the core, checks it's its own core, opens the
+   screen; the loader loads config, migrates saved data, loads plugins (runtime plugins in order, then
    the rest), draws.
 2. **Send**: message → build from the profile's blocks → before-send hooks → route (profile, site
    chat) → provider (web: page from the pool, set options, type, send, stream the reply; api: the
-   shell's keyed request, stream the reply) → after-reply hooks → format the chat file → save
+   platform's keyed request, stream the reply) → after-reply hooks → format the chat file → save
    (write, commit) → draw.
 3. **Side request**: a plugin asks; the same provider path with a fresh, unsaved chat.
 4. **Job** (local API): request → job → the send flow with the job's profile → stream back.

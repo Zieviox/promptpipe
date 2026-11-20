@@ -1,29 +1,30 @@
-# 3. Terms (proposal)
+# 3. Terms
 
 The words the refactored app, its guides and its code will use. Standard programming terms
 first; each term has one meaning, and each meaning one term. Items marked **Decide** need your
 answer before the function list (`4-functions.md`) is written, because every name depends on them.
 The recommended answer is listed first.
 
-## 1. The layers
+## 1. The layers (decided 2026-11-20)
 
 Today "core" means three different things: the Odin program, `ui/core.js`, and plugins tagged
-`core`. And the principle "functional core, imperative shell" uses "core" and "shell" again.
+`core`. Decided: **core** is the Odin program, **platform** is the Kotlin app, **runtime** is the
+app's own plugins.
 
-| Layer | What it is | Today | Proposed |
+| Layer | What it is | Today | Term |
 |---|---|---|---|
 | Odin program | HTTP server, files, plugin store, verification, bridge, local API | core | **core** |
-| Kotlin app | starts the core, browser views, OS services | shell | **host** (the native host app) |
-| `ui/core.js` | state, plugin loader, events, `PP` | the core (JS) | **runtime** |
-| Plugins tagged `core` | the app's own logic and screen | core plugins | **Decide 1** |
+| Kotlin app | starts the core, browser views, OS services | shell | **platform** |
+| The app's own plugins | the app's logic and screen (sending, history, profiles, chat files, the screen) | core plugins, tag `core` | **runtime**, tag `runtime` ("runtime plugins") |
+| `ui/core.js` | starts the runtime: state record, plugin loader, events, `PP` | the core (JS) | **loader** (proposed, to confirm) |
 | `ppext/content.js` | runs in each site page, drives it | page script | **page script** |
 | A provider's `content.js` | the provider's additions in the page | content script | **content script** |
-| `chat-ui` | everything you see | the screen | **screen** |
+| `chat-ui` | everything you see (a runtime plugin tagged `runtime` and `ui`) | the screen | **screen** |
 
-- **Decide 1**, the tag for the app's own plugins: (a) `app` ("app plugins: the app itself"),
-  which ends the clash with the core; (b) keep `core`. With (b), "core plugins" and "the core"
-  stay two different things.
-- "Host" also frees "shell" for its standard meaning (the effects layer of a function, and the
+- The loader is the only JS that ships outside a plugin: it holds the state record, loads the
+  runtime plugins (then the others), runs events and hooks, and is the `PP` surface. Everything
+  it loads is updatable from the catalog.
+- "Platform" also frees "shell" for its standard meaning (the effects layer of a function, and the
   command shell in Termux).
 
 ## 2. Naming rules
@@ -31,12 +32,10 @@ Today "core" means three different things: the Odin program, `ui/core.js`, and p
 - **Functions**: `noun_verb`, or `noun_noun_verb` when needed: `chat_save`, `plugin_files_list`,
   `page_option_set`. The noun is the module (and the file name); the verb comes from the closed
   list below.
-- **Decide 2**, casing: (a) `snake_case` for the app's functions and data fields in every
-  language (Odin, JS, Kotlin adapters' app-facing side, JSON files), so the same name is found
-  everywhere with one search; (b) each language's own convention (`chat_save` in Odin,
-  `chatSave` in JS and Kotlin, camelCase in JSON). With (a), plugin.json and config fields
-  change too (`content_script`, `min_app`, `plugin_settings`); saved config is migrated, plugin
-  files need no compatibility (alpha).
+- **Casing (decided 2026-11-20)**: `snake_case` for the app's functions and data fields in every
+  language (Odin, JS, the platform's app-facing side, JSON files), so one search finds a name in
+  every layer. plugin.json and config fields follow (`content_script`, `min_app`,
+  `plugin_settings`); saved config is migrated, plugin files need no compatibility (alpha).
 - **Records** (the shapes of data): `PascalCase` (`Chat`, `Turn`, `Block`, `Manifest`).
 - **Constants**: `UPPER_SNAKE` (`PAGES_MAX`).
 - **Events**: `noun_past_tense` (`chat_saved`, `page_loaded`), or `noun_changed` for a value that
@@ -73,8 +72,8 @@ Each verb has one meaning. A new verb is added here first.
 | `migrate` | old saved data to the current format | `config_migrate` |
 | `open` / `close` | something shown or held open | `page_open`, `sheet_close` |
 | `start` / `stop` | a process, stream, job or service | `job_start`, `reply_stop` |
-| `send` | hand a message to a provider, page or the host | `page_send` |
-| `fetch` | an HTTP request through the host (any method) | `http_fetch` |
+| `send` | hand a message to a provider, page or the platform | `page_send` |
+| `fetch` | an HTTP request through the platform (any method) | `http_fetch` |
 | `run` | execute hooks, a job or a command | `hooks_run` |
 | `emit` / `on` / `off` | events | `event_emit`, `event_on` |
 | `install` / `update` | software: put in / replace with a newer version | `plugin_install` |
@@ -114,7 +113,7 @@ check (use validate or verify), make, do, handle, process, manage, util/helper.
 | `connection` | an API endpoint: name, base URL, model, which secret | for api providers |
 | `queue` | messages waiting for a page | |
 | `job` | a request from another app (local API) | |
-| `http` | requests through the host | |
+| `http` | requests through the platform | |
 | `version` | app and plugin versions | |
 | `screen` and its parts: `sheet`, `drawer`, `menu`, `toast`, `dialog`, `item` | | |
 | `theme` | colours | |
@@ -140,14 +139,14 @@ message" block), `turn.sent` what was sent after blocks and hooks, `turn.reply`,
 - "pill" → "the provider's name in the header" (and terms-check learns it).
 - "Words" section of PLUGINS.md → "Glossary".
 - Plugins › "Library" → per Decide 3.
-- Settings › "Core plugins" → per Decide 1 ("App plugins" with (a)).
+- Settings › "Core plugins" → "Runtime plugins".
 - Plugin types in the catalog: "Plugin · provider · web", "Plugin · provider · api".
 
 ## 7. Adapters (agnostic name outside, library inside)
 
 | Adapter | App-facing noun | Inside (today) |
 |---|---|---|
-| browser views and pages | `page`, `view` | GeckoView |
+| browser views and pages (platform) | `page`, `view` | GeckoView |
 | repository | `repo` | JGit |
 | secure storage | `secret` | Android Keystore |
 | HTTP out | `http` | HttpURLConnection |
@@ -159,9 +158,10 @@ message" block), `turn.sent` what was sent after blocks and hooks, `turn.reply`,
 
 ## Decisions
 
-1. Tag for the app's own plugins: `app` or keep `core`.
-2. Casing: `snake_case` everywhere, or each language's convention.
-3. The plugins' list: "Catalog", "Catalogue", or keep "Library".
+Decided: the layers (core, platform, runtime), `snake_case` everywhere.
 
-Also confirm or change: "host" for the Kotlin app, "runtime" for `ui/core.js`, `repo` for git,
-the turn fields (`message`, `sent`), and the verb list.
+Open:
+3. The plugins' list: "Catalog", "Catalogue", or keep "Library".
+4. "Loader" for `ui/core.js`.
+
+Also confirm or change: `repo` for git, the turn fields (`message`, `sent`), and the verb list.
