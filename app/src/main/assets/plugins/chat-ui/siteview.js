@@ -83,7 +83,7 @@ const svLayer = () => {
     h("div", { class: "svtabs", role: "tablist" }, ...[...Array(n).keys()].map(tab),
       h("button", { class: "ic", "aria-label": "New tab", title: "New tab: a new chat", onclick: newTab }, svgIcon("plus"))),
     h("div", { class: "svbar" },
-      h("label", { class: "search" }, h("input", { id: "url", "aria-label": "Page address", value: p.url || "", "data-keep": "svurl", onkeydown: (e) => e.key === "Enter" && go(e), onchange: go })),
+      h("label", { class: "search" }, h("input", { id: "url", "aria-label": "Page address", value: p.url || "", onkeydown: (e) => e.key === "Enter" && go(e), onchange: go })),
       h("button", { class: "ic", "aria-label": "Reload", title: "Reload the page", onclick: () => api("/api/app/action", { action: "reload", page: k }).catch((e) => toast(e.message, "error")) }, svgIcon("retry"))),
     linked
       ? h("div", { class: "foot svlink" }, h("span", { class: "grow" }, "Linked to chat: " + (linked.meta.title || "Chat")), h("button", { class: "pill", onclick: () => ((S.sv = false), openChat(linked.path).catch((e) => toast(e.message, "error"))) }, "Open chat"))

@@ -31,6 +31,9 @@ const reorderDrag = (e, rows, from, onDrop) => {
     if (to !== from) els[to].classList.add(to > from ? "db" : "dt");
   };
   const end = (apply) => {
+    els.forEach((r) => r.classList.remove("dt", "db"));
+    src.classList.remove("dragging");
+    src.style.transform = "";
     grip.removeEventListener("pointermove", move);
     grip.removeEventListener("pointerup", up);
     grip.removeEventListener("pointercancel", cancel);
@@ -90,7 +93,7 @@ const openQuick = () => {
       const g = r.group && (mine.groups || []).find((x) => x.id === r.group);
       return h(
         "div",
-        { class: "it" + (live ? "" : " off"), "data-qp": i, "data-row": "plus." + rowName(r) },
+        { class: "it" + (live ? "" : " off"), "data-qp": i, "data-row": "plus." + rowName(r), "data-key": "qp:" + P.rowKey(r) },
         h("button", { class: "grip", "aria-label": "Drag to reorder", title: "Drag to reorder", onpointerdown: (e) => reorderDrag(e, rowEls, i, (from, to) => (P.moveRowTo(pre, from, to), rerenderSheet())), onclick: (e) => e.stopPropagation() }, svgIcon("grip")),
         h("div", { class: "g" }, rowName(r).replace(/^System prompt: /, ""), h("small", {}, plainKind(r, true) + (g && g.on === false ? " · its group is off" : ""))),
         moveBtns(i, pre.rows.length, (d) => (P.moveRow(pre, i, d), rerenderSheet())),

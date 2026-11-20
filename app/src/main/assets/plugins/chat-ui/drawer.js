@@ -227,6 +227,7 @@ const selPaths = () => [...S.sel].map(kName);
 const holdToSelect = (el, k) => {
   el.addEventListener("pointerdown", (e) => {
     if (S.selMode || e.target.closest(".pb, .grip")) return;
+    el = e.currentTarget; // the row on the page (the one this handler was built with may be a thrown-away copy)
     const x = e.clientX, y = e.clientY;
     const timer = setTimeout(() => ((S.selMode = true), (S.sel = new Set()), toggleSel(k)), 450);
     const stop = () => {
@@ -286,6 +287,9 @@ const startDrag = (e, k) => {
   const move = (ev) => ((y = ev.clientY), aim());
   const end = (apply) => {
     cancelAnimationFrame(raf);
+    clear();
+    src.classList.remove("dragging");
+    src.style.transform = "";
     grip.removeEventListener("pointermove", move);
     grip.removeEventListener("pointerup", up);
     grip.removeEventListener("pointercancel", cancel);
@@ -309,7 +313,7 @@ const gripBtn = (k) => h("button", { class: "grip", "aria-label": "Drag to move"
 const checkBox = (on) => h("span", { class: "cb" + (on ? " on" : ""), "aria-hidden": "true" }, on ? svgIcon("check") : null);
 // A row you tap (and reach with the keyboard).
 const tapRow = (cls, k, onTap, kids, extra = {}) =>
-  h("div", { class: cls, "data-ck": k, role: "button", tabindex: "0", onclick: onTap, onkeydown: (e) => (e.key === "Enter" || e.key === " ") && e.target === e.currentTarget && (e.preventDefault(), onTap()), ...extra }, kids);
+  h("div", { class: cls, "data-ck": k, "data-key": "ck:" + k, role: "button", tabindex: "0", onclick: onTap, onkeydown: (e) => (e.key === "Enter" || e.key === " ") && e.target === e.currentTarget && (e.preventDefault(), onTap()), ...extra }, kids);
 
 // Whether a chat is being answered or has an answer you have not seen (parallel
 // chats fill this in).
@@ -338,13 +342,13 @@ const chatRowFor = (c, { depth = 0, drag = true, search = false } = {}) => {
 };
 
 const folderPanel = (f) => {
-  const input = h("input", { value: dBase(f), "aria-label": "Folder name", "data-keep": "folder-name" });
+  const input = h("input", { value: dBase(f), "aria-label": "Folder name" });
   const inside = S.chats.filter((c) => under(c.path, f)).length;
   const rename = () => applyPlan(planRename(dModel(), f, input.value), `rename folder: ${f}`).then((ok) => ok && ((S.fedit = null), render()));
   input.onkeydown = (e) => e.key === "Enter" && rename();
   return h(
     "div",
-    { class: "search fpanel", style: "margin-left:16px" },
+    { class: "search fpanel", style: "margin-left:16px", "data-key": "fpanel:" + f },
     input,
     h(
       "div",
@@ -443,7 +447,7 @@ closeDrawer = () => {
 };
 
 const makeFolderBox = () => {
-  const input = h("input", { placeholder: "Folder name (use / for a subfolder)", "aria-label": "New folder name", "data-keep": "new-folder", value: S.folder ? S.folder + "/" : "" });
+  const input = h("input", { placeholder: "Folder name (use / for a subfolder)", "aria-label": "New folder name", value: S.folder ? S.folder + "/" : "" });
   let busy = false;
   const go = async () => {
     if (busy) return;
@@ -464,8 +468,8 @@ const makeFolderBox = () => {
     }
   };
   input.onkeydown = (e) => e.key === "Enter" && go();
-  setTimeout(() => input.focus(), 0);
-  return h("div", { class: "search", style: "gap:6px" }, input, h("button", { class: "pill", onclick: go }, "Create"));
+  setTimeout(() => input.isConnected && input.focus(), 0); // only when the box has just opened (a redraw keeps the old box)
+  return h("div", { class: "search", style: "gap:6px", "data-key": "newfolder" }, input, h("button", { class: "pill", onclick: go }, "Create"));
 };
 
 const selectBar = (m) => {
@@ -544,7 +548,6 @@ const renderDrawer = () => {
     S.newFolderBox ? makeFolderBox() : null,
     h("label", { class: "search" }, h("span", { class: "ch" }, svgIcon("search")), h("input", {
       id: "cs",
-      "data-keep": "search",
       placeholder: "Search chats, #tag",
       value: S.query,
       oninput: (e) => ((S.query = e.target.value), render()),

@@ -128,7 +128,7 @@ const openModels = () => {
 // otherwise a new local chat linked to it.
 // Open any chat on the site by pasting its link.
 const siteLinkRow = () => {
-  const input = h("input", { class: "grow", type: "url", placeholder: "Paste a chat link", "data-keep": "sitelink", onkeydown: (e) => e.key === "Enter" && go() });
+  const input = h("input", { class: "grow", type: "url", placeholder: "Paste a chat link", onkeydown: (e) => e.key === "Enter" && go() });
   const go = () => {
     const url = input.value.trim();
     if (!/^https?:\/\//.test(url)) return toast("Paste a chat link (https://…)", "error");
@@ -137,12 +137,11 @@ const siteLinkRow = () => {
   return h("div", { class: "row site-link" }, input, h("button", { class: "small", onclick: go }, "Open"));
 };
 
-const tagInput = (placeholder, onAdd, keep) =>
+const tagInput = (placeholder, onAdd) =>
   h("input", {
     class: "tag-input",
     placeholder,
     list: "known-tags",
-    "data-keep": keep,
     onkeydown: (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
@@ -154,137 +153,52 @@ const tagInput = (placeholder, onAdd, keep) =>
   });
 
 // ---------- rendering ----------
-
-// STOPGAP, not the design: render() rebuilds the whole screen, so what the person
-// is doing has to be carried over by hand. The real fix is a UI that updates in
-// place (the live reply box already does, see syncLive); when the screens are
-// reworked this whole block should go. What is carried over: where each list is scrolled, and what they have typed into a
-// sheet's fields. Without this, lists jumped back to the top and sheets lost
-// their text whenever anything in the background redrew.
-const SCROLLERS = ".chat, .drawer, .sheet, .body, .pipe-preview, .core-log, .dd-list";
-// A sheet's fields have no ids, so each is named by what it is (tag, type, placeholder,
-// label) plus its number among fields of the same name: it survives fields being added.
-const fieldKey = (f, all) => {
-  const name = [f.tagName, f.type, f.placeholder, f.name, f.getAttribute("aria-label"), f.dataset.keep].join("|");
-  return name + "#" + all.filter((x) => x === f || [x.tagName, x.type, x.placeholder, x.name, x.getAttribute("aria-label"), x.dataset.keep].join("|") === name).indexOf(f);
+// render() builds the whole screen and morph() (morph.js) applies it to the screen that is
+// there, changing only what differs. The elements stay, so what the person is doing survives a
+// redraw by itself: typing (with the keyboard's word in progress), a selection, focus, where
+// each list is scrolled, folds they opened. The screen's parts and every list carry keys
+// (data-key) so each is matched to itself. Handlers act on their event's element, not on
+// elements from the build (see morph.js).
+const keyed = (el, key) => (el && el.setAttribute("data-key", key), el);
+// Keys that stay with an object (a message, a chat) when the list around it changes.
+const objKeys = new WeakMap();
+let objSeq = 0;
+const objKey = (o, prefix) => {
+  if (!objKeys.has(o)) objKeys.set(o, prefix + ++objSeq);
+  return objKeys.get(o);
 };
-const textLike = (f) => f.tagName === "TEXTAREA" || (f.tagName === "INPUT" && /^(text|search|url|password|email|number|)$/.test(f.type));
-// A selection inside one text block of a message: which block, and where in its text.
-const TEXT_BLOCK = ".you, .ai .md, .thinbox .md, .live-box .md";
-const selectionSpot = () => {
-  const sel = window.getSelection();
-  if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
-  const r = sel.getRangeAt(0);
-  const host = (n) => (n.nodeType === 1 ? n : n.parentElement)?.closest?.(TEXT_BLOCK);
-  const block = host(r.startContainer);
-  const turn = block?.closest(".turn");
-  if (!block || !turn || block !== host(r.endContainer)) return null;
-  const at = (node, off) => {
-    const pre = document.createRange();
-    pre.selectNodeContents(block);
-    pre.setEnd(node, off);
-    return pre.toString().length;
-  };
-  return { turn: turn.id, n: [...turn.querySelectorAll(TEXT_BLOCK)].indexOf(block), from: at(r.startContainer, r.startOffset), to: at(r.endContainer, r.endOffset) };
-};
-const restoreSelection = (spot) => {
-  const block = [...(document.getElementById(spot.turn)?.querySelectorAll(TEXT_BLOCK) || [])][spot.n];
-  if (!block) return;
-  const point = (off) => {
-    const walk = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
-    for (let node, left = off; (node = walk.nextNode()); ) {
-      if (left <= node.length) return [node, left];
-      left -= node.length;
-    }
-    return null;
-  };
-  const [a, b] = [point(spot.from), point(spot.to)];
-  if (!a || !b) return;
-  const r = document.createRange();
-  r.setStart(...a);
-  r.setEnd(...b);
-  const sel = window.getSelection();
-  sel.removeAllRanges();
-  sel.addRange(r);
-};
-const snapshotView = () => {
-  const spots = [];
-  const seen = {};
-  for (const el of app.querySelectorAll(SCROLLERS)) {
-    const k = el.className;
-    const i = (seen[k] = (seen[k] ?? -1) + 1);
-    if (el.scrollTop || el.scrollLeft) spots.push({ k, i, top: el.scrollTop, left: el.scrollLeft });
-  }
-  const fields = [...app.querySelectorAll(".sheet input, .sheet textarea, .sheet select")];
-  const typed = fields.filter((f) => f.dataset.edited && textLike(f)).map((f) => ({ key: fieldKey(f, fields), value: f.value }));
-  const active = fields.includes(document.activeElement) ? document.activeElement : null;
-  return {
-    spots,
-    typed,
-    focus: active && fieldKey(active, fields),
-    sel: active && active.selectionStart != null ? [active.selectionStart, active.selectionEnd] : null,
-    // The sheet on screen now, not S.sheet (already the next one when a new sheet opens).
-    sheet: app.querySelector(".sheet")?.getAttribute("aria-label"),
-    selection: selectionSpot(),
-    pinned: nearBottom(),
-  };
-};
-const restoreView = (v, hadSheet) => {
-  const sameSheet = hadSheet && sheetTitle() === v.sheet;
-  const seen = {};
-  for (const el of app.querySelectorAll(SCROLLERS)) {
-    const k = el.className;
-    const i = (seen[k] = (seen[k] ?? -1) + 1);
-    // A different sheet opening starts at its top; the same sheet redrawn keeps its place.
-    if (/\b(sheet|body)\b/.test(k) && !sameSheet) continue;
-    const spot = v.spots.find((x) => x.k === k && x.i === i);
-    if (spot) (el.scrollTop = spot.top), (el.scrollLeft = spot.left);
-  }
-  if (sameSheet) {
-    const fields = [...app.querySelectorAll(".sheet input, .sheet textarea, .sheet select")];
-    const byKey = new Map(fields.map((f) => [fieldKey(f, fields), f]));
-    for (const t of v.typed) {
-      const f = byKey.get(t.key);
-      if (f) (f.value = t.value), (f.dataset.edited = "1");
-    }
-    const f = v.focus && byKey.get(v.focus);
-    if (f) {
-      f.focus({ preventScroll: true });
-      if (v.sel) try { f.setSelectionRange(v.sel[0], v.sel[1]); } catch (e) {}
-    }
-  }
-  if (v.selection) restoreSelection(v.selection);
-};
-// A field counts as typed into once the person changed it.
-document.addEventListener("input", (e) => {
-  if (e.target?.closest?.(".sheet")) e.target.dataset.edited = "1";
-}, true);
-
+const turnKey = (t) => objKey(t, "t");
+const chatKey = (c) => (c.path ? "chat:" + c.path : objKey(c, "chat:new"));
 const withClass = (el, cls) => (cls && el.classList.add(cls.trim()), el);
 render = () => {
-  const keepFocus = document.activeElement?.dataset?.keep;
-  const draft = document.querySelector("#msg")?.value;
-  const view = snapshotView();
-  const hadSheet = !!document.querySelector(".sheet");
-  const hadDrawer = !!document.querySelector(".drawer");
-  app.replaceChildren(...[safeBanner(), renderTop(), renderMessages(), jumpButton(), ...renderComposer(draft)].filter(Boolean));
+  const pinned = nearBottom();
   // A layer slides in only when it opens, never again on a redraw (that read as it
   // tucking away and reopening on every tap).
   const enter = (was) => (was ? "" : " enter");
-  if (S.sv) app.append(svLayer());
-  if (S.drawer) app.append(h("div", { class: "drawer-scrim", onclick: closeDrawer }), withClass(renderDrawer(), enter(hadDrawer)));
-  if (S.siteMenu) app.append(siteMenu());
-  if (S.sheet) app.append(withClass(renderSheet(), enter(hadSheet)));
+  const hadSheet = !!app.querySelector(":scope > .layer > .sheet");
+  const hadDrawer = !!app.querySelector(":scope > .drawer");
   maybeTour();
   const tl = S.tour && tourLayer();
-  if (tl) app.append(tl);
-  if (S.help || S.helpCard) app.append(helpLayer());
-  restoreView(view, hadSheet);
+  morph(app, [
+    keyed(safeBanner(), "safe"),
+    keyed(renderTop(), "top"),
+    keyed(renderMessages(), chatKey(S.chat)),
+    keyed(jumpButton(), "jump"),
+    ...renderComposer(),
+    S.sv ? keyed(svLayer(), "sv") : null,
+    S.drawer ? keyed(h("div", { class: "drawer-scrim", onclick: closeDrawer }), "drawer-scrim") : null,
+    S.drawer ? keyed(withClass(renderDrawer(), enter(hadDrawer)), "drawer") : null,
+    S.siteMenu ? keyed(siteMenu(), "sitemenu") : null,
+    // Each sheet is its own: another sheet starts at its top with empty fields.
+    S.sheet ? keyed(withClass(renderSheet(), enter(hadSheet)), "sheet:" + sheetTitle()) : null,
+    tl ? keyed(tl, "tour") : null,
+    S.help || S.helpCard ? keyed(helpLayer(), "help") : null,
+  ]);
   if (S.tour) tourSpot();
   // Reading at the very bottom, you stay at the bottom as the chat grows; anywhere
   // above it, your place is never moved (new replies show on the jump button).
-  if (view.pinned && followOn()) scrollDown();
-  if (keepFocus) document.querySelector(`[data-keep="${keepFocus}"]`)?.focus({ preventScroll: true });
+  if (pinned && followOn()) scrollDown();
+  renderLive(); // the waiting replies keep their own content (data-own): bring them up to date
   syncSiteView();
 };
 
@@ -332,12 +246,16 @@ const jumpButton = () => {
           const i = Math.min(...S.unseen);
           S.unseen = [];
           document.getElementById("turn-" + i)?.scrollIntoView({ behavior: "smooth", block: "start" });
-          document.querySelector(".jump")?.replaceWith(jumpButton());
+          refreshJump();
         } else scrollDown(true);
       },
     },
     n ? `${n} new ${n === 1 ? "reply" : "replies"} ↓` : "Jump to latest ↓",
   );
+};
+const refreshJump = () => {
+  const j = app.querySelector(":scope > .jump");
+  if (j) morph(j, keyed(jumpButton(), "jump"));
 };
 // Seen = scrolled into view.
 const checkSeen = (box) => {
@@ -348,12 +266,12 @@ const checkSeen = (box) => {
     const el = document.getElementById("turn-" + i)?.querySelector(".ai");
     return !el || el.getBoundingClientRect().top > bottom - 60;
   });
-  if (S.unseen.length !== before) document.querySelector(".jump")?.replaceWith(jumpButton());
+  if (S.unseen.length !== before) refreshJump();
 };
 
 renderStatus = () => {
   const el = document.querySelector(".top .site-pill");
-  if (el) el.replaceWith(siteButton());
+  if (el) morph(el, siteButton());
   const pr = document.querySelector(".progress .progress-text");
   if (pr) pr.textContent = composerProgress();
   renderLive();
@@ -664,11 +582,12 @@ const renderMessages = () => {
             h("button", { class: "pill", onclick: () => (queued.splice(i, 1), render()) }, "Remove")))),
     ),
   );
-  box.addEventListener("scroll", () => {
-    const away = box.scrollHeight - box.scrollTop - box.clientHeight > 60;
+  box.addEventListener("scroll", (e) => {
+    const m = e.currentTarget; // the list on the page
+    const away = m.scrollHeight - m.scrollTop - m.clientHeight > 60;
     const j = document.querySelector(".jump");
     if (j) j.hidden = !(away || S.unseen.length > 0);
-    checkSeen(box);
+    checkSeen(m);
   }, { passive: true });
   return box;
 };
@@ -813,14 +732,14 @@ const renderTurn = (c, t, i) => {
       : h("button", { class: "pill", onclick: () => (S.openTrace.add(t), render()) }, "Show the full text"));
   const art = h(
     "article",
-    { class: "turn" + (S.highlight === i ? " hit" : ""), id: "turn-" + i },
+    { class: "turn" + (S.highlight === i ? " hit" : ""), id: "turn-" + i, "data-key": turnKey(t) },
     you,
     h(
       "div",
       { class: "ai" + (t.error ? " has-error" : "") },
       h("small", { class: "who" }, [c.meta.ai || "AI", c.meta.model].filter(Boolean).join(" · ")),
       t.pending
-        ? (() => { const box = h("div", { class: "live-box", "data-turn": i }); syncLive(box, t); return box; })()
+        ? (() => { const box = h("div", { class: "live-box", "data-turn": i, "data-own": "" }); syncLive(box, t); return box; })()
         : h("div", { class: "md", html: mdToHtml(t.reply) }),
       t.error ? h("div", { class: "error" }, "✕ " + t.error) : null,
       thin,
@@ -842,33 +761,26 @@ const renderTurn = (c, t, i) => {
   return art;
 };
 
-// Swipe a reply right to quote it, left to copy it.
+// Swipe a reply right to quote it, left to copy it. The gesture's state lives on the element
+// on the page (e.currentTarget), so a redraw in the middle of a swipe doesn't lose it.
 const onSwipe = (el, fn) => {
-  let x0 = null, y0 = 0;
   const selecting = () => !!String(window.getSelection() || "").trim();
-  el.addEventListener("touchstart", (e) => (selecting() ? (x0 = null) : ((x0 = e.touches[0].clientX), (y0 = e.touches[0].clientY))), { passive: true });
+  const reset = (s) => ((s.__swipe = null), (s.style.transform = ""));
+  el.addEventListener("touchstart", (e) => (e.currentTarget.__swipe = selecting() ? null : { x: e.touches[0].clientX, y: e.touches[0].clientY }), { passive: true });
   el.addEventListener("touchmove", (e) => {
-    if (x0 == null) return;
-    if (selecting()) return void (x0 = null, (el.style.transform = ""));
-    const dx = e.touches[0].clientX - x0;
-    if (Math.abs(e.touches[0].clientY - y0) > 40) return void (x0 = null, (el.style.transform = ""));
-    el.style.transform = `translateX(${Math.max(-60, Math.min(60, dx / 2))}px)`;
+    const s = e.currentTarget, g = s.__swipe;
+    if (!g) return;
+    if (selecting()) return void reset(s);
+    const dx = e.touches[0].clientX - g.x;
+    if (Math.abs(e.touches[0].clientY - g.y) > 40) return void reset(s);
+    s.style.transform = `translateX(${Math.max(-60, Math.min(60, dx / 2))}px)`;
   }, { passive: true });
   el.addEventListener("touchend", (e) => {
-    const dx = x0 == null ? 0 : e.changedTouches[0].clientX - x0;
-    el.style.transform = "";
-    x0 = null;
+    const s = e.currentTarget, g = s.__swipe;
+    const dx = g ? e.changedTouches[0].clientX - g.x : 0;
+    reset(s);
     if (Math.abs(dx) > 90) fn(Math.sign(dx));
   });
-};
-
-const onLongPress = (el, fn) => {
-  let timer = 0;
-  const cancel = () => clearTimeout(timer);
-  el.addEventListener("touchstart", () => (timer = setTimeout(fn, 550)), { passive: true });
-  el.addEventListener("touchmove", cancel, { passive: true });
-  el.addEventListener("touchend", cancel);
-  el.addEventListener("contextmenu", (e) => (e.preventDefault(), fn()));
 };
 
 // Code blocks get a Copy button (long-press is left to text selection).
@@ -931,20 +843,22 @@ const topBlocks = () => blockEntries("top").map((e, i) => blockFor(e, 99));
 
 // The message bar, as in the wireframe: Quick edit, the box, bigger box, Send. A line under it
 // says what else is going on (other chats being answered).
-const renderComposer = (draft) => {
+// The box is never rebuilt (morph keeps it), so what is typed, the cursor and the keyboard's
+// word in progress stay through every redraw.
+const renderComposer = () => {
   const big = !!S.expanded;
+  const live = document.getElementById("msg");
   const ta = h("textarea", {
     id: "msg",
-    "data-keep": "composer",
     placeholder: "Message",
     "aria-label": "Message",
     rows: 1,
-    value: draft ?? local("draft") ?? "",
+    value: live ? live.value : local("draft") ?? "",
     oninput: (e) => {
       local("draft", e.target.value);
       grow(e.target);
       const b = document.querySelector(".comp .send");
-      if (b && b.classList.contains("stop") !== !!(waitingTurn() && !e.target.value.trim())) b.replaceWith(sendButton(e.target.value));
+      if (b && b.classList.contains("stop") !== !!(waitingTurn() && !e.target.value.trim())) morph(b, sendButton(e.target.value));
     },
     onkeydown: (e) => {
       const enterSends = S.config.ui.enterSends;
@@ -954,14 +868,17 @@ const renderComposer = (draft) => {
       }
     },
   });
-  setTimeout(() => grow(ta), 0);
+  setTimeout(() => {
+    const box = document.getElementById("msg");
+    if (box) grow(box);
+  }, 0);
   return [
-    h("div", { class: "comp" + (big ? " big" : "") },
+    h("div", { class: "comp" + (big ? " big" : ""), "data-key": "comp" },
       h("button", { class: "ic", title: "Quick edit and add", "aria-label": "Quick edit and add", onclick: openQuick }, svgIcon("stackadd")),
       ta,
       h("button", { class: "ic", onclick: toggleExpand, title: (big ? "Smaller" : "Bigger") + " message box (Ctrl+E)", "aria-label": big ? "Smaller message box" : "Bigger message box" }, svgIcon(big ? "shrink" : "expand")),
       sendButton(ta.value)),
-    h("div", { class: "progress" }, h("span", { class: "progress-text" }, composerProgress())),
+    h("div", { class: "progress", "data-key": "progress" }, h("span", { class: "progress-text" }, composerProgress())),
   ];
 };
 

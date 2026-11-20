@@ -7,7 +7,7 @@
 
 const OFFICIAL = "Zieviox/promptpipe-plugins";
 const KINDS = [["all", "All"], ["site", "AI sites"], ["message", "Message plugins"], ["theme", "Themes"], ["tool", "Tools"]];
-const KIND_WORDS = { site: "AI site", message: "Message plugin", theme: "Theme", tool: "Tool" };
+const KIND_WORDS = { site: "AI site", message: "Message plugin", theme: "Theme", tool: "Tool", part: "App part" };
 
 // What the screen remembers while it is open. Redraws never reset it.
 const LIB = { tab: "profile", filter: "all", cat: new Map(), ticked: new Set(), done: {}, busy: false };
@@ -43,12 +43,24 @@ const catOf = (s) => LIB.cat.get(srcKey(s)) || { plugins: [], error: "", busy: f
 
 // Installed plugins first (with the update on offer from the source they came
 // from), then what the sources offer that isn't here (or is here from another source).
+// "0.7.0-alpha43-local" -> [0, 7, 0, 43]. A build with no -alphaN is a stable release: newer than any alpha.
+const appNum = (v) => {
+  const m = /^v?(\d+)\.(\d+)\.(\d+)(?:-alpha(\d+))?/.exec(String(v || ""));
+  return m ? [+m[1], +m[2], +m[3], m[4] === undefined ? 1e9 : +m[4]] : null;
+};
+// Does this app meet a plugin's "minApp"? No minApp, or a version we can't read: yes, so the plugin is tried.
+const appAtLeast = (min) => {
+  const need = appNum(min), have = appNum((S.app || {}).version);
+  if (!need || !have) return true;
+  for (let i = 0; i < 4; i++) if (have[i] !== need[i]) return have[i] > need[i];
+  return true;
+};
 const libItems = () => {
   const items = [];
   const byId = new Map();
   for (const p of S.plugins.values()) {
-    if (!p.manifest || isPart(p) || isDriver(p)) continue;
-    const it = { id: p.id, name: p.manifest.name || p.id, kind: kindOfPlugin(p), plugin: p, version: p.manifest.version, update: null };
+    if (!p.manifest || isDriver(p)) continue;
+    const it = { id: p.id, name: p.manifest.name || p.id, kind: isPart(p) ? "part" : kindOfPlugin(p), part: isPart(p), plugin: p, version: p.manifest.version, update: null };
     items.push(it);
     byId.set(p.id, it);
   }
@@ -58,7 +70,10 @@ const libItems = () => {
       const have = byId.get(e.id);
       const offer = { src: s, entry: e };
       if (have && fromSrc(have.plugin, e.id, s)) {
-        if (verNewer(e.version, have.version)) have.update = offer;
+        if (verNewer(e.version, have.version)) {
+          if (appAtLeast(e.minApp)) have.update = offer;
+          else have.needsApp = e.minApp;
+        }
       } else offers.push({ id: e.id, name: e.name || e.id, kind: e.kind || "tool", plugin: null, version: e.version, offer, installedElsewhere: !!have });
     }
   }
@@ -106,7 +121,12 @@ const installOffer = async ({ src, entry }) => {
     const sure = await askUser(`${entry.name || entry.id} is already here (${where}). Replace it with the one from ${srcName(srcKey(src))}?`, { ok: "Replace" });
     if (!sure) return null;
   }
-  const r = await api("/api/plugins/install", { url: rawOf(src, entry.path.replace(/\/$/, "") + "/plugin.json") });
+  // The catalogue's hash for this plugin: the core refuses files that don't match it. The official
+  // list must carry one (tools/hash.py in the plugins repo writes them); a core too old to check
+  // hashes installs as before.
+  const canCheck = ((S.app || {}).features || []).includes("hash");
+  if (canCheck && src.official && !entry.sha256) throw new Error(`${entry.name || entry.id} has no hash in the official list (run tools/hash.py in the plugins repo)`);
+  const r = await api("/api/plugins/install", { url: rawOf(src, entry.path.replace(/\/$/, "") + "/plugin.json"), sha256: entry.sha256 || "" });
   S.config.pluginFrom = { ...(S.config.pluginFrom || {}), [r.id]: srcKey(src) };
   return { id: r.id, fresh: !have };
 };
@@ -142,8 +162,17 @@ const installOffers = async (offers, { quiet = false } = {}) => {
 const updateAll = async () => {
   const list = updateItems().map((i) => i.update);
   if (list.length) await installOffers(list, { quiet: true });
-  const r = await updatePlugins({ quiet: list.length > 0 });
-  if (list.length && !(r && r.updated)) toast(`Updated ${list.length} plugin${list.length === 1 ? "" : "s"}`);
+  // The release bundle is a fallback, off unless config.updates.bundle is true.
+  const r = (S.config.updates || {}).bundle === true ? await updatePlugins({ quiet: list.length > 0 }) : null;
+  if (list.length && !(r && r.updated)) toast(`Updated ${list.length} plugin${list.length === 1 ? "" : "s"}. Restart the app to use them.`);
+};
+
+// Check for updates: ask the sources again and say what there is.
+const checkUpdates = async () => {
+  toast("Checking for plugin updates…");
+  await Promise.all(onSources().map((s) => loadSource(s)));
+  const n = updateCount();
+  toast(n ? `${n} update${n === 1 ? "" : "s"} available: tap Update all` : "Everything is up to date");
 };
 
 const rollBack = async (id) => {
@@ -186,7 +215,7 @@ const origin = (it) =>
 
 // Library: an installed plugin's card. Its update shows as old → new.
 const libRow = (it) =>
-  item({ id: "library.pl" + it.id, label: it.name, sub: [KIND_WORDS[it.kind] || "Plugin", (it.version || "?") + (it.update ? " → " + it.update.entry.version : ""), origin(it)].filter(Boolean).join(" · "), badge: it.update ? "Update" : null, right: it.update ? null : "›", onclick: () => openPluginPage(it.id) });
+  item({ id: "library.pl" + it.id, label: it.name, sub: [KIND_WORDS[it.kind] || "Plugin", (it.version || "?") + (it.update ? " → " + it.update.entry.version : ""), it.needsApp ? "update needs app " + it.needsApp : "", origin(it)].filter(Boolean).join(" · "), badge: it.update ? "Update" : null, right: it.update ? null : "›", onclick: () => openPluginPage(it.id) });
 
 // The Plugins screen's tabs; the Profile tab's dot says a plugin it uses has an update.
 const tabs = () => {
@@ -201,7 +230,7 @@ const libUpdate = (id) => updateItems().some((i) => i.id === id);
 const libraryTab = () => {
   const n = updateCount();
   const busy = (S.updates || {}).busy;
-  const items = libItems().filter((i) => i.plugin && (LIB.filter === "all" || i.kind === LIB.filter)).sort((a, b) => !!b.update - !!a.update || a.name.localeCompare(b.name));
+  const items = libItems().filter((i) => i.plugin && (!i.part || i.update) && (LIB.filter === "all" || i.kind === LIB.filter)).sort((a, b) => !!b.update - !!a.update || a.name.localeCompare(b.name));
   const on = onSources();
   return [
     filterChips(KIND_CHIPS, LIB.filter, (k) => (LIB.filter = k)),
@@ -213,7 +242,7 @@ const libraryTab = () => {
     item({ id: "library.getp", label: "Get plugins", sub: "From " + on.length + (on.length === 1 ? " source" : " sources"), chev: true, onclick: () => openGetPlugins() }),
     item({ id: "library.inst", label: "Install from a file or link", chev: true, onclick: openInstall }),
     item({ id: "library.guide", label: "Plugin guide", sub: "Writing plugins, copy instructions for AI", chev: true, onclick: openPluginGuide }),
-    item({ id: "library.appupd", label: "Check for app updates", sub: busy ? "Checking…" : (S.updates || {}).error ? "Last check: " + S.updates.error : "The app's own plugins and parts", onclick: () => updatePlugins({}) }),
+    item({ id: "library.appupd", label: "Check for app updates", sub: busy ? "Checking…" : (S.updates || {}).error ? "Last check: " + S.updates.error : "The app's own plugins and parts", onclick: checkUpdates }),
     h("div", { class: "lbl" }, "Sources"),
     ...srcList().map(sourceRow),
     item({ id: "library.addsrc", label: "Add a source", sub: "Another GitHub repo with plugins", chev: true, onclick: openAddSource }),

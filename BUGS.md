@@ -154,7 +154,7 @@ Not started. Same statuses as above. Fixes first, then the release items.
 
 Every fixed bug above came from one of these. Build them in from the start.
 
-0. **Fix causes, not symptoms.** Bugs 1-3 and 64 were all one disease: a screen that is thrown away and rebuilt, then patched to remember. In this branch the remembering (`snapshotView` / `restoreView` in chat-ui) is a stopgap and the live reply box is the model to copy: build nodes once, update them in place, never rebuild what a person is touching. No guard layers on top of a design that needs them.
+0. **Fix causes, not symptoms.** Bugs 1-3 and 64 were all one disease: a screen that is thrown away and rebuilt, then patched to remember. In this branch the remembering (`snapshotView` / `restoreView` in chat-ui) is a stopgap and the live reply box is the model to copy: build nodes once, update them in place, never rebuild what a person is touching. No guard layers on top of a design that needs them. **Done in `chat-ui` 2.0.0 (2026-11-20, section 14):** the screen is patched in place (`chat-ui/morph.js`) and the stopgap is gone.
 1. **A redraw never resets anything.** Scroll place of every list, focus, text selection, typed text and folded/unfolded state must survive. Best: update in place and never rebuild what the person is using; if a screen is rebuilt, carry all of it over. (Bugs 2, 3, 27, 57, 60.)
 2. **Layers are a stack, not a pile of history calls.** Sheets, menus and the chats list are one stack with one back-button entry. Closing and opening in the same moment must be safe. (Bug 1.)
 3. **Never swallow an error.** Every action that can fail says so on screen, with the reason, and leaves the person where they were. A button that does nothing is the worst bug. (Bugs 3, 5.)
@@ -290,3 +290,21 @@ The report was copied from a chat where nothing came back. DeepSeek's page was i
 | 247 | DeepSeek's human check ("One more step before you proceed...") isn't recognised | fixed in code (stub page only), waiting for Gtex phone check | The report has Cloudflare's check (`#cf-overlay`, `#cf-turnstile`) in the page. It may have been hidden; the report doesn't say. When it shows, DeepSeek 1.2.0 (with the new APK) stops the send at once with "DeepSeek wants to check that you're human. Tap the site name, finish the check on the page, then Retry." Not seen working on a real page. |
 
 Not covered: DeepSeek refusals shown as a pop-up message (`.ds-notification-container`) rather than in the chat list, for example "too many messages". None was in the report; a page report taken while one shows would tell where it sits.
+
+---
+
+## 14. Chat screen 2.0.0: a redraw patches the screen, 2026-11-20
+
+The chat screen used to throw itself away and rebuild on every redraw, then put back what it could (scroll places, typed text, one selection, focus): the stopgap named in "What the blind rebuild must get right", point 0. In `chat-ui` 2.0.0 every redraw still describes the whole screen, but it is applied by a patcher (`chat-ui/morph.js`) that changes only what differs, so the elements a person is using stay the same elements. Nothing is saved and put back any more. Plugin only: works on the current APK, other plugins' sheets included.
+
+Checked in a desktop browser at phone size with the stand-in (`scripts/ux/redraw-check.js`, 22 checks, all pass) and the patcher on its own (`scripts/ux/morph-test.js`, 15 checks). The same redraw check run against `chat-ui` 1.14.4 fails 4 of them: #249 (twice), #250 and #251. Not seen on a phone yet: the keyboard rows in particular need Gboard or Samsung Keyboard to confirm.
+
+| # | Bug | Status | Notes |
+|---|---|---|---|
+| 249 | A word being typed gets doubled or lost when the screen redraws (also right as a reply finishes) | fixed in code (stand-in), waiting for Gtex phone check | Part of #29. The keyboard keeps the word it is suggesting for (the underlined one); a redraw replaced the message box, so the word was lost, and finishing it doubled it ("next wor" + "words" gave "next worwords" with 1.14.4). Redraws come while a reply streams in, a page reports an address, a save finishes. Now the box is never replaced. **On the phone:** start a reply that takes a while, and while it comes in type a long sentence with suggestions on: no doubled or vanishing words, the cursor doesn't jump. |
+| 250 | A tap on a chat in the list sometimes starts "select chats" | fixed in code (stand-in), waiting for Gtex phone check | If the screen redrew between finger down and finger up, the lift was missed and the hold timer ran out: select mode came on from a plain tap. The hold now listens on the row that is on the page. |
+| 251 | The site view's address bar is overwritten while you type in it | fixed in code (stand-in), waiting for Gtex phone check | Screen side of #240: when the page reported a new address, the bar took it even with the cursor in it. A field that has the focus is never written to now; the page's address shows once you leave the bar. |
+| 252 | A selection spanning two blocks (your message into the reply) was dropped on a redraw | fixed in code (stand-in), waiting for Gtex phone check | The stopgap put back a selection only inside one text block. Now nothing is torn down, so any selection stays (checked: one from your message into the reply stays through five redraws). The phone's selection handles and menu should no longer be interrupted mid-drag; that needs the phone. |
+
+Find drew its results by hand into its own list, which the patcher would have broken; its results are now part of the sheet. What 2.0.0 also changes, for anyone editing the screen: every list carries keys (`data-key`, or the existing `data-row` names); a handler acts on its event's element, not on an element kept from the build; a field's value is changed only when the render asks for a different one and never while it has the focus. See PLUGINS.md, "Your own screens".
+

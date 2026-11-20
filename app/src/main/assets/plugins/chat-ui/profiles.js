@@ -137,7 +137,7 @@ const editorBody = () => {
     const live = r.type === "message" || P.rowLive(pre, r);
     const g = r.group && (pre.groups || []).find((x) => x.id === r.group);
     const extra = [r.type === "piece" && r.when && r.when !== "every" ? P.whenLabel(r) : "", r.type === "piece" && !(r.text || "").trim() ? "empty, not sent" : "", g ? g.name + (g.on === false ? " (off)" : "") : ""].filter(Boolean);
-    return h("div", { class: "it" + (live ? "" : " off"), "data-pipe": i, "data-row": "plugins.row" + i },
+    return h("div", { class: "it" + (live ? "" : " off"), "data-pipe": i, "data-row": "plugins.row" + i, "data-key": "pipe:" + P.rowKey(r) },
       h("button", { class: "grip", "aria-label": "Drag to reorder", title: "Drag to reorder", onpointerdown: (e) => reorderDrag(e, rowEls, i, (from, to) => (P.moveRowTo(pre, from, to), redraw())), onclick: (e) => e.stopPropagation() }, svgIcon("grip")),
       h("button", { class: "g", title: "Open this row", onclick: () => openRowPage(r) }, rowTitle(r), h("small", {}, [plainKind(r), ...extra].join(" · "))),
       moveBtns(i, pre.rows.length, (d) => (P.moveRow(pre, i, d), redraw())),

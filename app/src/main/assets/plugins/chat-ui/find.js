@@ -204,86 +204,97 @@ const goToMessage = async (e) => {
 };
 
 // ---------- the Find sheet ----------
+// The results are part of the sheet: typing updates FIND and the query, and the sheet is drawn
+// again (the patcher keeps the box, so typing is never interrupted).
+const FIND = { sel: 0, keys: false, picks: [], timer: 0, indexing: false, error: "" };
+const findPick = (e) => {
+  if (!e.chat && e.name && e.run) S.config.findRecent = [e.name, ...(S.config.findRecent || []).filter((n) => n !== e.name)].slice(0, 3), saveConfig();
+  const flash = e.flash;
+  runFromSheet(e);
+  if (flash) flashControl(flash);
+};
+// Reading every chat for message search: once, then the sheet is drawn again.
+const findIndex = () => {
+  if (S.index || FIND.indexing) return;
+  FIND.indexing = true;
+  FIND.error = "";
+  buildIndex()
+    .catch((e) => (FIND.error = e.message))
+    .finally(() => ((FIND.indexing = false), rerenderSheet()));
+};
+const findResults = (q) => {
+  const { keys } = FIND;
+  if (!q.trim()) {
+    // Nothing typed: the functions used lately, and words to try (as in the wireframe).
+    const all = findEntries();
+    const recent = (S.config.findRecent || []).map((n) => all.find((e) => e.name === n)).filter(Boolean);
+    FIND.picks = recent;
+    const tryWord = (w) => {
+      S.lastFind = w;
+      FIND.sel = 0;
+      rerenderSheet();
+      document.querySelector(".sheet .search input")?.focus();
+    };
+    return [
+      recent.length ? h("div", { class: "lbl" }, "Recent") : null,
+      recent.length ? h("div", { class: "chips" }, recent.map((e) => h("button", { class: "pill", onclick: () => findPick(e) }, e.name))) : null,
+      h("div", { class: "lbl" }, "Try"),
+      h("div", { class: "chips" }, ["model", "profile", "plugin", "prompt", "export", "folder"].map((w) => h("button", { class: "pill", onclick: () => tryWord(w) }, w))),
+    ];
+  }
+  const ranked = rankEntries(findEntries(), q);
+  const things = [...ranked.filter((e) => e.chat).slice(0, 8), ...ranked.filter((e) => !e.chat).slice(0, 25)]; // chats first, then functions
+  const wantsMessages = q.trim().length >= 2;
+  if (wantsMessages && !S.index) findIndex();
+  const hits = wantsMessages && S.index ? search(q) : [];
+  FIND.sel = Math.min(FIND.sel, Math.max(0, things.length + hits.length - 1));
+  const words = parseQuery(q).words;
+  FIND.picks = [...things, ...hits.slice(0, 200).map((e) => ({ run: () => goToMessage(e) }))];
+  const row = (e, i) =>
+    h("button", { class: "it" + (keys && i === FIND.sel ? " sel" : ""), "data-key": "f:" + (e.chat ? "c:" : "") + e.name + "|" + (e.path || ""), onclick: () => findPick(e) },
+      h("div", { class: "g" }, e.name, h("small", {}, e.path)), e.key ? h("kbd", {}, e.key) : null);
+  return [
+    things.some((e) => e.chat) ? h("div", { class: "lbl" }, "Chats") : null,
+    ...things.map((e, i) => [e.chat ? null : i === things.findIndex((x) => !x.chat) ? h("div", { class: "lbl" }, "Functions") : null, row(e, i)]).flat(),
+    wantsMessages ? h("div", { class: "lbl" }, `Messages${hits.length ? " (" + hits.length + ")" : ""}`) : null,
+    wantsMessages && FIND.error ? item({ cls: "danger", label: "Couldn't read the chats", sub: FIND.error }) : null,
+    wantsMessages && !S.index && !FIND.error ? item({ label: "Reading chats…" }) : null,
+    wantsMessages && S.index && !hits.length ? item({ label: "No message matches" }) : null,
+    ...hits.slice(0, 200).map((e, j) => {
+      const i = things.length + j;
+      return h("button", { class: "it" + (keys && i === FIND.sel ? " sel" : ""), "data-key": "m:" + e.path + "#" + e.n, onclick: () => goToMessage(e) },
+        h("div", { class: "g" }, h("span", {}, e.title, e.n >= 0 ? ` · #${e.n + 1}` : "", " · ", ChatFile.stamp(e.at), e.tags.length ? "  " + e.tags.map((t) => "#" + t).join(" ") : ""), h("small", {}, snippet(e, words))));
+    }),
+  ];
+};
 const openFind = (initial) => {
   if (initial != null) S.lastFind = initial;
+  Object.assign(FIND, { sel: 0, keys: false, error: "" });
   openSheet("Find", () => {
-    const input = h("input", { type: "search", "aria-label": "Find", placeholder: "Find chats and functions", title: 'Also "phrase", #tag, in:folder, is:you', value: S.lastFind || "", "data-keep": "find" });
-    const list = h("div", { class: "results" });
-    let sel = 0;
-    let picks = []; // { run } in the order shown
-    const pick = (e) => {
-      if (!e.chat && e.name && e.run) S.config.findRecent = [e.name, ...(S.config.findRecent || []).filter((n) => n !== e.name)].slice(0, 3), saveConfig();
-      const flash = e.flash;
-      runFromSheet(e);
-      if (flash) flashControl(flash);
-    };
-    let keys = false; // the arrows were used: show which row Enter opens
-    const row = (e, i) =>
-      h("button", { class: "it" + (keys && i === sel ? " sel" : ""), onclick: () => pick(e) },
-        h("div", { class: "g" }, e.name, h("small", {}, e.path)), e.key ? h("kbd", {}, e.key) : null);
-    const draw = async () => {
-      const q = input.value;
-      S.lastFind = q;
-      if (!q.trim()) {
-        // Nothing typed: the functions used lately, and words to try (as in the wireframe).
-        const all = findEntries();
-        const recent = (S.config.findRecent || []).map((n) => all.find((e) => e.name === n)).filter(Boolean);
-        picks = recent;
-        return list.replaceChildren(...[
-          recent.length ? h("div", { class: "lbl" }, "Recent") : null,
-          recent.length ? h("div", { class: "chips" }, recent.map((e) => h("button", { class: "pill", onclick: () => pick(e) }, e.name))) : null,
-          h("div", { class: "lbl" }, "Try"),
-          h("div", { class: "chips" }, ["model", "profile", "plugin", "prompt", "export", "folder"].map((w) => h("button", { class: "pill", onclick: () => ((input.value = w), (sel = 0), draw(), input.focus()) }, w))),
-        ].filter(Boolean));
-      }
-      const ranked = rankEntries(findEntries(), q);
-      const things = [...ranked.filter((e) => e.chat).slice(0, 8), ...ranked.filter((e) => !e.chat).slice(0, 25)]; // chats first, then functions
-      const wantsMessages = q.trim().length >= 2;
-      let hits = [];
-      if (wantsMessages) {
-        if (!S.index) {
-          list.replaceChildren(...things.map(row), item({ label: "Reading chats…" }));
-          try {
-            await buildIndex();
-          } catch (e) {
-            return list.replaceChildren(item({ cls: "danger", label: "Couldn't read the chats", sub: e.message }));
-          }
-          if (input.value !== q) return; // typed on meanwhile; that draw handles it
-        }
-        hits = search(q);
-      }
-      sel = Math.min(sel, Math.max(0, things.length + hits.length - 1));
-      const words = parseQuery(q).words;
-      picks = [...things, ...hits.slice(0, 200).map((e) => ({ run: () => goToMessage(e) }))];
-      list.replaceChildren(...[
-        things.some((e) => e.chat) ? h("div", { class: "lbl" }, "Chats") : null,
-        ...things.map((e, i) => [e.chat ? null : i === things.findIndex((x) => !x.chat) ? h("div", { class: "lbl" }, "Functions") : null, row(e, i)]).flat(),
-        wantsMessages ? h("div", { class: "lbl" }, `Messages${hits.length ? " (" + hits.length + ")" : ""}`) : null,
-        wantsMessages && !hits.length ? item({ label: "No message matches" }) : null,
-        ...hits.slice(0, 200).map((e, j) => {
-          const i = things.length + j;
-          return h("button", { class: "it" + (keys && i === sel ? " sel" : ""), onclick: () => goToMessage(e) },
-            h("div", { class: "g" }, h("span", {}, e.title, e.n >= 0 ? ` · #${e.n + 1}` : "", " · ", ChatFile.stamp(e.at), e.tags.length ? "  " + e.tags.map((t) => "#" + t).join(" ") : ""), h("small", {}, snippet(e, words))));
-        }),
-      ].filter(Boolean));
-      list.querySelector(".sel")?.scrollIntoView({ block: "nearest" });
-    };
-    let timer = 0;
-    input.oninput = () => {
-      clearTimeout(timer);
-      sel = 0;
-      timer = setTimeout(draw, 120);
-    };
-    input.onkeydown = (e) => {
-      if (e.key === "ArrowDown") ((sel = keys ? Math.min(sel + 1, picks.length - 1) : 0), (keys = true));
-      else if (e.key === "ArrowUp") ((sel = Math.max(sel - 1, 0)), (keys = true));
-      else if (e.key === "Enter" && picks[sel]) return void pick(picks[sel]);
-      else return;
-      e.preventDefault();
-      draw();
-    };
-    draw();
+    const q = S.lastFind || "";
+    const input = h("input", {
+      type: "search",
+      "aria-label": "Find",
+      placeholder: "Find chats and functions",
+      title: 'Also "phrase", #tag, in:folder, is:you',
+      value: q,
+      oninput: (e) => {
+        S.lastFind = e.target.value;
+        FIND.sel = 0;
+        clearTimeout(FIND.timer);
+        FIND.timer = setTimeout(rerenderSheet, 120);
+      },
+      onkeydown: (e) => {
+        if (e.key === "ArrowDown") (FIND.sel = FIND.keys ? Math.min(FIND.sel + 1, FIND.picks.length - 1) : 0), (FIND.keys = true);
+        else if (e.key === "ArrowUp") (FIND.sel = Math.max(FIND.sel - 1, 0)), (FIND.keys = true);
+        else if (e.key === "Enter" && FIND.picks[FIND.sel]) return void findPick(FIND.picks[FIND.sel]);
+        else return;
+        e.preventDefault();
+        rerenderSheet();
+        document.querySelector(".sheet .results .sel")?.scrollIntoView({ block: "nearest" });
+      },
+    });
     autofocus(input, true);
-    return [h("label", { class: "search" }, svgIcon("search"), input), list];
+    return [h("label", { class: "search" }, svgIcon("search"), input), h("div", { class: "results" }, findResults(q))];
   });
 };

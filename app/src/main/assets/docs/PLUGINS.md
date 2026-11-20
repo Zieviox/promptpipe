@@ -200,6 +200,26 @@ const open = () => PP.sheet("Counter", () => [
 
 The built-in System prompt plugin (stack + library) is a full example.
 
+A redraw patches the screen rather than rebuilding it: what `render()` returns
+is compared with what is on screen and only the differences change. So a field
+someone is typing in, a text selection, a scroll position or an opened fold
+stays through `PP.render()` by itself. Three things follow:
+
+- In a handler, act on the event's element (`e.currentTarget`, `e.target`) or
+  find it on the page. An element you kept in a variable while building may be
+  a thrown-away copy, because the one already on screen was kept. For form
+  fields, the copy passes `value`, `checked`, the selection and `focus()` on to
+  the kept field, so reading `input.value` when Save is tapped works.
+- Give the items of a list that changes a key, `data-key` (or `data-row`), so
+  each item is matched to itself.
+- A value you render changes the field only when it differs from what you
+  rendered last time, and never while the field has the focus: what someone
+  typed is kept until you render a different value.
+
+`data-own` marks an element whose children your own code updates (the app's
+waiting reply works this way); `PP.morph(el, newEl)` patches one element the
+same way the screen is patched.
+
 ### Running code in the AI page
 
 `await PP.site("run", { code })` runs `code` inside the AI page as

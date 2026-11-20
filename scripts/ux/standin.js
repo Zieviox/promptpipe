@@ -9,7 +9,8 @@
 // PP_PLUGINS=<folder>: a checkout of promptpipe-plugins (default: ../promptpipe-plugins, next
 // to this repo). With it, the app parts are the newer ones from there and "Get plugins"
 // installs from it. Without it, the parts are the ones this repo ships.
-// PP_PORT=<port>: default 7790. Each start begins from a first launch (build/ux-data is emptied).
+// PP_PORT=<port>: default 7790. PP_DATA=<folder>: default build/ux-data. Each start begins from a
+// first launch (the data folder is emptied).
 // The fake site answers every message with one reply (list, table, code, link, thinking).
 // A message with "fail" in it is not sent, "slow" takes 22 s, "short" gets a one-word reply.
 const http = require("http");
@@ -19,7 +20,7 @@ const path = require("path");
 const ROOT = path.join(__dirname, "../..");
 const APP = path.join(ROOT, "app/src/main/assets");
 const REPO = process.env.PP_PLUGINS || path.join(ROOT, "../promptpipe-plugins");
-const DATA = path.join(ROOT, "build/ux-data");
+const DATA = process.env.PP_DATA || path.join(ROOT, "build/ux-data");
 const PORT = +process.env.PP_PORT || 7790;
 const PARTS = ["chat-ui", "core-chatfile", "core-history", "core-jobs", "core-markdown", "core-pipeline", "core-send"];
 fs.rmSync(DATA, { recursive: true, force: true });
