@@ -23,7 +23,7 @@ app's own plugins.
 
 - The loader is the only JS that ships outside a plugin: it holds the state record, loads the
   runtime plugins (then the others), runs events and hooks, and is the `PP` surface. Everything
-  it loads is updatable from the catalog.
+  it loads is updatable from the catalogue.
 - "Platform" also frees "shell" for its standard meaning (the effects layer of a function, and the
   command shell in Termux).
 
@@ -103,7 +103,7 @@ check (use validate or verify), make, do, handle, process, manage, util/helper.
 | `profile` / `block` / `group` / `toggle` / `template` | as in the glossary | |
 | `prompt` | a System prompt in the prompt library | the library is `prompt_list` |
 | `plugin` / `manifest` | a plugin / its plugin.json | |
-| `catalog` | the list of plugins a source offers (index.json) | **Decide 3** |
+| `catalogue` | the list of plugins a source offers (index.json); the screen's "Plugins › Catalogue" | decided 2026-11-20 |
 | `source` | where plugins come from (official, a repo) | |
 | `bundle` | the release's zip of built-in plugins | |
 | `provider` | a plugin that talks to an AI service (`web` or `api`) | |
@@ -123,9 +123,8 @@ check (use validate or verify), make, do, handle, process, manage, util/helper.
 message" block), `turn.sent` what was sent after blocks and hooks, `turn.reply`, `turn.thinking`,
 `turn.tags`, `turn.error`.
 
-- **Decide 3**, the plugins' list of sources and their plugins: today the screen calls it
-  "Library", next to "Prompt library". (a) **Catalog** in code and screen ("Plugins ›
-  Catalog"); (b) "Catalogue" (British spelling) everywhere; (c) keep "Library".
+- The plugins' list is the **catalogue** (decided 2026-11-20), in code and on the screen, so it
+  can't be mixed up with the prompt library.
 
 ## 5. Events (first list)
 
@@ -138,9 +137,9 @@ message" block), `turn.sent` what was sent after blocks and hooks, `turn.reply`,
 
 - "pill" → "the provider's name in the header" (and terms-check learns it).
 - "Words" section of PLUGINS.md → "Glossary".
-- Plugins › "Library" → per Decide 3.
+- Plugins › "Library" → "Catalogue".
 - Settings › "Core plugins" → "Runtime plugins".
-- Plugin types in the catalog: "Plugin · provider · web", "Plugin · provider · api".
+- Plugin types in the catalogue: "Plugin · provider · web", "Plugin · provider · api".
 
 ## 7. Adapters (agnostic name outside, library inside)
 
@@ -158,10 +157,9 @@ message" block), `turn.sent` what was sent after blocks and hooks, `turn.reply`,
 
 ## Decisions
 
-Decided: the layers (core, platform, runtime), `snake_case` everywhere.
+Decided: the layers (core, platform, runtime), `snake_case` everywhere, "Catalogue" (2026-11-20).
 
 Open:
-3. The plugins' list: "Catalog", "Catalogue", or keep "Library".
-4. "Loader" for `ui/core.js`.
+1. "Loader" for `ui/core.js`.
 
 Also confirm or change: `repo` for git, the turn fields (`message`, `sent`), and the verb list.
