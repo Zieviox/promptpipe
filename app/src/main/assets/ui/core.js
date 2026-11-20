@@ -557,7 +557,9 @@ const updatePlugins = async ({ quiet = false, force = false } = {}) => {
     return r;
   } catch (e) {
     S.updates = { ...S.updates, busy: false, error: e.message };
-    toast("Plugin update failed: " + e.message + ". Settings › App parts has the zip to install by hand.", "error");
+    // The automatic daily check fails quietly (Settings › App parts and Plugins › Library show
+    // "Last check: …"); a check you started says so here.
+    if (!quiet) toast("Plugin update failed: " + e.message + ". Settings › App parts has the zip to install by hand.", "error");
   } finally {
     rerenderSheet();
   }
