@@ -1,11 +1,11 @@
 {
   "id": "memory",
   "name": "Memory",
-  "version": "2.5.1",
+  "version": "3.0.0",
   "description": "Puts your pinned facts and the earlier chat in front of every message, so a fresh AI chat has the context. Everything goes in full until the max is reached. After that, older messages are summarised in fixed parts (10 messages, then 10 parts, ...) kept as Markdown files next to the chat, one file per level of detail; the oldest go in at the coarsest level and recent messages stay word for word. Works across Sub-chats.",
   "main": "main.js",
-  "block": {
-    "place": "toggles",
+  "toggle": {
+    "place": "toolbar",
     "label": "Memory"
   },
   "settings": {
@@ -19,7 +19,7 @@
       "type": "number",
       "label": "Send memory every N messages",
       "default": 1,
-      "help": "1 = every message. Use a higher number if the AI site keeps the chat itself. A new site chat (a new sub-chat) always gets it."
+      "help": "1 = every message. Use a higher number if the AI website keeps the chat itself. A new site chat (a new sub-chat) always gets it."
     },
     "send": {
       "type": "select",
@@ -83,7 +83,7 @@
         "together": "One summary of both sides"
       },
       "default": "apart",
-      "help": "Apart: each part is summarised twice, once from only your messages and once from only the AI's, so the two can't be mixed up (two requests per part). In the Pipeline, Add plugin piece puts Pinned facts, Your side, AI side and Recent messages in rows of their own."
+      "help": "Apart: each part is summarised twice, once from only your messages and once from only the AI's, so the two can't be mixed up (two requests per part). In a profile, Add a block › Memory's texts puts Pinned facts, Your side, AI side and Recent messages in rows of their own."
     },
     "summaryHooks": {
       "type": "bool",

@@ -1,11 +1,11 @@
 "use strict";
-// App part (chat screen): the site view, as in the wireframe. The header (back,
-// "AI page · site", Profile and site), one tab per site page (its chat, its
-// state, close, new tab), the address bar, what the page is linked to, and the
+// Chat screen: the site view, as in the wireframe. The header (back,
+// "AI page · provider", Profile and provider), one item per site page (its chat, its
+// state, close, new page), the address bar, what the page is linked to, and the
 // hole where the real page shows. The app draws all of it; the phone's shell
 // only puts the page in the hole (told as fractions of the screen).
 
-// S.sv: the site view is open. S.svPage: the page whose tab is chosen.
+// S.sv: the site view is open. S.svPage: the page that is chosen.
 S.sv = false;
 S.svPage = 0;
 // What we last told the shell: shown or not, the page, and where the hole was.
@@ -22,24 +22,24 @@ const pageState = (k) => (pg(k).busy || Object.values(S.pageTurns || {}).some((t
 const STATE_DOT = { replying: "var(--warn)", ready: "var(--ok)", idle: "var(--muted)" };
 
 const closeSiteView = () => ((S.sv = false), render());
-const pickTab = (k) => {
+const pickPage = (k) => {
   S.svPage = k;
   const c = chatOfPage(k);
   if (c && c.path !== S.chat.path) openChat(c.path).catch((e) => toast(e.message, "error"));
   else render();
 };
 const openInPage = (url, k) => api("/api/site/open", { url, page: k }).then(() => render(), (e) => toast(e.message, "error"));
-// Closing a tab frees its page (it goes back to the site's start); the chat stays.
-const closeTab = (k) => {
-  const site = siteFor();
+// Closing a page frees it (it goes back to the site's start); the chat stays.
+const closePage = (k) => {
+  const site = providerFor();
   if (!site) return;
   openInPage(site.url, k);
-  toast("Tab closed. The chat is kept.");
+  toast("Page closed. The chat is kept.");
 };
-// A new tab: a new chat, on a page that isn't busy or showing another chat.
-const newTab = () => {
-  const site = siteFor();
-  if (!site) return toast("Get a site plugin first");
+// A new page: a new chat, on a page that isn't busy or showing another chat.
+const openNewPage = () => {
+  const site = providerFor();
+  if (!site) return toast("Get a provider first");
   const k = [...Array(pageCount()).keys()].find((i) => pageState(i) !== "replying" && !chatOfPage(i) && i !== S.svPage) ??
     [...Array(pageCount()).keys()].find((i) => pageState(i) !== "replying" && !chatOfPage(i));
   if (k == null) return toast("Every page is in use. More: Settings › Sites › Max replies at once");
@@ -52,24 +52,24 @@ const importPageChat = async (k) => {
   const url = pg(k).url;
   startNewChat();
   S.chat.meta.source = url;
-  setChatSite(siteIdOf());
+  setChatProvider(providerIdOf());
   S.sv = false;
   render();
   await importHistory();
 };
 
 const svLayer = () => {
-  const site = siteFor();
+  const site = providerFor();
   const n = Math.max(1, pageCount());
   const k = Math.min(S.svPage || 0, n - 1);
   const p = pg(k);
   const linked = chatOfPage(k);
-  const tab = (i) => {
+  const pageItem = (i) => {
     const c = chatOfPage(i);
     const state = pageState(i);
-    return h("div", { class: "it svtab" + (i === k ? " on" : ""), role: "tab", "aria-selected": String(i === k) },
-      h("button", { onclick: () => pickTab(i) }, h("span", { class: "dot", style: "margin:0;background:" + STATE_DOT[state] }), h("span", { class: "tx" }, c ? c.meta.title || "Chat" : pg(i).title || (pg(i).url ? new URL(pg(i).url).host : "Page " + (i + 1)))),
-      c && state !== "replying" ? h("button", { class: "act", "aria-label": "Close tab", onclick: () => closeTab(i) }, svgIcon("close")) : null);
+    return h("div", { class: "it svpage" + (i === k ? " on" : ""), role: "tab", "aria-selected": String(i === k), "data-key": "svpage:" + i },
+      h("button", { onclick: () => pickPage(i) }, h("span", { class: "dot", style: "margin:0;background:" + STATE_DOT[state] }), h("span", { class: "tx" }, c ? c.meta.title || "Chat" : pg(i).title || (pg(i).url ? new URL(pg(i).url).host : "Page " + (i + 1)))),
+      c && state !== "replying" ? h("button", { class: "act", "aria-label": "Close page", onclick: () => closePage(i) }, svgIcon("close")) : null);
   };
   const go = (e) => {
     const v = e.target.value.trim();
@@ -79,9 +79,9 @@ const svLayer = () => {
     h("div", { class: "top" },
       h("button", { class: "ic", "aria-label": "Back to chat", title: "Back to chat (Alt+S)", onclick: closeSiteView }, svgIcon("back")),
       h("span", { class: "t" }, "AI page · " + (site ? site.name : "no site")),
-      h("button", { class: "pill", onclick: () => ((S.sv = false), openSiteSheet()) }, "Profile and site")),
-    h("div", { class: "svtabs", role: "tablist" }, ...[...Array(n).keys()].map(tab),
-      h("button", { class: "ic", "aria-label": "New tab", title: "New tab: a new chat", onclick: newTab }, svgIcon("plus"))),
+      h("button", { class: "pill", onclick: () => ((S.sv = false), openProviderSheet()) }, "Profile and site")),
+    h("div", { class: "svpages", role: "tablist", "aria-label": "Pages" }, ...[...Array(n).keys()].map(pageItem),
+      h("button", { class: "ic", "aria-label": "New page", title: "New page: a new chat", onclick: openNewPage }, svgIcon("plus"))),
     h("div", { class: "svbar" },
       h("label", { class: "search" }, h("input", { id: "url", "aria-label": "Page address", value: p.url || "", onkeydown: (e) => e.key === "Enter" && go(e), onchange: go })),
       h("button", { class: "ic", "aria-label": "Reload", title: "Reload the page", onclick: () => api("/api/app/action", { action: "reload", page: k }).catch((e) => toast(e.message, "error")) }, svgIcon("retry"))),
@@ -116,7 +116,7 @@ const syncSiteView = () => {
   const page = Math.min(S.svPage || 0, Math.max(1, pageCount()) - 1);
   const key = [page, f.l, f.t, f.r, f.b].map((x) => x.toFixed(4)).join(" ");
   if (key === SV.key) return;
-  // Opening the site view or choosing a tab gives the page the focus ("site"); a move
+  // Opening the site view or choosing a page gives the page the focus ("site"); a move
   // (the keyboard, a turn of the phone) only places it ("siteHole"), so the address bar
   // keeps the focus while typing (#240).
   const action = SV.shown && page === SV.page ? "siteHole" : "site";
@@ -138,6 +138,6 @@ on("siteView", (ev) => {
   render();
 });
 on("siteKey", () => showSite());
-// A page loaded, connected or changed address: the tabs and the address bar follow.
+// A page loaded, connected or changed address: the pages and the address bar follow.
 on("site", (ev) => S.sv && ev.event !== "progress" && render());
 on("pages", () => S.sv && render());

@@ -1,9 +1,9 @@
 "use strict";
 // promptpipe core: the small part of the app that isn't a plugin. It talks to
 // the app over /api (served by the core, see core/), keeps the shared state, loads plugins and
-// the app parts ("kind": "core" / "ui" plugins), and passes app events on.
+// the core plugins (tag "core"; the one with "ui" too is the screen), and passes app events on.
 // Everything else (sending, chat files, history, the screen) is a built-in
-// plugin you can replace. See /docs/PLUGINS.md ("App parts").
+// plugin you can replace. See /docs/PLUGINS.md ("Core plugins").
 
 // Safe mode (?safe=1): only built-in plugins load, so a broken plugin of yours
 // can't lock you out. Turn it off from the banner or Settings.
@@ -76,7 +76,7 @@ const pickFiles = (done, { multiple = false, accept = ".json,.md,.txt,text/*" } 
   input.click();
 };
 
-// Replaceable by the UI part (it may assign its own).
+// Replaceable by the screen (it may assign its own).
 let toast = (msg, kind = "info") => {
   const t = h("div", { class: "toast " + kind, role: kind === "error" ? "alert" : "status" }, msg);
   document.getElementById("toasts").append(t);
@@ -131,18 +131,10 @@ Object.defineProperty(S, "site", {
 });
 
 const DEFAULT_CONFIG = () => ({
-  profiles: [
-    {
-      // The site is filled in with the first site plugin you install.
-      id: "p1",
-      name: "Default",
-      site: "",
-      plugins: [
-        { id: "base64", on: false, settings: {} },
-        { id: "system-prompt", on: false, settings: {} },
-      ],
-    },
-  ],
+  // A profile: its blocks (see core-profiles), its groups, and its plugins' settings.
+  profiles: [{ id: "p1", name: "Default", blocks: [], groups: [], pluginSettings: {} }],
+  // The provider new chats start on (the first one you install, then the last one picked).
+  provider: "",
   activeProfile: "p1",
   lastChat: "",
   git: { enabled: true, name: "", email: "", remote: "", autoPush: false },
@@ -182,7 +174,7 @@ const PP = (window.PP = {
   // App events (see "events" below): PP.on("job", fn), PP.emit("my-event", data).
   on: (type, fn) => on(type, fn),
   emit: (type, ev) => emit(type, ev),
-  // Ask before something you can't undo: resolves to true or null. The UI part
+  // Ask before something you can't undo: resolves to true or null. The screen
   // brings its own (the browser's confirm() may be switched off in the app).
   confirm: (msg) => Promise.resolve(window.confirm(msg) || null),
   askText: (msg, value = "") => Promise.resolve(window.prompt(msg, value) || null),
@@ -203,27 +195,27 @@ const PP = (window.PP = {
   // A sheet of the plugin's own: render() returns its elements and runs again on PP.render().
   sheet: (title, renderFn) => openSheet(title, renderFn),
   render: () => render(),
-  // Add a system prompt row (a copy of the text) to the active profile, before "Your message".
-  addPromptRow: (name, text) => {
+  // Add a System prompt block (its own copy of the text) to the active profile, before "Your message".
+  addPromptBlock: (name, text) => {
     const prof = profile();
-    const at = prof.pipe.rows.findIndex((r) => r.type === "message");
-    prof.pipe.rows.splice(Math.max(0, at), 0, PP.pipeline.piece(name || "", text));
+    const at = prof.blocks.findIndex((b) => b.type === "message");
+    prof.blocks.splice(Math.max(0, at), 0, PP.profiles.promptBlock(name || "", text));
     saveConfig();
     render();
     toast("Added to " + prof.name);
   },
-  // Another plugin's settings for the active profile (read only), e.g. PP.settings("system-prompt").stack.
+  // Another plugin's settings for the active profile (read only), e.g. PP.settings("memory").window.
   settings: (id) => settingsFor(id),
-  // The site plugin of the open chat ({ name, url, ... }).
-  get sitePlugin() {
-    return siteFor();
+  // The provider of the open chat (its description: { name, url, input, ... }).
+  get provider() {
+    return providerFor();
   },
 });
 
 const loadPlugins = async () => {
   const { plugins } = await api("/api/plugins" + (SAFE ? "?builtin=1" : ""));
   S.plugins.clear();
-  // Listeners from the plugins' last load go; parts' listeners stay.
+  // Listeners from the plugins' last load go; core plugins' listeners stay.
   for (let i = listeners.length - 1; i >= 0; i--) if (listeners[i].owner) listeners.splice(i, 1);
   window.onerror = (msg, src, line) => {
     const p = S.plugins.get(loadingId);
@@ -231,11 +223,11 @@ const loadPlugins = async () => {
   };
   for (const p of plugins) {
     S.plugins.set(p.id, { ...p, def: null });
-    if (p.manifest && p.manifest.siteScript) {
+    if (p.manifest && p.manifest.contentScript) {
       try {
-        const r = await fetch(pluginUrl(p.id, p.manifest.siteScript) + "?t=" + Date.now());
-        if (!r.ok) throw new Error(p.manifest.siteScript + " not found");
-        S.plugins.get(p.id).siteScript = await r.text();
+        const r = await fetch(pluginUrl(p.id, p.manifest.contentScript) + "?t=" + Date.now());
+        if (!r.ok) throw new Error(p.manifest.contentScript + " not found");
+        S.plugins.get(p.id).contentScript = await r.text();
       } catch (e) {
         S.plugins.get(p.id).error = e.message;
       }
@@ -260,31 +252,48 @@ const loadPlugins = async () => {
   await emit("plugins");
 };
 
-const isSite = (p) => p && p.manifest && (p.manifest.kind === "site" || p.manifest.site);
-const isTheme = (p) => p && p.manifest && p.manifest.kind === "theme";
-// A driver ("kind": "driver" with a "siteScript") replaces the default page
-// commands for every AI site; a site plugin's own script still wins.
-const isDriver = (p) => p && p.manifest && p.manifest.kind === "driver";
-const isStep = (p) => p && p.manifest && !isSite(p) && !isTheme(p) && !isPart(p) && !isDriver(p);
+// Every plugin is a plugin; its "tags" say what else it is:
+//   provider  drives one AI website (its "provider" description, maybe a contentScript)
+//   theme     colours (its css)
+//   core      part of the app itself (sending, history, ...); with "ui" too: the screen
+//   driver    a contentScript with default page commands for every provider
+//   passive   not a block: no toggle, it only adds menu entries (Page report)
+// A plugin with none of these can be a block of a profile, with a toggle.
+const hasTag = (p, tag) => !!(p && p.manifest && Array.isArray(p.manifest.tags) && p.manifest.tags.includes(tag));
+const isProvider = (p) => hasTag(p, "provider");
+const isTheme = (p) => hasTag(p, "theme");
+// A driver replaces the default page commands for every provider; a provider's own contentScript still wins.
+const isDriver = (p) => hasTag(p, "driver");
+const isPassive = (p) => hasTag(p, "passive");
+const isBlockPlugin = (p) => p && p.manifest && !isProvider(p) && !isTheme(p) && !isCore(p) && !isDriver(p) && !isPassive(p);
 const pluginName = (id) => S.plugins.get(id)?.manifest?.name || id;
 
-// Every profile lists every non-site plugin once (new ones are added switched off).
-const syncProfiles = () => {
-  // Sites belong to chats. Before, each profile had one: the active profile's
-  // site (and its settings) become the default for new chats, once.
-  if (S.config.site == null) {
-    const prof = profile();
-    S.config.site = prof.site || "";
-    S.config.siteSettings = { ...(S.config.siteSettings || {}), ...(prof.site && prof.siteSettings ? { [prof.site]: prof.siteSettings } : {}) };
-  }
-  const sites = [...S.plugins.values()].filter(isSite);
-  if (sites.length && !sites.some((p) => p.id === S.config.site)) S.config.site = sites[0].id;
-  for (const prof of S.config.profiles) {
-    prof.plugins = prof.plugins.filter((e) => !S.plugins.has(e.id) || isStep(S.plugins.get(e.id)));
-    for (const p of S.plugins.values()) {
-      if (isStep(p) && !prof.plugins.some((e) => e.id === p.id)) prof.plugins.push({ id: p.id, on: false, settings: {} });
+// Saved settings from before the rename of 2026-11-20 (legacy names) take the new names, once.
+const migrateConfig = (c) => {
+  if (c.provider == null && c.site != null) c.provider = c.site; // legacy: config.site
+  if (c.siteSettings && !c.providerSettings) c.providerSettings = c.siteSettings; // legacy: config.siteSettings
+  delete c.site;
+  delete c.siteSettings;
+  if (c.ui && c.ui.part && !c.ui.screen) c.ui.screen = c.ui.part; // legacy: ui.part
+  if (c.ui) delete c.ui.part;
+  for (const prof of c.profiles || []) {
+    // legacy: prof.plugins = [{ id, on, settings }]; "on" is now the profile's blocks (core-profiles)
+    if (Array.isArray(prof.plugins)) {
+      prof.pluginSettings = { ...Object.fromEntries(prof.plugins.map((e) => [e.id, e.settings || {}])), ...(prof.pluginSettings || {}) };
+      prof.legacyPluginsOn = Object.fromEntries(prof.plugins.map((e) => [e.id, !!e.on]));
+      delete prof.plugins;
     }
+    prof.pluginSettings = prof.pluginSettings || {};
+    delete prof.site;
+    delete prof.siteSettings;
   }
+  return c;
+};
+
+// The provider new chats start on is one that is installed.
+const syncProfiles = () => {
+  const providers = [...S.plugins.values()].filter(isProvider);
+  if (providers.length && !providers.some((p) => p.id === S.config.provider)) S.config.provider = providers[0].id;
 };
 
 const profile = () => S.config.profiles.find((p) => p.id === S.config.activeProfile) || S.config.profiles[0];
@@ -292,83 +301,77 @@ const profile = () => S.config.profiles.find((p) => p.id === S.config.activeProf
 // aka), else the active one. Opening a chat makes its profile the active one.
 const profileNamed = (n) => (n ? S.config.profiles.find((p) => p.name === n || (p.aka || []).includes(n)) : null) || null;
 const profileOf = (chat) => profileNamed(chat?.meta?.profile) || profile();
-const entryFor = (id, prof = profile()) => {
-  let e = prof.plugins.find((x) => x.id === id);
-  if (!e) prof.plugins.push((e = { id, on: false, settings: {} }));
-  return e;
-};
+// A plugin's settings as the profile saved them.
+const pluginSaved = (id, prof = profile()) => ((prof.pluginSettings = prof.pluginSettings || {})[id] = prof.pluginSettings[id] || {});
 
-// A site plugin's own saved things (its settings, the model and switches you
-// picked): one per site, whatever the profile.
-const siteSaved = (id) => ((S.config.siteSettings = S.config.siteSettings || {})[id] = S.config.siteSettings[id] || {});
-// Settings: what the profile saved (a site's: what that site saved), else the manifest's default.
+// A provider's own saved things (its settings, the model and options you
+// picked): one per provider, whatever the profile.
+const providerSaved = (id) => ((S.config.providerSettings = S.config.providerSettings || {})[id] = S.config.providerSettings[id] || {});
+// Settings: what the profile saved (a provider's: what that provider saved), else the manifest's default.
 const settingsFor = (id, prof = profile()) => {
   const man = S.plugins.get(id)?.manifest || {};
-  const saved = isSite(S.plugins.get(id)) ? siteSaved(id) : entryFor(id, prof).settings;
+  const saved = isProvider(S.plugins.get(id)) ? providerSaved(id) : pluginSaved(id, prof);
   const out = {};
   for (const [k, d] of Object.entries(man.settings || {})) out[k] = k in saved ? saved[k] : d.default;
   return out;
 };
 const setSetting = (id, key, value, prof = profile()) => {
-  if (isSite(S.plugins.get(id))) siteSaved(id)[key] = value;
-  else entryFor(id, prof).settings[key] = value;
+  if (isProvider(S.plugins.get(id))) providerSaved(id)[key] = value;
+  else pluginSaved(id, prof)[key] = value;
   saveConfig();
 };
 
-// The site plugin a chat uses: its own (meta.site), else the one its file names
+// The provider a chat uses: its own (meta.provider), else the one its file names
 // (older chats: meta.ai), else the default for new chats (the last one picked).
-const siteIdOf = (chat = S.chat) => {
-  const ok = (id) => !!id && isSite(S.plugins.get(id));
-  if (chat && ok(chat.meta.site)) return chat.meta.site;
-  const byName = chat && chat.meta.ai && [...S.plugins.values()].find((p) => isSite(p) && p.manifest.name === chat.meta.ai);
+const providerIdOf = (chat = S.chat) => {
+  const ok = (id) => !!id && isProvider(S.plugins.get(id));
+  if (chat && ok(chat.meta.provider)) return chat.meta.provider;
+  const byName = chat && chat.meta.ai && [...S.plugins.values()].find((p) => isProvider(p) && p.manifest.name === chat.meta.ai);
   if (byName) return byName.id;
-  return ok(S.config.site) ? S.config.site : "";
+  return ok(S.config.provider) ? S.config.provider : "";
 };
-// Pick the site for a chat; new chats take it too from then on.
-const setChatSite = (id, chat = S.chat) => {
-  chat.meta.site = id;
+// Pick the provider for a chat; new chats take it too from then on.
+const setChatProvider = (id, chat = S.chat) => {
+  chat.meta.provider = id;
   chat.meta.ai = pluginName(id);
-  S.config.site = id;
+  S.config.provider = id;
   saveConfig();
 };
 
-const siteFor = (chat = S.chat) => {
-  const p = S.plugins.get(siteIdOf(chat));
-  if (!p || !isSite(p)) return null;
-  const site = JSON.parse(JSON.stringify(p.manifest.site));
-  site.id = p.id;
-  site.settings = settingsFor(p.id);
-  if (site.settings.replySelector) site.reply = [site.settings.replySelector, ...site.reply];
-  site.name = p.manifest.name;
-  if (p.siteScript) site.script = p.siteScript;
-  const drivers = [...S.plugins.values()].filter((d) => isDriver(d) && d.siteScript && d.manifest.enabled !== false);
-  if (drivers.length) site.drivers = drivers.map((d) => d.siteScript);
-  return site;
+const providerFor = (chat = S.chat) => {
+  const p = S.plugins.get(providerIdOf(chat));
+  if (!p || !isProvider(p)) return null;
+  const provider = JSON.parse(JSON.stringify(p.manifest.provider || {}));
+  provider.id = p.id;
+  provider.settings = settingsFor(p.id);
+  if (provider.settings.replySelector) provider.reply = [provider.settings.replySelector, ...(provider.reply || [])];
+  provider.name = p.manifest.name;
+  if (p.contentScript) provider.contentScript = p.contentScript;
+  const drivers = [...S.plugins.values()].filter((d) => isDriver(d) && d.contentScript && d.manifest.enabled !== false);
+  if (drivers.length) provider.drivers = drivers.map((d) => d.contentScript);
+  return provider;
 };
 
 // route hook: before a message goes out, a plugin may pick the profile and the
 // site chat: return { profile: "name or id", url: "https://..." | "new" }, or
 // nothing. The first plugin (in profile order) that answers wins.
 const runRoute = async (ctx, prof) => {
-  for (const e of activePlugins(prof)) {
-    const def = S.plugins.get(e.id).def;
+  for (const id of activePlugins(prof)) {
+    const def = S.plugins.get(id).def;
     if (typeof def.route !== "function") continue;
-    const r = await def.route({ ...ctx, settings: settingsFor(e.id, prof), turnData: undefined });
-    if (r && (r.profile || r.url)) return { ...r, by: e.id };
+    const r = await def.route({ ...ctx, settings: settingsFor(id, prof), turnData: undefined });
+    if (r && (r.profile || r.url)) return { ...r, by: id };
   }
   return null;
 };
 
-// Which plugins run, and whether one is on. The pipeline part (core-pipeline)
-// replaces these with its presets; without it, the profile's switches decide.
-let activePlugins = (prof = profile()) => prof.plugins.filter((e) => e.on && S.plugins.get(e.id)?.def);
-let stepOn = (id, prof = profile()) => !!entryFor(id, prof).on;
-// The profile as a chat uses it (its own switches); without the pipeline part, the profile.
+// Which plugins run, and whether one is on. The Profiles core plugin (core-profiles) replaces
+// these with the profile's blocks; without it, no plugin runs.
+let activePlugins = () => [];
+let pluginOn = () => false;
+// The profile as a chat uses it (with the chat's own toggles); without core-profiles, the profile.
 let forChat = (prof) => prof;
-let setStepOn = (id, on, prof = profile()) => {
-  entryFor(id, prof).on = on;
-  saveConfig();
-};
+let setPluginOn = () => {};
 
 // What a plugin hook gets besides the text.
 const hookCtx = (id, ctx, prof, notes) => ({
@@ -381,24 +384,24 @@ const hookCtx = (id, ctx, prof, notes) => ({
 });
 
 const runHooks = async (hook, text, ctx, trace, prof) => {
-  for (const e of activePlugins(prof)) {
-    const def = S.plugins.get(e.id).def;
+  for (const id of activePlugins(prof)) {
+    const def = S.plugins.get(id).def;
     if (typeof def[hook] !== "function") continue;
     const notes = [];
-    const out = await def[hook](text, hookCtx(e.id, ctx, prof, notes));
+    const out = await def[hook](text, hookCtx(id, ctx, prof, notes));
     if (typeof out === "string") text = out;
-    trace.push({ label: `${pluginName(e.id)} · ${hook === "beforeSend" ? "before" : "after"}`, text, notes });
-    ctx.notes.push(...notes.map((n) => `${pluginName(e.id)}: ${n}`));
+    trace.push({ label: `${pluginName(id)} · ${hook === "beforeSend" ? "before" : "after"}`, text, notes });
+    ctx.notes.push(...notes.map((n) => `${pluginName(id)}: ${n}`));
   }
   return text;
 };
 
-// The message that goes to the site: your text through the before-send steps.
-// The pipeline part replaces it (pieces, steps and your message, in rows).
+// The message that goes to the site: your text through the plugins' beforeSend.
+// core-profiles replaces it (the profile's blocks, top to bottom).
 let buildMessage = (prompt, ctx, trace, prof) => runHooks("beforeSend", prompt, ctx, trace, prof);
 
 // ---------- AI page ----------
-const siteCmd = (cmd, extra = {}) => api("/api/site", { cmd, site: siteFor(), page: S.page, ...extra });
+const siteCmd = (cmd, extra = {}) => api("/api/site", { cmd, provider: providerFor(), page: S.page, ...extra });
 const openSite = async (url, page = S.page, turn = null) => {
   if (turn) turn.progress = "Opening " + url;
   else S.progress = "Opening " + url;
@@ -408,9 +411,9 @@ const openSite = async (url, page = S.page, turn = null) => {
   return r;
 };
 
-// ---------- the UI part fills these in ----------
-// The UI plugin ("kind": "ui", built-in: chat-ui) assigns its own versions; the
-// other parts call them. Until then (or without a UI) they do the minimum.
+// ---------- the screen fills these in ----------
+// The screen (the core plugin tagged "ui", built-in: chat-ui) assigns its own versions; the
+// other core plugins call them. Until then (or without a screen) they do the minimum.
 const app = document.getElementById("app");
 let render = () => {
   app.replaceChildren(
@@ -458,7 +461,7 @@ const pollEvents = async () => {
             const t = S.pageTurns[ev.page || 0];
             if (t) {
               t.progress = ev.text;
-              // Empty parts don't wipe what a site script already showed.
+              // Empty values don't wipe what a content script already showed.
               if (ev.live) for (const [k, v] of Object.entries(ev.live)) if (v) t.live = { ...t.live, [k]: v };
             } else if (S.progress) S.progress = ev.text;
           } else Object.assign(p, { connected: ev.connected !== false, url: ev.url || p.url, title: ev.title || p.title });
@@ -472,7 +475,7 @@ const pollEvents = async () => {
         } else if (first) continue; // old events from before this page loaded
         else if (ev.type === "pluginInstalled") {
           await loadPlugins();
-          setStepOn(ev.id, true);
+          setPluginOn(ev.id, true);
           toast("Installed " + ev.id);
           rerenderSheet();
           render();
@@ -488,16 +491,16 @@ const pollEvents = async () => {
   }
 };
 
-// ---------- app parts ----------
-// "kind": "core" plugins (and the one "kind": "ui" plugin) are scripts loaded
-// in "order", before start, sharing one scope: what one part declares at top
-// level the others (and the next parts) can use. A plugin of yours with the
-// same id replaces the built-in part. If yours fails to load, the app
+// ---------- core plugins ----------
+// Plugins tagged "core" (and the one screen, tagged "ui" too) are scripts loaded
+// in "order", before start, sharing one scope: what one declares at top
+// level the others (and the next ones) can use. A plugin of yours with the
+// same id replaces the built-in one. If yours fails to load, the app
 // restarts in safe mode and says which one.
-let loadingPart = null;
-let partError = "";
+let loadingCore = null;
+let coreError = "";
 window.addEventListener("error", (e) => {
-  if (loadingPart && (e.filename || "").includes("/" + encodeURIComponent(loadingPart.id) + "/")) partError = `${e.message} (${(e.filename || "").split("/").pop()}:${e.lineno})`;
+  if (loadingCore && (e.filename || "").includes("/" + encodeURIComponent(loadingCore.id) + "/")) coreError = `${e.message} (${(e.filename || "").split("/").pop()}:${e.lineno})`;
 });
 const loadScript = (src) =>
   new Promise((res, rej) => {
@@ -507,31 +510,32 @@ const loadScript = (src) =>
     s.onerror = () => rej(new Error(src.split("?")[0] + " not found"));
     document.body.append(s);
   });
-const isPart = (p) => p && p.manifest && ["core", "ui"].includes(p.manifest.kind);
-const loadParts = async () => {
+const isCore = (p) => hasTag(p, "core");
+const isScreen = (p) => isCore(p) && hasTag(p, "ui");
+const loadCore = async () => {
   const [{ plugins }, cfg] = await Promise.all([api("/api/plugins" + (SAFE ? "?builtin=1" : "")), api("/api/config").catch(() => ({}))]);
-  const uiId = (cfg.ui && cfg.ui.part) || "chat-ui";
-  const uis = plugins.filter((p) => isPart(p) && p.manifest.kind === "ui");
-  const ui = uis.find((p) => p.id === uiId) || uis.find((p) => p.id === "chat-ui") || uis[0];
-  const parts = plugins.filter((p) => isPart(p) && (p.manifest.kind === "core" || p === ui) && p.manifest.enabled !== false);
-  parts.sort((a, b) => (a.manifest.order ?? 50) - (b.manifest.order ?? 50) || a.id.localeCompare(b.id));
-  S.parts = parts.map((p) => ({ id: p.id, source: p.source, kind: p.manifest.kind }));
-  for (const p of parts) {
-    loadingPart = p;
-    partError = "";
+  const uiId = (cfg.ui && (cfg.ui.screen || cfg.ui.part)) || "chat-ui"; // legacy: ui.part
+  const screens = plugins.filter(isScreen);
+  const screen = screens.find((p) => p.id === uiId) || screens.find((p) => p.id === "chat-ui") || screens[0];
+  const cores = plugins.filter((p) => isCore(p) && (!isScreen(p) || p === screen) && p.manifest.enabled !== false);
+  cores.sort((a, b) => (a.manifest.order ?? 50) - (b.manifest.order ?? 50) || a.id.localeCompare(b.id));
+  S.cores = cores.map((p) => ({ id: p.id, source: p.source, screen: isScreen(p) }));
+  for (const p of cores) {
+    loadingCore = p;
+    coreError = "";
     try {
       for (const css of [].concat(p.manifest.css || [])) document.head.append(h("link", { rel: "stylesheet", href: pluginUrl(p.id, css) }));
       for (const js of [].concat(p.manifest.scripts || [])) {
         await loadScript(pluginUrl(p.id, js) + "?t=" + Date.now());
-        if (partError) throw new Error(partError);
+        if (coreError) throw new Error(coreError);
       }
     } catch (e) {
-      loadingPart = null;
+      loadingCore = null;
       if (!SAFE && p.source === "user") return location.replace(location.pathname + "?safe=1&failed=" + encodeURIComponent(p.id + ": " + e.message));
-      throw new Error(`app part ${p.id}: ${e.message}`);
+      throw new Error(`core plugin ${p.id}: ${e.message}`);
     }
   }
-  loadingPart = null;
+  loadingCore = null;
 };
 
 // ---------- plugin updates ----------
@@ -557,9 +561,9 @@ const updatePlugins = async ({ quiet = false, force = false } = {}) => {
     return r;
   } catch (e) {
     S.updates = { ...S.updates, busy: false, error: e.message };
-    // The automatic daily check fails quietly (Settings › App parts and Plugins › Library show
+    // The automatic daily check fails quietly (Settings › Core plugins and Plugins › Library show
     // "Last check: …"); a check you started says so here.
-    if (!quiet) toast("Plugin update failed: " + e.message + ". Settings › App parts has the zip to install by hand.", "error");
+    if (!quiet) toast("Plugin update failed: " + e.message + ". Settings › Core plugins has the zip to install by hand.", "error");
   } finally {
     rerenderSheet();
   }
@@ -577,7 +581,7 @@ on("pluginBundle", (ev) => {
 });
 
 // ---------- start ----------
-// The screen before the UI part is there: a small spinner while it starts, the reason if it can't.
+// The screen before the screen plugin is there: a small spinner while it starts, the reason if it can't.
 const bootScreen = (msg, error) => {
   app.replaceChildren(
     ...[
@@ -589,16 +593,16 @@ const bootScreen = (msg, error) => {
 const boot = async () => {
   bootScreen("Starting…");
   try {
-    await loadParts();
+    await loadCore();
     S.app = await api("/api/app");
     for (const p of S.app.pages || []) Object.assign(pg(p.page), { connected: p.connected, url: p.url, title: p.title });
     const cfg = await api("/api/config");
     const def = DEFAULT_CONFIG();
-    S.config = Object.assign(def, cfg);
+    S.config = Object.assign(def, migrateConfig(cfg));
     for (const k of ["git", "api", "ui", "wait"]) S.config[k] = Object.assign(DEFAULT_CONFIG()[k], cfg[k] || {});
     S.pluginFolder = (await api("/api/plugins")).folder;
     await loadPlugins();
-    // Each part loads what it needs (chat list, pages, look), in part order.
+    // Each core plugin loads what it needs (chat list, pages, look), in order.
     await emit("start", null, true);
     saveConfig();
     await emit("ready", null, true);

@@ -83,11 +83,11 @@ const check = (name, ok, detail = "") => {
     await skipGuides();
     check("the screen starts with no errors", !errors.length, errors.join(" | "));
 
-    // A site plugin, then a first message and its reply.
-    await page.getByText("Get site plugins").first().tap();
+    // A provider, then a first message and its reply.
+    await page.getByText("Get providers").first().tap();
     await until(() => [...document.querySelectorAll(".sheet button.pill")].some((b) => b.textContent === "Get"));
     await page.locator(".sheet button.pill", { hasText: "Get" }).first().tap();
-    await until(() => [...S.plugins.values()].some((p) => p.manifest?.kind === "site"));
+    await until(() => [...S.plugins.values()].some((p) => (p.manifest?.tags || []).includes("provider")));
     await page.getByLabel("Close").first().tap();
     await wait(300);
     await skipGuides();
@@ -166,8 +166,8 @@ const check = (name, ok, detail = "") => {
     check("Find searches the messages", await until(() => [...document.querySelectorAll(".sheet .results .it")].some((b) => b.textContent.includes("hello there")), 5000));
     await page.evaluate(() => closeSheet());
 
-    // A sheet's field: a site plugin setting, typed while the screen redraws.
-    await page.evaluate(() => openPluginSettings([...S.plugins.values()].find((p) => p.manifest?.kind === "site").id));
+    // A sheet's field: a provider's setting, typed while the screen redraws.
+    await page.evaluate(() => openPluginSettings([...S.plugins.values()].find((p) => (p.manifest?.tags || []).includes("provider")).id));
     await wait(300);
     await typeInto(".sheet input", ".my-reply");
     await redraw();

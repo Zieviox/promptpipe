@@ -1,5 +1,5 @@
 "use strict";
-// App part: history. Chat files (open, save, move, delete, folders), git
+// Core plugin: history. Chat files (open, save, move, delete, folders), git
 // commits through /api/history, and tags.
 
 // ---------- history (chat files + git) ----------
@@ -22,7 +22,7 @@ const tagsFile = () => ({ path: "tags.json", text: JSON.stringify(S.tags, null, 
 const newChat = (folder = S.folder) => ({
   path: null,
   folder,
-  meta: { title: "New chat", source: "", site: "", ai: "", model: "", profile: profile().name, switches: {}, tags: [], created: iso(), updated: iso() },
+  meta: { title: "New chat", source: "", provider: "", ai: "", model: "", profile: profile().name, toggles: {}, tags: [], created: iso(), updated: iso() },
   turns: [],
 });
 
@@ -72,8 +72,8 @@ const openSiteChat = async (c) => {
   S.chat = newChat();
   S.chat.meta.title = c.title;
   S.chat.meta.source = c.url;
-  S.chat.meta.site = siteIdOf();
-  S.chat.meta.ai = siteFor()?.name || "";
+  S.chat.meta.site = providerIdOf();
+  S.chat.meta.ai = providerFor()?.name || "";
   closeDrawer();
   render();
   toast("Linked to the site chat. Your next message continues it there.");

@@ -1,6 +1,6 @@
 // A stand-in for the promptpipe core, for looking at the app screen in a desktop browser.
 // It serves the app's own UI files and answers the same routes with simple, in-memory
-// behaviour. The AI site is faked: "send" reports progress and returns a canned reply.
+// behaviour. The AI website is faked: "send" reports progress and returns a canned reply.
 // Not the real core: storage, git and the page bridge are simulated. Use the real core
 // (odin build core) when Odin is installed; this is for a machine without it.
 //
@@ -22,7 +22,7 @@ const APP = path.join(ROOT, "app/src/main/assets");
 const REPO = process.env.PP_PLUGINS || path.join(ROOT, "../promptpipe-plugins");
 const DATA = process.env.PP_DATA || path.join(ROOT, "build/ux-data");
 const PORT = +process.env.PP_PORT || 7790;
-const PARTS = ["chat-ui", "core-chatfile", "core-history", "core-jobs", "core-markdown", "core-pipeline", "core-send"];
+const CORE = ["chat-ui", "core-chatfile", "core-history", "core-jobs", "core-markdown", "core-profiles", "core-send"];
 fs.rmSync(DATA, { recursive: true, force: true });
 for (const d of ["history", "plugins", "export"]) fs.mkdirSync(path.join(DATA, d), { recursive: true });
 
@@ -32,11 +32,11 @@ const safe = (rel) => !!rel && !rel.startsWith("/") && rel.split("/").every((p) 
 const pluginDir = (id, builtinOnly) => {
   const user = path.join(DATA, "plugins", id);
   if (!builtinOnly && fs.existsSync(path.join(user, "plugin.json"))) return { dir: user, source: "user" };
-  if (PARTS.includes(id) && fs.existsSync(path.join(REPO, id, "plugin.json"))) return { dir: path.join(REPO, id), source: "builtin" };
+  if (CORE.includes(id) && fs.existsSync(path.join(REPO, id, "plugin.json"))) return { dir: path.join(REPO, id), source: "builtin" };
   return { dir: path.join(APP, "plugins", id), source: "builtin" };
 };
 const listPlugins = (builtinOnly) => {
-  const ids = new Set([...fs.readdirSync(path.join(APP, "plugins")), ...PARTS, ...(builtinOnly ? [] : fs.readdirSync(path.join(DATA, "plugins")))]);
+  const ids = new Set([...fs.readdirSync(path.join(APP, "plugins")), ...CORE, ...(builtinOnly ? [] : fs.readdirSync(path.join(DATA, "plugins")))]);
   const out = [];
   for (const id of [...ids].sort()) {
     const { dir, source } = pluginDir(id, builtinOnly);
@@ -120,9 +120,9 @@ const site = async (b) => {
       if (!/\/c\//.test(pg.url)) pg.url = (pg.url || "https://chat.example.com/").replace(/\/$/, "") + "/c/" + Math.random().toString(36).slice(2, 8);
       return { ...info, url: pg.url, raw: /short/i.test(b.text || "") ? "Done." : REPLY, thinking: THINK, you: b.text || "" };
     }
-    case "models": return { ...info, models: ["Stand-in 1.0", "Stand-in Max", "Stand-in Flash"], switches: (b.site?.switches || []).map((s) => ({ name: s.name, found: true, on: false })) };
-    case "setModel": return { ...info, model: b.model, switches: [] };
-    case "setSwitch": return { ...info, switches: [] };
+    case "models": return { ...info, models: ["Stand-in 1.0", "Stand-in Max", "Stand-in Flash"], options: (b.provider?.options || []).map((s) => ({ name: s.name, found: true, on: false })) };
+    case "setModel": return { ...info, model: b.model, options: [] };
+    case "setOption": return { ...info, options: [] };
     case "list": return { ...info, chats: [{ url: "https://chat.example.com/c/abc", title: "An older site chat" }] };
     case "last": return { ...info, raw: REPLY, thinking: THINK };
     case "history": return { ...info, turns: [{ you: "Hello", reply: "Hi there.", thinking: "" }] };

@@ -1,10 +1,10 @@
-// Page report: outlines the AI page so a site plugin's selectors can be fixed.
-// The walk runs inside the AI page (PP.site("run")); a site plugin's own
-// report (its site script's probe) wins when it has one.
+// Page report: outlines the AI page so a provider plugin's selectors can be fixed.
+// The walk runs inside the AI page (PP.site("run")); a provider's own
+// report (its content script's probe) wins when it has one.
 
-// Runs in the AI page. PP = the page helpers, site = the site plugin's selectors.
-const walker = (PP, site) => {
-  let box = PP.lastReplyEl(site) || document.body;
+// Runs in the AI page. PP = the page helpers, provider = the provider plugin's description.
+const walker = (PP, provider) => {
+  let box = PP.lastReplyEl(provider) || document.body;
   for (let up = 0; up < 4 && box.parentElement && box.parentElement !== document.body; up++) box = box.parentElement;
   const lines = [];
   const walk = (el, depth) => {
@@ -18,7 +18,7 @@ const walker = (PP, site) => {
   lines.push("== around the newest reply ==");
   walk(box, 0);
   // The message box and its buttons, where sending happens.
-  let inp = PP.first(site.input);
+  let inp = PP.first(provider.input);
   if (inp) {
     for (let up = 0; up < 5 && inp.parentElement && inp.parentElement !== document.body; up++) inp = inp.parentElement;
     lines.push("", "== around the message box ==");
@@ -39,13 +39,13 @@ const walker = (PP, site) => {
 
 const copyReport = async () => {
   let r = await PP.site("probe");
-  if (!r.report) r = await PP.site("run", { code: "return (" + walker.toString() + ")(PP, site);" });
-  const name = PP.sitePlugin?.name || "the site";
+  if (!r.report) r = await PP.site("run", { code: "return (" + walker.toString() + ")(PP, provider);" });
+  const name = PP.provider?.name || "the site";
   // PP.copy works after the wait for the page (the browser's clipboard doesn't).
-  await PP.copy(`Page report for ${name} (${r.url})\n\n${r.report}`, "Page report copied. Paste it to whoever fixes the site plugin.");
+  await PP.copy(`Page report for ${name} (${r.url})\n\n${r.report}`, "Page report copied. Paste it to whoever fixes the provider plugin.");
 };
 
 PP.plugin({
-  // Entries in the ⋯ menu (shown even when the plugin is switched off).
+  // Entries in the ⋯ menu (a passive plugin: no toggle, always there).
   menu: [{ label: "Copy page report (to fix a site)", run: copyReport }],
 });

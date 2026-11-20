@@ -1,5 +1,5 @@
 "use strict";
-// App part (chat screen): Find. One box that finds chats, messages, every
+// Chat screen: Find. One box that finds chats, messages, every
 // function and every setting (Ctrl+K, F3, Ctrl+F, or the magnifier at the top).
 // A result says where it lives ("Settings › Look") and its shortcut; picking it
 // opens that screen and flashes the control.
@@ -34,11 +34,13 @@ const commands = () => [
   { name: "Put a text file in the box", path: "Message bar", key: "", run: () => pickTextFiles(false) },
   { name: "Put several text files in the box", path: "Message bar", key: "", run: () => pickTextFiles(true) },
   { name: "Open a chat from the site", path: "Chats", key: "", run: openSiteChats },
-  // The rows of the profile in use, and Add a row (as the wireframe finds them).
-  ...profile().pipe.rows.map((r) => ({ name: rowTitle(r), path: "Settings › Plugins › Profile", key: "", run: () => ((S.editProfile = profile().id), openRowPage(r)) })),
-  { name: "Add a row", path: "Settings › Plugins › Profile", key: "", run: () => ((S.editProfile = profile().id), openAddRow()) },
+  // The blocks of the profile in use, and Add a block (as the wireframe finds them).
+  ...profile().blocks.map((b) => ({ name: blockTitle(b), path: "Settings › Plugins › Profile", key: "", run: () => ((S.editProfile = profile().id), openBlockPage(b)) })),
+  { name: "Add a block", path: "Settings › Plugins › Profile", key: "", run: () => ((S.editProfile = profile().id), openAddBlock()) },
+  { name: "Prompt library", path: "Settings", key: "", run: openPromptLibrary },
+  { name: "New system prompt in the library", path: "Settings › Prompt library", key: "", run: () => openLibEditor(null) },
   // Every installed plugin has its page.
-  ...[...S.plugins.values()].filter((p) => p.manifest && !isPart(p) && !isDriver(p)).map((p) => ({ name: (p.manifest.name || p.id) + " plugin", path: "Settings › Plugins › Library", key: "", run: () => openPluginPage(p.id) })),
+  ...[...S.plugins.values()].filter((p) => p.manifest && !isCore(p) && !isDriver(p)).map((p) => ({ name: (p.manifest.name || p.id) + " plugin", path: "Settings › Plugins › Library", key: "", run: () => openPluginPage(p.id) })),
   { name: "Get plugins", path: "Settings › Plugins › Library", key: "", run: () => openGetPlugins() },
   { name: "Add plugin source", path: "Settings › Plugins › Library", key: "", run: openAddSource },
   { name: "Install a plugin from a file or link", path: "Settings › Plugins › Library", key: "", run: openInstall },
@@ -53,7 +55,7 @@ const commands = () => [
   { name: "Git history", path: "Settings › Chats and storage", key: "", run: openGit },
   { name: "Settings", path: "Settings", key: "Ctrl+,", run: openSettings },
   { name: "Accent", path: "Settings › Look", key: "", run: openAccent },
-  { name: "Model and switches", path: "Profile and site", key: "", run: openModels },
+  { name: "Model and options", path: "Profile and provider", key: "", run: openModels },
   { name: "Bigger UI", path: "Settings › Look", key: "Ctrl+=", run: () => setScale(S.config.ui.scale + 0.05) },
   { name: "Smaller UI", path: "Settings › Look", key: "Ctrl+-", run: () => setScale(S.config.ui.scale - 0.05) },
   { name: "Shortcuts and help", path: "Help", key: "Ctrl+?", run: openHelp },
@@ -67,9 +69,9 @@ const SETTING_CONTROLS = [
   ["Look", "Stay at the bottom while a reply comes in"], ["Look", "Enter sends"],
   ["Sites", "Max replies at once"], ["Sites", "Waiting for replies"],
   ["Chats and storage", "Chat folder"], ["Chats and storage", "Move all chats to another folder…"], ["Chats and storage", "Git history and backup"], ["Chats and storage", "Allow all files access"], ["Chats and storage", "Storage check"],
-  ["Import and export", "Export all profiles"], ["Import and export", "Import a profile…"], ["Import and export", "Export all system prompts"], ["Import and export", "Import system prompts…"], ["Import and export", "Importing a name you already have"],
+  ["Import and export", "Export all profiles"], ["Import and export", "Import a profile…"], ["Import and export", "Export the whole library"], ["Import and export", "Import prompts…"], ["Import and export", "Importing a name you already have"],
   ["Local API", "Address"], ["Local API", "API token"], ["Local API", "How apps use it"], ["Local API", "Folder for chats made through the API"],
-  ["Advanced", "Reset to first launch"], ["Advanced", "App parts"], ["Advanced", "Safe mode"], ["Advanced", "Core log"], ["Advanced", "Stop background service"], ["Advanced", "Version"],
+  ["Advanced", "Reset to first launch"], ["Advanced", "Core plugins"], ["Advanced", "Safe mode"], ["Advanced", "Core log"], ["Advanced", "Stop background service"], ["Advanced", "Version"],
   ["Help", "Show the ? button"], ["Help", "Shortcuts"], ["Help", "Plugin guide"],
 ];
 

@@ -14,7 +14,6 @@
 // new site chat always gets the memory, AI lines can say which site answered,
 // and "Only what this site chat hasn't seen" can leave out what it already has.
 const ID = "memory";
-const PROMPTS = "system-prompts.json";
 const num = (v, d) => (Number.isFinite(Number(v)) && v !== "" ? Number(v) : d);
 
 // ---------- pure: turns, sites, lines ----------
@@ -171,14 +170,6 @@ const plan = (sizes, upTo, K, store, budget, fixed) => {
 };
 
 // ---------- files ----------
-const readJson = async (path, fallback) => {
-  try {
-    const r = await PP.api("/api/history/file?path=" + encodeURIComponent(path));
-    return r.text ? JSON.parse(r.text) : fallback;
-  } catch (e) {
-    return fallback;
-  }
-};
 const stores = new Map(); // chat path -> { [level]: [{ from, to, at, text }] }
 const loadStore = async (chat) => {
   const key = chat && chat.path;
@@ -200,10 +191,17 @@ const saveLevel = (chat, store, L, K, message) =>
   PP.api("/api/history/save", { files: [{ path: lodPath(chat, L), text: lodToMd(chat.meta && chat.meta.title, L, K ** L, store[L] || []) }], message: "memory: " + message });
 
 // ---------- making summaries ----------
+// The System prompts that go with a summary request: [{ name, text }].
+//   same  the profile's System prompt blocks that are on (the ones every message gets)
+//   own   prompts picked from the prompt library for summaries only
+//   none  nothing
+const libPrompts = () => (PP.profiles ? PP.profiles.library.prompts : []);
+const profilePrompts = (prof = PP.profile) =>
+  prof && PP.profiles ? prof.blocks.filter((b) => b.type === "prompt" && PP.profiles.blockLive(prof, b) && PP.profiles.promptText(b).trim()).map((b) => ({ name: PP.profiles.blockName(b), text: PP.profiles.promptText(b) })) : [];
 const summaryStack = async (s) => {
-  const lib = await readJson(PROMPTS, { prompts: [] });
-  const ids = s.stackMode === "own" ? s.stack || [] : s.stackMode === "none" ? [] : (PP.settings ? PP.settings("system-prompt").stack : []) || [];
-  return ids.map((id) => lib.prompts.find((p) => p.id === id)).filter(Boolean);
+  if (s.stackMode === "none") return [];
+  if (s.stackMode === "own") return (s.stack || []).map((id) => libPrompts().find((p) => p.id === id)).filter(Boolean);
+  return profilePrompts();
 };
 // Each side is summarised on its own, from a request that holds only that
 // side's messages, so the AI can't take its own words for the user's (or the
@@ -284,18 +282,18 @@ const block = (pinned, summaries, lines, note) => {
   if (lines.length) out.push((summaries.length ? "More recent messages" : "Earlier messages") + (note || "") + ":\n" + lines.join("\n\n"));
   return wrapMemory(out.join("\n\n"));
 };
-// The same memory as separate pieces (pinned facts, your side, the AI's side,
+// The same memory as separate texts (pinned facts, your side, the AI's side,
 // recent messages). A summary of both sides in one ("together", or from before
 // 2.5) goes with the first of the two, under a label that says so.
-const PIECES = {
+const TEXTS = {
   pinned: "Pinned facts",
   you: "Your side (summaries)",
   ai: "AI side (summaries)",
   recent: "Recent messages",
 };
-// A piece on its own: "[Title]\n...\n[End of name]".
+// One of them on its own: "[Title]\n...\n[End of name]".
 const labelled = (title, name, body) => `[${title}]\n${body}\n[End of ${name}]`;
-const pieceOf = (m, part) => {
+const memoryText = (m, part) => {
   if (part === "pinned") return m.pinned ? labelled("Facts to remember", "facts", m.pinned) : "";
   if (part === "recent") return m.lines.length ? labelled((m.summaries.length ? "More recent messages" : "Earlier messages") + (m.linesNote || ""), "messages", m.lines.join("\n\n")) : "";
   // Summaries that could not be split (together, or made before 2.5) say so
@@ -308,7 +306,7 @@ const pieceOf = (m, part) => {
   return out.join("\n\n");
 };
 const result = (pinned, summaries, lines, linesNote, note) => ({ text: block(pinned, summaries, lines, linesNote), pinned, summaries, lines, linesNote: linesNote || "", note });
-// The pipeline's "at depth N" pieces: each goes N messages up from the end of
+// The profile's "at depth N" System prompts: each goes N messages up from the end of
 // the recent messages (0 = after the last one). Marks them used.
 const withDepth = (m, depth) => {
   if (!depth || !depth.length || !m.lines.length) return m;
@@ -424,9 +422,8 @@ const ahead = (ctx) => {
 // ---------- sheet: the summaries' prompts, this chat's summaries ----------
 const openSheet = (ctx) => {
   const h = PP.h;
-  let lib = { prompts: [] };
+  const lib = { get prompts() { return libPrompts(); } };
   let store = null;
-  readJson(PROMPTS, { prompts: [] }).then((l) => ((lib = l), PP.render()));
   const chat = PP.chat;
   if (chat && chat.path) loadStore(chat).then((st) => ((store = st), PP.render()));
   const s = () => ctx.settings;
@@ -443,7 +440,7 @@ const openSheet = (ctx) => {
   PP.sheet("Memory", () => {
     const mode = s().stackMode || "same";
     const own = (s().stack || []).filter((id) => lib.prompts.some((p) => p.id === id));
-    const same = (PP.settings ? PP.settings("system-prompt").stack : []) || [];
+    const same = profilePrompts();
     const levels = Object.keys(store || {}).map(Number).filter((L) => store[L].length).sort();
     const move = (i, d) => {
       const a = [...own];
@@ -465,14 +462,14 @@ const openSheet = (ctx) => {
           : h("p", { class: "muted" }, "None yet. They're made when this chat's memory gets near the max."),
       h("h3", {}, "System prompts for the summary chat"),
       h("div", { class: "row" },
-        ...[["same", "Same as System prompt"], ["own", "Own stack"], ["none", "None"]].map(([v, label]) =>
+        ...[["same", "The profile's System prompts"], ["own", "Picked for summaries"], ["none", "None"]].map(([v, label]) =>
           h("button", { class: "small" + (mode === v ? " primary" : ""), onclick: () => set("stackMode", v) }, label))),
       mode === "same"
-        ? h("p", { class: "muted" }, same.length ? "Uses: " + same.map((id) => lib.prompts.find((p) => p.id === id)).filter(Boolean).map(nameOf).join(" → ") : "The System prompt stack is empty for this profile.")
+        ? h("p", { class: "muted" }, same.length ? "Uses: " + same.map((p) => p.name).join(" → ") : "This profile has no System prompt blocks that are on.")
         : null,
       mode === "own"
         ? h("div", {},
-            own.length ? null : h("p", { class: "muted" }, "Nothing stacked yet. Tap Use below."),
+            own.length ? null : h("p", { class: "muted" }, "None picked yet. Tap Use below."),
             ...own.map((id, i) => {
               const p = lib.prompts.find((x) => x.id === id);
               return h("div", { class: "sp-row" },
@@ -482,7 +479,7 @@ const openSheet = (ctx) => {
                 h("button", { class: "small", "aria-label": "Move down", disabled: i === own.length - 1, onclick: () => move(i, 1) }, "↓"),
                 h("button", { class: "small", onclick: () => set("stack", own.filter((x) => x !== id)) }, "Remove"));
             }),
-            h("p", { class: "faint" }, "From your prompt library (System prompt › ☰):"),
+            h("p", { class: "faint" }, "From your prompt library:"),
             ...lib.prompts.filter((p) => !own.includes(p.id)).sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)).map((p) =>
               h("div", { class: "sp-row" }, h("span", { class: "sp-name grow" }, (p.pinned ? "📌 " : "") + nameOf(p)), h("button", { class: "small primary", onclick: () => set("stack", [...own, p.id]) }, "Use"))))
         : null,
@@ -501,8 +498,8 @@ const openGuide = async () => {
   PP.sheet("Memory guide", () => [PP.h("div", { class: "md", html: PP.md(text) })]);
 };
 
-// One memory per message, however many of its pieces the pipeline has
-// (keyed by the message's notes list, which every piece of it shares).
+// One memory per message, however many of its blocks the profile has
+// (keyed by the message's notes list, which every block of it shares).
 const memo = new WeakMap();
 // Sub-chats branched from a reply: that sub-chat sees the chat up to the reply and
 // its own messages, so Memory works on that view of the chat. The view has its own
@@ -551,27 +548,27 @@ PP.plugin({
     } catch (e) {}
     return text;
   },
-  // In a pipeline, Memory is a piece: its text goes where its row is
+  // In a profile, Memory is a block: its text goes where its block is
   // (ctx.message is your message). Elsewhere it goes in front of the message.
-  async piece(ctx) {
+  async text(ctx) {
     const m = await prepared(ctx);
     return m ? m.text || "" : "";
   },
-  // Or in parts, each its own row (Pipeline › Add plugin piece).
-  pieces: Object.fromEntries(Object.entries(PIECES).map(([part, name]) => [part, { name, text: async (ctx) => {
+  // Or in parts, each a block of its own (Edit profile › Add a block › a plugin's text).
+  texts: Object.fromEntries(Object.entries(TEXTS).map(([part, name]) => [part, { name, text: async (ctx) => {
     const m = await prepared(ctx);
-    return m ? pieceOf(m, part) : "";
+    return m ? memoryText(m, part) : "";
   } }])),
   async beforeSend(text, ctx) {
-    const m = await this.piece({ ...ctx, message: text });
+    const m = await this.text({ ...ctx, message: text });
     return m ? m + "\n\n" + text : text;
   },
-  renderBlock(ctx) {
-    const el = ctx.pill();
-    if (ctx.set) el.insertBefore(PP.h("button", { class: "pill-gear", title: "Summary prompts and this chat's summaries", "aria-label": "Memory summaries", onclick: () => openSheet(ctx) }, "☰"), el.lastChild);
+  renderToggle(ctx) {
+    const el = ctx.toggle();
+    if (ctx.set) el.insertBefore(PP.h("button", { class: "toggle-gear", title: "Summary prompts and this chat's summaries", "aria-label": "Memory summaries", onclick: () => openSheet(ctx) }, "☰"), el.lastChild);
     return el;
   },
 });
 
 // For tests and other plugins: the pure parts.
-PP.memory = { plan, lodToMd, lodFromMd, lodPath, seenBy, lineOf, manySites, siteName, sidesOf, pieceOf, mkItem, clean, sideLine, summaryRequest };
+PP.memory = { plan, lodToMd, lodFromMd, lodPath, seenBy, lineOf, manySites, siteName, sidesOf, memoryText, mkItem, clean, sideLine, summaryRequest };

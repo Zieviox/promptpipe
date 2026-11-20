@@ -1,9 +1,11 @@
 {
   "name": "History",
-  "version": "1.2.0",
-  "kind": "core",
+  "version": "2.0.0",
+  "tags": [
+    "core"
+  ],
   "order": 30,
-  "description": "App part: chat files, folders, git and tags.",
+  "description": "Core plugin: chat files, folders, git and tags.",
   "scripts": [
     "history.js"
   ]

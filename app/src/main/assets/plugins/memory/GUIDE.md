@@ -63,10 +63,10 @@ them, to be made again when needed.
 Summaries from Memory 2.1 (`memory-summaries.json`) aren't used any more.
 They are made again as parts when needed.
 
-## In the pipeline
+## In a profile
 
-Memory is one row of your preset (⋯ → Pipeline): its text goes where the row
-is. To place its parts apart, use **Add plugin piece**:
+Memory is one block of your profile (Plugins › Profile): its text goes where the block
+is. To place its parts apart, use **Add a block › Memory's texts**:
 
 - **Pinned facts**
 - **Your side (summaries)**: what you said, did and want
@@ -78,7 +78,7 @@ other only the AI's, so the AI can't take its own words for yours (that costs
 two requests per part). Each side is kept and sent under its own label.
 Summaries made before 2.5 that can't be split (one blob) go first under
 *Your side*, labelled "both sides together". *Summaries › One summary of both
-sides* makes one request per part, labelled the same way. Turn the whole Memory row off when you use the parts, or the
+sides* makes one request per part, labelled the same way. Turn the whole Memory block off when you use the parts, or the
 memory goes twice.
 
 ## Sub-chats

@@ -1,13 +1,13 @@
 # Sub-chats
 
-Start a new chat on the AI site **inside** the chat you're in, on any profile:
-another site, another model, or just a fresh chat when the old one got long.
+Start a new chat on the AI website **inside** the chat you're in, on any profile:
+another provider, another model, or just a fresh chat when the old one got long.
 Your promptpipe chat stays one conversation. A divider marks where each
 sub-chat starts, and Memory sends the new site chat everything before it.
 
 ## Set up
 
-1. Plugins → turn **Sub-chats** on in the profiles you pick at the top.
+1. Plugins → add the **Sub-chats** block to the profiles you pick at the top.
 2. Turn **Memory** on too, or the new site chat starts with no idea what
    came before. In Plugins, keep Base64 below Memory and System prompt.
 
@@ -39,16 +39,14 @@ these notes. Chats from before Sub-chats count as one sub-chat.
 
 ## Good to know
 
-- **Your plugins come along.** A sub-chat on another profile only borrows
-  that profile's site and model. The plugins (Base64, System prompt, Memory
+- **Your blocks come along.** A sub-chat on another profile only borrows
+  that profile's provider and model. The blocks (Base64, System prompts, Memory
   ...) and their settings are the ones of the profile picked at the top.
-  Needs app 0.6.1 or newer (Sending 1.0.1); older apps use the other
-  profile's plugins.
-- **Order matters.** Put Base64 last in Plugins (with the arrows), after
-  Memory and System prompt, so the memory gets encoded with your message.
+- **Order matters.** Put Base64 last in the profile (with the arrows), after
+  Memory and the System prompts, so the memory gets encoded with your message.
   A fresh sub-chat's first message carries the whole memory, and plain text
   in front of the base64 can make the AI answer in plain text.
-- System prompt's "only with the first message" also covers the first
+- A System prompt sent with the "First message of a site chat" also goes with the first
   message of each sub-chat.
 - With Memory set to *Only what this site chat hasn't seen*, a sub-chat gets
   the messages from the other sub-chats, not its own (the site already has

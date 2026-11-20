@@ -3,8 +3,8 @@
 //
 // ---
 // title: Story ideas
-// source: https://chat.qwen.ai/c/...      (the chat on the AI site)
-// site: qwen-chat                          (the site plugin the chat uses)
+// source: https://chat.qwen.ai/c/...      (the chat on the AI website)
+// provider: qwen-chat                      (the provider plugin the chat uses)
 // ai: Qwen Chat
 // model: Qwen3-Max
 // profile: Base64
@@ -19,10 +19,10 @@
 // <!-- pp:turn {"at":"...","profile":"Base64","notes":[...]} -->
 // ### You / ### <AI name> / <details> with what was sent and the raw reply
 (function () {
-  const FIELDS = ["title", "source", "site", "ai", "model", "profile", "switches", "tags", "created", "updated"];
-  // The chat's own plugin switches (see core-pipeline): "memory=off pc1x2=on".
-  const switchesStr = (sw) => Object.entries(sw || {}).map(([k, v]) => `${k}=${v ? "on" : "off"}`).join(" ");
-  const switchesOf = (v) => Object.fromEntries(String(v || "").split(/\s+/).map((x) => /^(.+)=(on|off)$/.exec(x)).filter(Boolean).map((m) => [m[1], m[2] === "on"]));
+  const FIELDS = ["title", "source", "provider", "ai", "model", "profile", "toggles", "tags", "created", "updated"];
+  // The chat's own toggles for its profile's blocks (see core-profiles): "memory=off pr1x2=on".
+  const togglesStr = (t) => Object.entries(t || {}).map(([k, v]) => `${k}=${v ? "on" : "off"}`).join(" ");
+  const togglesOf = (v) => Object.fromEntries(String(v || "").split(/\s+/).map((x) => /^(.+)=(on|off)$/.exec(x)).filter(Boolean).map((m) => [m[1], m[2] === "on"]));
 
   const yamlStr = (s) => {
     s = String(s ?? "");
@@ -41,7 +41,7 @@
   };
 
   const parseFront = (text) => {
-    const meta = { title: "", source: "", site: "", ai: "", model: "", profile: "", switches: {}, tags: [], created: "", updated: "" };
+    const meta = { title: "", source: "", provider: "", ai: "", model: "", profile: "", toggles: {}, tags: [], created: "", updated: "" };
     const m = /^---\n([\s\S]*?)\n---/.exec(text);
     if (!m) return meta;
     for (const line of m[1].split("\n")) {
@@ -50,7 +50,8 @@
       if (kv[1] === "tags") {
         const inner = kv[2].trim().replace(/^\[|\]$/g, "");
         meta.tags = (inner.match(/"(?:[^"\\]|\\.)*"|[^,]+/g) || []).map(yamlVal).filter(Boolean);
-      } else if (kv[1] === "switches") meta.switches = switchesOf(yamlVal(kv[2]));
+      } else if (kv[1] === "toggles" || kv[1] === "switches") meta.toggles = togglesOf(yamlVal(kv[2])); // legacy: switches
+      else if (kv[1] === "site") meta.provider = meta.provider || yamlVal(kv[2]); // legacy: site
       else meta[kv[1]] = yamlVal(kv[2]);
     }
     return meta;
@@ -78,7 +79,7 @@
     const out = ["---"];
     for (const k of FIELDS) {
       if (k === "tags") out.push(`tags: [${(m.tags || []).map(yamlStr).join(", ")}]`);
-      else if (k === "switches") out.push(`switches: ${switchesStr(m.switches) ? yamlStr(switchesStr(m.switches)) : ""}`.trimEnd());
+      else if (k === "toggles") out.push(`toggles: ${togglesStr(m.toggles) ? yamlStr(togglesStr(m.toggles)) : ""}`.trimEnd());
       else out.push(`${k}: ${m[k] ? yamlStr(m[k]) : ""}`.trimEnd());
     }
     out.push("---", "", `# ${m.title || "Untitled chat"}`, "");

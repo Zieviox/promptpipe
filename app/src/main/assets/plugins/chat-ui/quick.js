@@ -1,17 +1,17 @@
 "use strict";
-// App part (chat screen): the message bar's "Quick edit and add" drawer, and the
+// Chat screen: the message bar's "Quick edit and add" drawer, and the
 // small parts other sheets share: a switch, and drag-to-reorder for a list.
 
 // An on/off switch (a button, so it works with touch, keys and screen readers).
-const switchBtn = (on, label, onchange) =>
-  h("button", { class: "sw" + (on ? " on" : ""), role: "switch", "aria-checked": String(!!on), "aria-label": label, onclick: (e) => (e.stopPropagation(), onchange(!on)) });
+const toggleBtn = (on, label, onchange) =>
+  h("button", { class: "tgl" + (on ? " on" : ""), role: "switch", "aria-checked": String(!!on), "aria-label": label, onclick: (e) => (e.stopPropagation(), onchange(!on)) });
 // Move up / Move down, as in the wireframe.
 const moveBtns = (i, n, move) =>
   h("div", { class: "mv" },
     h("button", { class: "act", "aria-label": "Move up", disabled: i === 0, onclick: (e) => (e.stopPropagation(), move(-1)) }, svgIcon("up")),
     h("button", { class: "act", "aria-label": "Move down", disabled: i >= n - 1, onclick: (e) => (e.stopPropagation(), move(1)) }, svgIcon("down")));
 
-// Press a grip and move to reorder a list: a line shows where the row would land.
+// Press a grip and move to reorder a list: a line shows where the item would land.
 // `rows()` gives the row elements in order; onDrop(from, to) does the move.
 const reorderDrag = (e, rows, from, onDrop) => {
   e.preventDefault();
@@ -47,14 +47,14 @@ const reorderDrag = (e, rows, from, onDrop) => {
   grip.addEventListener("pointercancel", cancel);
 };
 
-// What a row is, in a few words. short: the Quick edit drawer's words.
-const plainKind = (r, short = false) => {
-  if (r.type === "message") return short ? "Your text goes here" : "Your text goes here. Move it anywhere.";
-  if (r.type === "piece") return short ? "System prompt" : "Adds text · system prompt";
-  const p = S.plugins.get(r.plugin);
+// What a block is, in a few words. short: the Quick edit drawer's words.
+const blockType = (b, short = false) => {
+  if (b.type === "message") return short ? "Your text goes here" : "Your text goes here. Move it anywhere.";
+  if (b.type === "prompt") return (short ? "System prompt" : "Adds text · System prompt") + (b.link ? " · linked" : "");
+  const p = S.plugins.get(b.plugin);
   if (!p) return "Plugin not installed";
-  if (short) return "Message plugin";
-  if (r.part || typeof p.def?.piece === "function") return "Adds text";
+  if (short) return "Plugin";
+  if (b.textId || typeof p.def?.text === "function") return "Adds text";
   return typeof p.def?.beforeSend === "function" ? "Changes text" : "Works on replies";
 };
 
@@ -73,40 +73,39 @@ const pickTextFiles = (many) => {
   input.click();
 };
 
-// A chat's own switches are saved in its file; a new chat keeps them until its first message.
-const saveSwitches = (chat = S.chat) => chat.path && saveChat(chat, `switches: ${chat.meta.title || "chat"}`).catch((e) => toast(e.message, "error"));
+// A chat's own toggles are saved in its file; a new chat keeps them until its first message.
+const saveToggles = (chat = S.chat) => chat.path && saveChat(chat, `toggles: ${chat.meta.title || "chat"}`).catch((e) => toast(e.message, "error"));
 
-// The message bar's Quick edit: the active profile's rows, switched on or off for this chat
-// (the profile's switches are where a chat starts), reordered for the profile, and text files.
+// The message bar's Quick edit: the active profile's blocks, toggled on or off for this chat
+// (the profile's toggles are where a chat starts), reordered for the profile, and text files.
 const openQuick = () => {
   openSheet(() => profileOf(S.chat).name, () => {
     const prof = profileOf(S.chat);
-    const pre = presetOf(prof);
-    const P = PP.pipeline;
-    const mine = forChat(prof, S.chat).pipe; // the same rows, with this chat's switches
-    const own = Object.keys(P.chatSwitches(S.chat)).length;
-    const flip = (r, i, v) => (P.setChatSwitch(S.chat, P.rowKey(r), v, r.on !== false), saveSwitches(), rerenderSheet(), render());
-    const rowEls = () => [...document.querySelectorAll("[data-qp]")];
-    const row = (r, i) => {
-      const m = mine.rows[i];
-      const live = r.type === "message" || P.rowLive(mine, m);
-      const g = r.group && (mine.groups || []).find((x) => x.id === r.group);
+    const P = PP.profiles;
+    const mine = forChat(prof, S.chat); // the same blocks, with this chat's toggles
+    const own = Object.keys(P.chatToggles(S.chat)).length;
+    const flip = (b, v) => (P.setChatToggle(S.chat, P.blockKey(b), v, b.on !== false), saveToggles(), rerenderSheet(), render());
+    const blockEls = () => [...document.querySelectorAll("[data-qp]")];
+    const blockItem = (b, i) => {
+      const m = mine.blocks[i];
+      const live = b.type === "message" || P.blockLive(mine, m);
+      const g = b.group && (mine.groups || []).find((x) => x.id === b.group);
       return h(
         "div",
-        { class: "it" + (live ? "" : " off"), "data-qp": i, "data-row": "plus." + rowName(r), "data-key": "qp:" + P.rowKey(r) },
-        h("button", { class: "grip", "aria-label": "Drag to reorder", title: "Drag to reorder", onpointerdown: (e) => reorderDrag(e, rowEls, i, (from, to) => (P.moveRowTo(pre, from, to), rerenderSheet())), onclick: (e) => e.stopPropagation() }, svgIcon("grip")),
-        h("div", { class: "g" }, rowName(r).replace(/^System prompt: /, ""), h("small", {}, plainKind(r, true) + (g && g.on === false ? " · its group is off" : ""))),
-        moveBtns(i, pre.rows.length, (d) => (P.moveRow(pre, i, d), rerenderSheet())),
-        r.type === "message" ? null : switchBtn(m.on !== false, rowName(r) + " on or off in this chat", (v) => flip(r, i, v)),
+        { class: "it" + (live ? "" : " off"), "data-qp": i, "data-row": "plus." + P.blockName(b), "data-key": "qp:" + P.blockKey(b) },
+        h("button", { class: "grip", "aria-label": "Drag to reorder", title: "Drag to reorder", onpointerdown: (e) => reorderDrag(e, blockEls, i, (from, to) => (P.moveBlockTo(prof, from, to), rerenderSheet())), onclick: (e) => e.stopPropagation() }, svgIcon("grip")),
+        h("div", { class: "g" }, P.blockName(b), h("small", {}, blockType(b, true) + (g && g.on === false ? " · its group is off" : ""))),
+        moveBtns(i, prof.blocks.length, (d) => (P.moveBlock(prof, i, d), rerenderSheet())),
+        b.type === "message" ? null : toggleBtn(m.on !== false, P.blockName(b) + " on or off in this chat", (v) => flip(b, v)),
       );
     };
     const fileRow = (many) =>
       item({ icon: many ? "copy" : "quote", label: many ? "Several text files" : "Text file", sub: many ? "One after another, in the box" : "Put its text in the box", onclick: () => pickTextFiles(many) });
     return [
       profileDropdown({ id: "plus", current: prof, showEdit: false, sub: "This chat's profile · tap to switch", pick: (p) => (switchProfile(p.id), rerenderSheet()) }),
-      h("div", { class: "sub2" }, "Switches are this chat's own; a new chat starts with the profile's. Drag to reorder the profile."),
-      ...(pre ? pre.rows.map(row) : [h("p", { class: "sub2" }, "This profile has no rows yet.")]),
-      own ? item({ id: "plus.reset", icon: "retry", label: "Use the profile's switches", sub: (own === 1 ? "1 switch differs" : own + " switches differ") + " in this chat", onclick: () => (P.clearChatSwitches(S.chat), saveSwitches(), rerenderSheet(), render()) }) : null,
+      h("div", { class: "sub2" }, "Toggles are this chat's own; a new chat starts with the profile's. Drag to reorder the profile."),
+      ...prof.blocks.map(blockItem),
+      own ? item({ id: "plus.reset", icon: "retry", label: "Use the profile's toggles", sub: (own === 1 ? "1 toggle differs" : own + " toggles differ") + " in this chat", onclick: () => (P.clearChatToggles(S.chat), saveToggles(), rerenderSheet(), render()) }) : null,
       h("div", { class: "lbl" }, "Add to your message"),
       fileRow(false),
       fileRow(true),

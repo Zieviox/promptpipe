@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 // Owns the pages and connects them:
 // - uiSession shows the app's own chat UI (served by the core on 127.0.0.1).
-// - pages are the AI site pages (1 by default, more for chats in parallel).
+// - pages are the AI website pages (1 by default, more for chats in parallel).
 //   The built-in extension's content script on each talks to us over its own
 //   native messaging port ("pp").
 // The UI reaches a page through the core -> Shell -> request(cmd with "page") -> port -> content script.

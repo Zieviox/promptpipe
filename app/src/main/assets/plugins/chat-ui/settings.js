@@ -1,5 +1,5 @@
 "use strict";
-// App part (chat screen): Settings, one page of groups, each a page of its own.
+// Chat screen: Settings, one page of groups, each a page of its own.
 
 // Settings: one page of groups, each a page of its own (‹ Settings goes back).
 const settingsPage = (title, body) =>
@@ -72,7 +72,7 @@ const openFolderPicker = () => {
       h("div", { class: "results" },
         st.path && st.path !== "/" ? sheetRow({ icon: "up", label: "Up", sub: st.parent || "/", onclick: () => go(st.parent || "/") }) : null,
         st.dirs.length ? st.dirs.map((d) => sheetRow({ icon: "folder", label: d, onclick: () => go((st.path === "/" ? "" : st.path) + "/" + d) })) : h("p", { class: "muted" }, "No folders in here.")),
-      h("label", { class: "field inline" }, h("span", {}, "Copy my chats into it (the old folder stays as it is)"), switchBtn(st.copy, "Copy my chats", (on) => ((st.copy = on), rerenderSheet()))),
+      h("label", { class: "field inline" }, h("span", {}, "Copy my chats into it (the old folder stays as it is)"), toggleBtn(st.copy, "Copy my chats", (on) => ((st.copy = on), rerenderSheet()))),
       h("div", { class: "row" }, h("button", { class: "primary grow", onclick: () => useFolder(st.typed ?? st.path, st.copy) }, "Use this folder")),
     ];
   });
@@ -81,7 +81,7 @@ const openFolderPicker = () => {
 };
 
 // Max replies at once: how many chats are answered at the same time (5; up to 10 when unlocked).
-// Tap to step 1, 2, … up to the limit; past 5 it asks first (10 is the most).
+// Tap to go 1, 2, … up to the limit; past 5 it asks first (10 is the most).
 const cycleMaxReplies = async () => {
   const cap = S.config.moreReplies ? 10 : 5, n = maxReplies();
   if (n >= cap) {
@@ -134,24 +134,16 @@ const openApiHow = () =>
     return [
       h("div", { class: "sub2" }, "Apps that take an OpenAI API key: base URL = the address, model = a profile name, API key = the token (always required). Each request becomes one new chat on the site, unless it adds \"chat\": \"<path>.md\" to continue a saved chat (then only its last message is sent). Every reply also says, under \"promptpipe\", which chat it went to and what was sent. Requests at the same time run in parallel on the site pages (see Sites); the rest wait their turn."),
       h("div", { class: "lbl" }, "Try it"),
-      h("pre", { class: "pipe-preview" }, curl),
+      h("pre", { class: "send-preview" }, curl),
       item({ label: "Copy the command", onclick: () => copyText(curl, "Copied") }),
     ];
   }, { back: backToApi });
 const settingsBody = (title) => SETTINGS.find((g) => g[0] === title)[2];
 const SETTINGS = [
-  ["Plugins", "Profile order and the plugin library", () => [
-    item({ id: "plugins.open", label: "Plugins", sub: updateCount() ? `${updateCount()} update${updateCount() === 1 ? "" : "s"} waiting` : "Profile rows and the plugin library", badge: updateCount() ? String(updateCount()) : null, chev: !updateCount(), onclick: () => openPlugins() }),
+  ["Plugins", "Profile blocks and the plugin library", () => [
+    item({ id: "plugins.open", label: "Plugins", sub: updateCount() ? `${updateCount()} update${updateCount() === 1 ? "" : "s"} waiting` : "Profile blocks and the plugin library", badge: updateCount() ? String(updateCount()) : null, chev: !updateCount(), onclick: () => openPlugins() }),
   ]],
-  ["System prompts", "Write, order, import, export", () => {
-    const menu = (label) => [...S.plugins.values()].flatMap((p) => p.def?.menu || []).find((m) => m.label === label);
-    const lib = menu("System prompts"), imp = menu("Import system prompts…"), exp = menu("Export all system prompts");
-    return lib ? [
-      h("p", { class: "muted" }, "The prompts you keep. Put them in a profile as rows (Edit profile › Add a row), or stack them with the System prompt plugin."),
-      h("div", { class: "row" }, h("button", { class: "primary", onclick: () => lib.run() }, "Open the library")),
-      h("div", { class: "row" }, imp ? h("button", { onclick: () => imp.run() }, "Import…") : null, exp ? h("button", { onclick: () => exp.run() }, "Export all") : null),
-    ] : [h("p", { class: "muted" }, "The System prompt plugin isn't installed. Get it in Plugins.")];
-  }],
+  ["Prompt library", "System prompts you keep and link", () => []],
   ["Look", "Theme, accent, quick actions", () => [
     ...lookControls(),
     item({ id: "look.qa", label: "Quick actions under replies", sub: { newest: "Newest reply only", every: "Every reply", off: "Collapsed" }[S.config.quickActions || "newest"], onclick: () => ((S.config.quickActions = { newest: "every", every: "off", off: "newest" }[S.config.quickActions || "newest"]), saveConfig(), rerenderSheet(), render()) }),
@@ -183,16 +175,14 @@ const SETTINGS = [
     ];
   }],
   ["Import and export", "Profiles, prompts, name clashes", () => {
-    const menu = (label) => [...S.plugins.values()].flatMap((p) => p.def?.menu || []).find((m) => m.label === label);
-    const spImport = menu("Import system prompts…"), spExport = menu("Export all system prompts");
     const clash = { ask: "Ask each time (keep both is preselected)", both: "Always keep both", replace: "Always replace" };
     return [
       h("h3", {}, "Profiles"),
       item({ id: "ie.exp", label: "Export all profiles", onclick: () => exportProfiles(S.config.profiles) }),
       item({ id: "ie.imp", label: "Import a profile…", onclick: openImportProfile }),
-      h("h3", {}, "System prompts"),
-      spExport ? item({ id: "ie.spexp", label: "Export all system prompts", onclick: () => spExport.run() }) : null,
-      spImport ? item({ id: "ie.spimp", label: "Import system prompts…", onclick: () => spImport.run() }) : h("p", { class: "muted" }, "The System prompt plugin isn't installed."),
+      h("h3", {}, "Prompt library"),
+      item({ id: "ie.libexp", label: "Export the whole library", onclick: exportLibrary }),
+      item({ id: "ie.libimp", label: "Import prompts…", onclick: pickAndImportLibrary }),
       h("h3", {}, "When a name already exists"),
       item({ id: "ie.clash", label: "Importing a name you already have", sub: clash[importMode()], onclick: () => ((S.config.importClash = { ask: "both", both: "replace", replace: "ask" }[importMode()]), saveConfig(), rerenderSheet()) }),
     ];
@@ -209,7 +199,7 @@ const SETTINGS = [
   ]],
   ["Advanced", "Reset, safe mode, core log", () => [
     item({ id: "adv.reset", label: "Reset to first launch", sub: "Shows the welcome again. Chats, profiles and plugins stay.", onclick: resetFirstLaunch }),
-    item({ id: "adv.parts", label: "App parts", chev: true, onclick: () => settingsPage("App parts", appPartsControls) }),
+    item({ id: "adv.core", label: "Core plugins", sub: "The app itself: sending, history, this screen", chev: true, onclick: () => settingsPage("Core plugins", corePluginsControls) }),
     item({ id: "adv.safe", label: "Safe mode", sub: SAFE ? "On: only built-in plugins" : "", onclick: () => restart(true) }),
     item({ id: "adv.log", label: "Core log", chev: true, onclick: openCoreLog }),
     item({ id: "adv.bg", label: "Stop background service", sub: "A notification keeps the AI page and the API alive in the background", onclick: () => api("/api/app/action", { action: "stopService" }) }),
@@ -222,12 +212,11 @@ const SETTINGS = [
     item({ id: "help.pg", label: "Plugin guide", chev: true, onclick: openPluginGuide }),
   ]],
 ];
-const SETTING_ICONS = { Plugins: "plugins", "System prompts": "prompt", Look: "look", Sites: "sites", "Chats and storage": "storage", "Import and export": "impexp", "Local API": "api", Advanced: "adv", Help: "help" };
+const SETTING_ICONS = { Plugins: "plugins", "Prompt library": "prompt", Look: "look", Sites: "sites", "Chats and storage": "storage", "Import and export": "impexp", "Local API": "api", Advanced: "adv", Help: "help" };
 PP.openSettings = () => openSettings();
-// System prompts opens the library at once; Plugins opens the Plugins screen (as in the wireframe).
+// Prompt library opens the library at once; Plugins opens the Plugins screen (as in the wireframe).
 const openSettingsGroup = (title, body) => {
-  const lib = title === "System prompts" && [...S.plugins.values()].flatMap((p) => p.def?.menu || []).find((m) => m.label === "System prompts");
-  if (lib) return lib.run();
+  if (title === "Prompt library") return openPromptLibrary();
   if (title === "Plugins") return openPlugins();
   settingsPage(title, body);
 };

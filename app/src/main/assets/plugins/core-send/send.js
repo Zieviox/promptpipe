@@ -1,7 +1,7 @@
 "use strict";
-// App part: sending. The page pool (parallel site pages), the per-chat queue,
-// runChat (one message through the profile's plugins to the site and back),
-// PP.ask (askSite) and the model/switch choices set on the page.
+// Core plugin: sending. The page pool (parallel site pages), the per-chat queue,
+// runChat (one message through the profile's blocks to the provider and back),
+// PP.ask (askSite) and the model and options chosen, set on the page.
 
 // ---------- page pool ----------
 // Each send takes a free site page and gives it back when done; when all are
@@ -58,7 +58,7 @@ const sameHost = (a, b) => {
 // Load the profile's site in the background (the app starts on a blank page),
 // so it is ready to log in to or send to.
 const warmSite = () => {
-  const s = siteFor();
+  const s = providerFor();
   if (!s || S.site.busy || sameHost(S.site.url || "", s.url)) return Promise.resolve();
   const url = S.chat?.meta.source && sameHost(S.chat.meta.source, s.url) ? S.chat.meta.source : s.url;
   const page = S.page;
@@ -72,7 +72,7 @@ const warmSite = () => {
 // Open the site view (the chat UI draws it and places the page): on the page
 // the open chat is being answered on, if any, else the one in front.
 const showSite = (page) => {
-  if (!siteFor()) return toast("Get an AI site plugin first: tap the site pill at the top", "error");
+  if (!providerFor()) return toast("Get a provider first: tap the pill at the top", "error");
   const t = Object.values(S.pageTurns).find((x) => S.chat?.turns.includes(x));
   if (!t) warmSite();
   S.svPage = page ?? (t ? t.page : S.page);
@@ -83,30 +83,32 @@ const showSite = (page) => {
   render();
 };
 
-// Model and switches chosen in the app (saved per site) are set on the page
+// Model and options chosen in the app (saved per provider) are set on the page
 // before sending, when the page shows something else.
-// Returns the site's own saved object, so changes to it are saved with it.
-const choicesFor = (siteId = siteIdOf()) => {
-  const ss = siteSaved(siteId);
+// Returns the provider's own saved object, so changes to it are saved with it.
+const choicesFor = (id = providerIdOf()) => {
+  const ss = providerSaved(id);
   ss.model = ss.model || "";
-  ss.switches = ss.switches || {};
+  if (ss.switches && !ss.options) ss.options = ss.switches; // legacy: switches
+  delete ss.switches; // legacy
+  ss.options = ss.options || {};
   return ss;
 };
-const applySiteChoices = async (site, page = S.page, turn = null) => {
-  const want = choicesFor(site.id);
-  if (!want.model && !Object.keys(want.switches).length) return;
-  const cur = await api("/api/site", { cmd: "info", site, page });
+const applyProviderChoices = async (provider, page = S.page, turn = null) => {
+  const want = choicesFor(provider.id);
+  if (!want.model && !Object.keys(want.options).length) return;
+  const cur = await api("/api/site", { cmd: "info", provider, page });
   if (want.model && !(cur.model || "").toLowerCase().includes(want.model.toLowerCase())) {
     if (turn) turn.progress = "Choosing " + want.model + "…";
     else S.progress = "Choosing " + want.model + "…";
     render();
-    const r = await api("/api/site", { cmd: "setModel", site, page, model: want.model });
+    const r = await api("/api/site", { cmd: "setModel", provider, page, model: want.model });
     pg(page).model = r.model;
   }
-  for (const [name, on] of Object.entries(want.switches)) {
-    if (!(site.switches || []).some((x) => x.name === name)) continue;
-    try { await api("/api/site", { cmd: "setSwitch", site, page, name, on }); }
-    catch (e) { toast(`Sending without the "${name}" switch: ${e.message}`, "error"); }
+  for (const [name, on] of Object.entries(want.options)) {
+    if (!(provider.options || []).some((x) => x.name === name)) continue;
+    try { await api("/api/site", { cmd: "setOption", provider, page, name, on }); }
+    catch (e) { toast(`Sending without the "${name}" option: ${e.message}`, "error"); }
   }
 };
 
@@ -145,18 +147,18 @@ const runChat = (chat, prompt, prof = profile(), follow = false, onPage = null) 
     }
     // A plugin may choose the profile and the site chat for this message.
     const route = follow ? null : await runRoute({ chat, prompt, profile: prof }, forChat(prof, chat)).catch((e) => (toast("route: " + e.message, "error"), null));
-    // plugins: "active" keeps the steps (Base64 ...) of the profile you're on;
-    // the routed profile then only gives the site and model.
+    // plugins: "active" keeps the blocks (Base64 ...) of the profile you're on;
+    // the routed profile then only gives the provider and model.
     const hookProf = prof;
     if (route && route.profile) prof = S.config.profiles.find((p) => p.id === route.profile || p.name.toLowerCase() === String(route.profile).toLowerCase()) || prof;
-    const site = siteFor(chat);
-    if (!site) throw new Error("no AI site plugin yet (get one from the site pill at the top)");
-    if (!chat.meta.site) chat.meta.site = site.id; // the chat keeps the site it was first sent on
-    chat.meta.ai = site.name;
+    const provider = providerFor(chat);
+    if (!provider) throw new Error("no provider yet (get one from the pill at the top)");
+    if (!chat.meta.provider) chat.meta.provider = provider.id; // the chat keeps the provider it was first sent on
+    chat.meta.ai = provider.name;
     // Where to send: the route's choice, else the chat's link, else a fresh site chat.
     // A link to another site than the chat's (the site was switched) starts fresh.
-    let target = route && route.url ? (route.url === "new" ? site.url : route.url) : chat.meta.source || site.url;
-    if (!sameHost(target, site.url)) target = site.url;
+    let target = route && route.url ? (route.url === "new" ? provider.url : route.url) : chat.meta.source || provider.url;
+    if (!sameHost(target, provider.url)) target = provider.url;
     const turn = { at: iso(), you: prompt, sent: "", raw: "", reply: "", profile: prof.name, tags: [], notes: [], data: {}, pending: true, progress: "Waiting for a free site page…" };
     if (route) turn.notes.push(`${pluginName(route.by)} chose ${route.url === "new" ? "a new site chat" : route.url || "the profile " + prof.name}`);
     chat.turns.push(turn);
@@ -174,26 +176,26 @@ const runChat = (chat, prompt, prof = profile(), follow = false, onPage = null) 
       const here = pg(page).url;
       if (follow) {
       } else if (!sameUrl(here, target)) await openSite(target, page, turn);
-      if (!follow) await applySiteChoices(site, page, turn);
-      // The chat's own switches, as they are now (a message that waited uses the latest).
-      const steps = forChat(route && route.plugins === "active" ? hookProf : prof, chat);
+      if (!follow) await applyProviderChoices(provider, page, turn);
+      // The chat's own toggles, as they are now (a message that waited uses the latest).
+      const used = forChat(route && route.plugins === "active" ? hookProf : prof, chat);
       // A brand-new site chat (new chat or new sub-chat) hasn't seen any
       // first-message setup yet (system prompt "first message only" ...).
-      const freshSite = !follow && sameUrl(target, site.url);
-      const ctx = { chat, turn, page, url: pg(page).url, profile: steps, siteProfile: prof, firstMessage: chat.turns.length === 1 || freshSite, freshSite, notes: turn.notes };
-      turn.sent = prompt ? await inHooks(() => buildMessage(prompt, ctx, trace, steps)) : "";
-      turn.progress = (follow ? "Reading the reply on " : "Sending to ") + site.name + (pageCount() > 1 ? ` (page ${page + 1})` : "") + "…";
+      const freshSite = !follow && sameUrl(target, provider.url);
+      const ctx = { chat, turn, page, url: pg(page).url, profile: used, routedProfile: prof, firstMessage: chat.turns.length === 1 || freshSite, freshSite, notes: turn.notes };
+      turn.sent = prompt ? await inHooks(() => buildMessage(prompt, ctx, trace, used)) : "";
+      turn.progress = (follow ? "Reading the reply on " : "Sending to ") + provider.name + (pageCount() > 1 ? ` (page ${page + 1})` : "") + "…";
       render();
       const started = Date.now();
       const w = S.config.wait || {};
       const idleMs = (+w.idleMin || 0) * 60000;
       const maxMs = (+w.maxMin || 0) * 60000;
       // The app itself waits as long as the page may (a week when there is no limit).
-      const r = await api("/api/site", { cmd: follow ? "follow" : "send", site, page, text: turn.sent, idleMs, maxMs, timeout: maxMs ? maxMs + 60000 : 7 * 86400000 });
+      const r = await api("/api/site", { cmd: follow ? "follow" : "send", provider, page, text: turn.sent, idleMs, maxMs, timeout: maxMs ? maxMs + 60000 : 7 * 86400000 });
       if (follow && !prompt) {
         // Added from the page: your side is whatever the page shows, decoded like a reply.
         turn.sent = r.you || "";
-        turn.you = r.you ? await inHooks(() => runHooks("afterReply", r.you, { ...ctx, notes: [] }, [], steps)).catch(() => r.you) : "(from the page)";
+        turn.you = r.you ? await inHooks(() => runHooks("afterReply", r.you, { ...ctx, notes: [] }, [], used)).catch(() => r.you) : "(from the page)";
         turn.notes.push("added from the page");
       }
       if (r.watch) turn.notes.push("waited: " + r.watch); // numbers only, for a wait that took long
@@ -203,16 +205,16 @@ const runChat = (chat, prompt, prof = profile(), follow = false, onPage = null) 
       if (r.thinking) turn.thinking = r.thinking;
       trace.push({ label: "Raw reply", text: r.raw, notes: [] });
       try {
-        turn.reply = await inHooks(() => runHooks("afterReply", r.raw, ctx, trace, steps));
+        turn.reply = await inHooks(() => runHooks("afterReply", r.raw, ctx, trace, used));
       } catch (e) {
         turn.reply = r.raw;
         turn.error = e.message;
         trace.push({ label: "Error", text: e.message, error: true, notes: [] });
       }
       Object.assign(pg(page), { connected: true, url: r.url, title: r.title, model: r.model });
-      if (!sameUrl(r.url, site.url)) chat.meta.source = r.url;
-      else if (chat.meta.source && !sameHost(chat.meta.source, site.url)) chat.meta.source = ""; // the old link was another site
-      chat.meta.ai = site.name;
+      if (!sameUrl(r.url, provider.url)) chat.meta.source = r.url;
+      else if (chat.meta.source && !sameHost(chat.meta.source, provider.url)) chat.meta.source = ""; // the old link was another site
+      chat.meta.ai = provider.name;
       if (r.model) chat.meta.model = r.model;
       chat.meta.profile = prof.name;
       if (!chat.meta.title || chat.meta.title === "New chat") chat.meta.title = (turn.you || "Chat").split("\n")[0].slice(0, 60);
@@ -269,19 +271,19 @@ const inHooks = async (fn) => {
 // saved as a chat. opts: { profile: name, hooks: true to run the profile's plugins }.
 const askSite = async (prompt, opts = {}) => {
   const prof = S.config.profiles.find((p) => opts.profile && p.name.toLowerCase() === String(opts.profile).toLowerCase()) || profile();
-  const site = siteFor(S.chat);
-  if (!site) throw new Error("PP.ask: no AI site plugin yet");
-  if (hookDepth > 0 && maxReplies() === 1) throw new Error("PP.ask inside a plugin step needs Max replies at once to be 2 or more (Settings › Sites)");
-  const page = await acquire({ url: site.url });
+  const provider = providerFor(S.chat);
+  if (!provider) throw new Error("PP.ask: no provider yet");
+  if (hookDepth > 0 && maxReplies() === 1) throw new Error("PP.ask inside a plugin needs Max replies at once to be 2 or more (Settings › Sites)");
+  const page = await acquire({ url: provider.url });
   try {
     const quiet = {}; // progress of side requests isn't shown under the message box
-    await openSite(site.url, page, quiet);
-    await applySiteChoices(site, page, quiet);
+    await openSite(provider.url, page, quiet);
+    await applyProviderChoices(provider, page, quiet);
     const ctx = { chat: null, profile: prof, firstMessage: true, notes: [] };
     const text = opts.hooks ? await inHooks(() => buildMessage(prompt, ctx, [], prof)) : prompt;
     const w = S.config.wait || {};
     const maxMs = (+w.maxMin || 0) * 60000;
-    const r = await api("/api/site", { cmd: "send", site, page, text, idleMs: (+w.idleMin || 0) * 60000, maxMs, timeout: maxMs ? maxMs + 60000 : 7 * 86400000 });
+    const r = await api("/api/site", { cmd: "send", provider, page, text, idleMs: (+w.idleMin || 0) * 60000, maxMs, timeout: maxMs ? maxMs + 60000 : 7 * 86400000 });
     Object.assign(pg(page), { connected: true, url: r.url, title: r.title, model: r.model });
     const reply = opts.hooks ? await inHooks(() => runHooks("afterReply", r.raw, ctx, [], prof)) : r.raw;
     return { reply, raw: r.raw, thinking: r.thinking || "", url: r.url, page };

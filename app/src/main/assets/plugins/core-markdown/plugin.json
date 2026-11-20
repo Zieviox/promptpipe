@@ -1,9 +1,11 @@
 {
   "name": "Markdown",
-  "version": "1.0.0",
-  "kind": "core",
+  "version": "2.0.0",
+  "tags": [
+    "core"
+  ],
   "order": 10,
-  "description": "App part: Markdown to HTML for replies and docs (mdToHtml). Replace it to change how Markdown looks.",
+  "description": "Core plugin: Markdown to HTML for replies and docs (mdToHtml). Replace it to change how Markdown looks.",
   "scripts": [
     "md.js"
   ]

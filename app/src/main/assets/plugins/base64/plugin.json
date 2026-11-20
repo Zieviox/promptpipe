@@ -1,11 +1,11 @@
 {
   "id": "base64",
   "name": "Base64",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "description": "Asks the AI to answer in base64 (and encodes your message), then decodes the reply. Small AI mistakes in the base64 are repaired.",
   "main": "main.js",
-  "block": {
-    "place": "toggles",
+  "toggle": {
+    "place": "toolbar",
     "label": "Base64"
   },
   "settings": {

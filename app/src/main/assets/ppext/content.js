@@ -1,9 +1,9 @@
 // Runs inside the AI chat page. The app sends commands over a native port:
-//   send  {site, text}  type the text, send it, wait for the finished reply
-//   last  {site}        newest reply on the page
-//   list  {site}        chats listed in the site's sidebar
-//   info  {site}        current address, title and model
-// `site` is the site plugin's selectors (see docs/PLUGINS.md, "AI sites").
+//   send  {provider, text}  type the text, send it, wait for the finished reply
+//   last  {provider}        newest reply on the page
+//   list  {provider}        chats listed in the site's sidebar
+//   info  {provider}        current address, title and model
+// `provider` is the provider plugin's description: its selectors and options (see docs/PLUGINS.md, "Providers").
 (() => {
   if (window.top !== window || window.__ppBridge) return;
   window.__ppBridge = true;
@@ -148,9 +148,9 @@
     }
   };
 
-  const snapshot = (site) => {
+  const snapshot = (provider) => {
     const snap = {};
-    for (const s of site.reply || []) {
+    for (const s of provider.reply || []) {
       const els = all(s);
       snap[s] = { count: els.length, last: textOf(els[els.length - 1]) };
     }
@@ -158,21 +158,21 @@
   };
 
   // Thinking (reasoning) shown by some models: the newest element matching
-  // site.thinking that appeared since `before`. If it sits inside the reply,
+  // provider.thinking that appeared since `before`. If it sits inside the reply,
   // it is left out of the reply text.
-  const thinkCount = (site) => (site.thinking || []).reduce((n, s) => n + all(s).length, 0);
-  const lastThinking = (site) => {
-    for (const s of site.thinking || []) {
+  const thinkCount = (provider) => (provider.thinking || []).reduce((n, s) => n + all(s).length, 0);
+  const lastThinking = (provider) => {
+    for (const s of provider.thinking || []) {
       const els = all(s);
       if (els.length) return els[els.length - 1];
     }
     return null;
   };
   // A thinking block in the same message as the reply (up to 3 levels up).
-  const nearThinking = (site, replyEl) => {
+  const nearThinking = (provider, replyEl) => {
     let box = replyEl;
     for (let up = 0; box && up < 3; up++, box = box.parentElement) {
-      for (const s of site.thinking || []) {
+      for (const s of provider.thinking || []) {
         let found = [];
         try {
           found = [...box.querySelectorAll(s)];
@@ -193,10 +193,10 @@
   };
 
   // The reply as Markdown, without any thinking block inside it.
-  const answerText = (site, el) => {
+  const answerText = (provider, el) => {
     if (!el) return "";
     // "thinking" boxes and "strip" parts (e.g. source numbers like "-18") never belong in the reply text.
-    const drop = [...(site.thinking || []), ...(site.strip || [])];
+    const drop = [...(provider.thinking || []), ...(provider.strip || [])];
     if (!drop.some((s) => { try { return el.querySelector(s); } catch (e) { return false; } })) return mdOf(el);
     // Hidden parts are judged on the live page; mark them before cloning.
     const clone = el.cloneNode(true);
@@ -211,16 +211,16 @@
       host.remove();
     }
   };
-  const lastReplyEl = (site) => {
-    for (const s of site.reply || []) {
+  const lastReplyEl = (provider) => {
+    for (const s of provider.reply || []) {
       const els = all(s);
       if (els.length && textOf(els[els.length - 1])) return els[els.length - 1];
     }
     return null;
   };
 
-  const lastReply = (site) => {
-    for (const s of site.reply || []) {
+  const lastReply = (provider) => {
+    for (const s of provider.reply || []) {
       const els = all(s);
       const t = textOf(els[els.length - 1]);
       if (t) return t;
@@ -234,15 +234,15 @@
       (b) => visible(b) && /^\s*(log ?in|sign ?in|fazer login|entrar|iniciar sesi[oó]n|anmelden|se connecter|connexion|accedi|登录|ログイン)\s*$/i.test(textOf(b)),
     );
 
-  // A site script may say that the site refused the message (an error line instead of a reply, a
-  // human check): its error(site) returns nothing, a text, or { text, el } with the element showing it.
+  // A content script may say that the site refused the message (an error line instead of a reply, a
+  // human check): its error(provider) returns nothing, a text, or { text, el } with the element showing it.
   // An error whose element was already showing before the send (`old`) belongs to an earlier message.
-  const siteError = (site, old) => {
-    const fn = site && scriptFor(site).error;
+  const siteError = (provider, old) => {
+    const fn = provider && scriptFor(provider).error;
     if (!fn) return null;
     let r;
     try {
-      r = fn(site);
+      r = fn(provider);
     } catch (e) {
       return null;
     }
@@ -252,18 +252,18 @@
   };
   // Before a send: errors on the page now are old ones, except one with no element (a human
   // check over the whole page), which stops the send at once.
-  const oldErrors = (site) => {
-    const r = siteError(site);
+  const oldErrors = (provider) => {
+    const r = siteError(provider);
     if (r && !r.el) throw new Error(r.text);
     return new Set(r ? [r.el] : []);
   };
 
   const noBox = () => new Error("chat input box not found on the page after 15s (tap the site name to look" + (loggedOut() ? "; it shows a Log in button" : "") + ")");
-  const typeInto = async (site, text, snap, old) => {
+  const typeInto = async (provider, text, snap, old) => {
     // The site may still be loading (it just opened or switched chats), so wait for the box.
-    const el = await waitFor(() => first(site.input), 15000);
+    const el = await waitFor(() => first(provider.input), 15000);
     if (!el) throw noBox();
-    if (!old) old = oldErrors(site);
+    if (!old) old = oldErrors(provider);
     el.focus();
     if (el.isContentEditable) {
       document.execCommand("selectAll", false, null);
@@ -294,7 +294,7 @@
       return null;
     };
     const btn = await waitFor(() => {
-      const b = first(site.send);
+      const b = first(provider.send);
       return enabled(b) ? b : null;
     }, 1500) || await waitFor(nearSend, 2500);
     const boxText = () => (el.isContentEditable ? el.innerText : el.value || "").trim();
@@ -306,22 +306,22 @@
       el.dispatchEvent(new KeyboardEvent("keyup", opts));
     };
     const startUrl = location.href;
-    const usersBefore = pickAll(site.user).length;
+    const usersBefore = pickAll(provider.user).length;
     press();
     // Sent = the box emptied or was replaced, the page moved to a new chat, or
     // the stop button showed up. Try once more, then say so.
     const went = () => {
-      const err = siteError(site, old);
+      const err = siteError(provider, old);
       if (err) throw new Error(err.text);
-      const now = first(site.input);
-      const grew = (snap && (site.reply || []).some((s) => all(s).length > (snap[s] || { count: 0 }).count)) || pickAll(site.user).length > usersBefore;
-      return grew || !el.isConnected || location.href !== startUrl || !boxText() || (now && now !== el && !(now.isContentEditable ? now.innerText : now.value || "").trim()) || !!first(site.stop);
+      const now = first(provider.input);
+      const grew = (snap && (provider.reply || []).some((s) => all(s).length > (snap[s] || { count: 0 }).count)) || pickAll(provider.user).length > usersBefore;
+      return grew || !el.isConnected || location.href !== startUrl || !boxText() || (now && now !== el && !(now.isContentEditable ? now.innerText : now.value || "").trim()) || !!first(provider.stop);
     };
     if (await waitFor(() => went() || null, 5000)) return;
     // Press again only while our text is clearly still waiting in the same box.
     if (el.isConnected && boxText()) press();
     if (!(await waitFor(() => went() || null, 10000))) {
-      throw new Error("couldn't tell whether the site sent it. If the site is answering, tap Check; if not, ⋯ → Copy page report and send it to whoever maintains the site plugin");
+      throw new Error("couldn't tell whether the site sent it. If the site is answering, tap Check; if not, ⋯ → Copy page report and send it to whoever maintains the provider plugin");
     }
   };
 
@@ -334,8 +334,8 @@
   // so a wait that never ends can be diagnosed without sharing a private chat.
   let lastWatch = "";
   const watchOf = (log, start) => `${Math.round((Date.now() - start) / 1000)} s in total; last changes: ${log.slice(-10).join(" | ")}`;
-  // old: errors showing before the send (see oldErrors); without it every error the site script sees counts.
-  const waitReply = async (site, before, idleMs = 0, maxMs = 0, old = null) => {
+  // old: errors showing before the send (see oldErrors); without it every error the content script sees counts.
+  const waitReply = async (provider, before, idleMs = 0, maxMs = 0, old = null) => {
     const start = Date.now();
     const log = [];
     let sig = "";
@@ -346,12 +346,12 @@
     // Activity = new reply text, new thinking text or a visible stop button.
     let lastActivity = Date.now();
     let thinkText = "";
-    // How long the reply must stay unchanged, with no stop signal, before it counts as finished. A site
-    // whose stop signal is certain sets site.settleMs lower; the default is the guess that fits any site.
-    const settle = Number(site.settleMs) > 0 ? Number(site.settleMs) : 2000;
+    // How long the reply must stay unchanged, with no stop signal, before it counts as finished. A provider
+    // whose stop signal is certain sets provider.settleMs lower; the default is the guess that fits any site.
+    const settle = Number(provider.settleMs) > 0 ? Number(provider.settleMs) : 2000;
     // A stop signal that stays on while the reply sits unchanged for this long is taken as stuck (the site
     // changed its page): the reply that is there is used, instead of waiting for ever.
-    const stuckMs = Number(site.stuckMs) > 0 ? Number(site.stuckMs) : 45000;
+    const stuckMs = Number(provider.stuckMs) > 0 ? Number(provider.stuckMs) : 45000;
     let changedAt = Date.now();
     const timedOut = () => (maxMs > 0 && Date.now() - start >= maxMs) || (idleMs > 0 && Date.now() - lastActivity >= idleMs);
     while (!timedOut()) {
@@ -362,14 +362,14 @@
       }
       await sleep(250);
       // The site refused the message: say so now instead of waiting for a reply that won't come.
-      const err = siteError(site, old);
+      const err = siteError(provider, old);
       if (err) {
         lastWatch = Date.now() - start > 30000 ? watchOf(log, start) : "";
         throw new Error(err.text);
       }
       let now = "";
       let shown = 0; // reply elements on the page now (a virtual list shows only some)
-      for (const s of site.reply || []) {
+      for (const s of provider.reply || []) {
         const els = all(s);
         shown = Math.max(shown, els.length);
         const last = textOf(els[els.length - 1]);
@@ -379,8 +379,8 @@
           break;
         }
       }
-      const busy = !!first(site.stop);
-      const th = textOf(lastThinking(site));
+      const busy = !!first(provider.stop);
+      const th = textOf(lastThinking(provider));
       // The page's own view size too: a page with no room on screen may show no messages at all.
       const now_sig = `${busy ? "stop on" : "stop off"}, reply ${now.length}, thinking ${th.length}, replies shown ${shown}, view ${innerWidth}x${innerHeight}${document.hidden ? " hidden" : ""}`;
       if (now_sig !== sig) (sig = now_sig), log.push(`${Math.round((Date.now() - start) / 1000)}s ${now_sig}`), log.length > 40 && log.shift();
@@ -402,20 +402,20 @@
       }
     }
     lastWatch = watchOf(log, start);
-    throw new Error((maxMs > 0 && Date.now() - start >= maxMs ? `no finished reply after ${Math.round(maxMs / 60000)} min (your limit in Settings)` : `no activity on the page for ${Math.round(idleMs / 60000)} min (your limit in Settings; or check the site plugin's reply selectors)`) + ". Waited: " + lastWatch);
+    throw new Error((maxMs > 0 && Date.now() - start >= maxMs ? `no finished reply after ${Math.round(maxMs / 60000)} min (your limit in Settings)` : `no activity on the page for ${Math.round(idleMs / 60000)} min (your limit in Settings; or check the provider plugin's reply selectors)`) + ". Waited: " + lastWatch);
   };
 
-  const info = (site) => ({
+  const info = (provider) => ({
     url: location.href,
     title: document.title,
-    model: site ? textOf(first(site.model || [])) : "",
-    input: site ? !!first(site.input || []) : false, // the chat box shows (logged in, or a guest the site lets in)
+    model: provider ? textOf(first(provider.model || [])) : "",
+    input: provider ? !!first(provider.input || []) : false, // the chat box shows (logged in, or a guest the site lets in)
   });
 
-  const list = (site) => {
+  const list = (provider) => {
     const seen = new Set();
     const out = [];
-    for (const a of all((site.chatLinks || []).join(","))) {
+    for (const a of all((provider.chatLinks || []).join(","))) {
       const url = a.href;
       if (!url || seen.has(url)) continue;
       seen.add(url);
@@ -424,9 +424,9 @@
     return out;
   };
 
-  // Model picker and site switches (e.g. DeepThink). site.modelPicker =
-  // { open: [selectors of the button], options: [selectors of menu items] };
-  // site.switches = [{ name, selector, text }]: the element matching selector
+  // Model picker and the site's options (e.g. DeepThink). provider.modelPicker =
+  // { open: [selectors of the button], items: [selectors of its menu items] };
+  // provider.options = [{ name, selector, text }]: the element matching selector
   // whose text contains `text`.
   const pressEscape = () => {
     for (const t of [document.activeElement, document.body]) {
@@ -435,20 +435,20 @@
   };
   // Close the model list. Escape does not close a bottom drawer (Qwen on a phone), so if the
   // options are still showing, press the Close button of the list's own dialog.
-  const closePicker = async (site) => {
+  const closePicker = async (provider) => {
     pressEscape();
     await sleep(300);
-    const opt = optionEls(site)[0];
+    const opt = modelItems(provider)[0];
     if (!opt) return;
     const dialog = opt.el.closest("[role=dialog], .ant-drawer, [class*=popup i]");
     const x = dialog && [...dialog.querySelectorAll("[aria-label=Close i], [aria-label=close i], .ant-drawer-close, [class*=close i]")].find(visible);
     if (x) x.click();
     await sleep(300);
   };
-  const optionEls = (site) => {
+  const modelItems = (provider) => {
     const seen = new Set();
     const out = [];
-    for (const s of (site.modelPicker && site.modelPicker.options) || []) {
+    for (const s of (provider.modelPicker && provider.modelPicker.items) || []) {
       for (const el of all(s).filter(visible)) {
         const name = textOf(el).split("\n")[0].trim();
         if (name && !seen.has(name)) {
@@ -460,78 +460,78 @@
     }
     return out;
   };
-  const openPicker = async (site) => {
-    const btn = await waitFor(() => first((site.modelPicker && site.modelPicker.open) || []), 5000);
-    if (!btn) throw new Error("model picker not found on the page (check the site plugin's modelPicker selectors)");
+  const openPicker = async (provider) => {
+    const btn = await waitFor(() => first((provider.modelPicker && provider.modelPicker.open) || []), 5000);
+    if (!btn) throw new Error("model picker not found on the page (check the provider plugin's modelPicker selectors)");
     btn.click();
-    for (let i = 0; i < 10 && !optionEls(site).length; i++) await sleep(200);
+    for (let i = 0; i < 10 && !modelItems(provider).length; i++) await sleep(200);
   };
-  const switchEl = (sw) => {
-    const want = (sw.text || "").toLowerCase();
+  const optionEl = (opt) => {
+    const want = (opt.text || "").toLowerCase();
     const label = (el) => [textOf(el), el.getAttribute("aria-label"), el.getAttribute("title")].filter(Boolean).join(" ").toLowerCase();
     const ok = (el) => visible(el) && (!want || label(el).includes(want));
-    return all(sw.selector || "button, [role=button]").find(ok) || (want ? all("button, [role=button], [role=switch], [role=checkbox], [role=menuitemcheckbox]").find(ok) : undefined);
+    return all(opt.selector || "button, [role=button]").find(ok) || (want ? all("button, [role=button], [role=switch], [role=checkbox], [role=menuitemcheckbox]").find(ok) : undefined);
   };
-  const switchOn = (el) =>
+  const optionOn = (el) =>
     !!el && (el.getAttribute("aria-pressed") === "true" || el.getAttribute("aria-checked") === "true" || /(^|[\s_-])(active|selected|checked|on)([\s_-]|$)/i.test(el.className && el.className.baseVal !== undefined ? el.className.baseVal : el.className || ""));
-  const switches = (site) => (site.switches || []).map((sw) => {
-    const el = switchEl(sw);
-    return { name: sw.name, found: !!el, on: switchOn(el) };
+  const optionStates = (provider) => (provider.options || []).map((opt) => {
+    const el = optionEl(opt);
+    return { name: opt.name, found: !!el, on: optionOn(el) };
   });
 
   const builtin = {
     async models(m) {
-      await openPicker(m.site);
-      const models = optionEls(m.site).map((o) => o.name);
-      await closePicker(m.site);
-      return { models, switches: switches(m.site), ...info(m.site) };
+      await openPicker(m.provider);
+      const models = modelItems(m.provider).map((o) => o.name);
+      await closePicker(m.provider);
+      return { models, options: optionStates(m.provider), ...info(m.provider) };
     },
     async setModel(m) {
-      await openPicker(m.site);
+      await openPicker(m.provider);
       const want = m.model.toLowerCase();
-      const opt = optionEls(m.site).find((o) => o.name.toLowerCase() === want) || optionEls(m.site).find((o) => o.name.toLowerCase().includes(want));
-      if (!opt) {
-        await closePicker(m.site);
+      const item = modelItems(m.provider).find((o) => o.name.toLowerCase() === want) || modelItems(m.provider).find((o) => o.name.toLowerCase().includes(want));
+      if (!item) {
+        await closePicker(m.provider);
         throw new Error(`model "${m.model}" is not in the site's list`);
       }
-      opt.el.click();
+      item.el.click();
       await sleep(600);
-      if (optionEls(m.site).length) await closePicker(m.site); // a list that stays open covers the page
-      return { switches: switches(m.site), ...info(m.site) };
+      if (modelItems(m.provider).length) await closePicker(m.provider); // a list that stays open covers the page
+      return { options: optionStates(m.provider), ...info(m.provider) };
     },
-    async setSwitch(m) {
-      const sw = (m.site.switches || []).find((x) => x.name === m.name);
-      const el = sw && switchEl(sw);
-      if (!el) throw new Error(`switch "${m.name}" not found on the page`);
-      if (m.on === undefined || switchOn(el) !== !!m.on) el.click();
+    async setOption(m) {
+      const opt = (m.provider.options || []).find((x) => x.name === m.name);
+      const el = opt && optionEl(opt);
+      if (!el) throw new Error(`option "${m.name}" not found on the page`);
+      if (m.on === undefined || optionOn(el) !== !!m.on) el.click();
       await sleep(300);
-      return { switches: switches(m.site), ...info(m.site) };
+      return { options: optionStates(m.provider), ...info(m.provider) };
     },
-    info: (m) => info(m.site),
-    last: (m) => ({ raw: answerText(m.site, lastReplyEl(m.site)), thinking: mdOf(lastThinking(m.site)), ...info(m.site) }),
-    list: (m) => ({ chats: list(m.site), ...info(m.site) }),
-    // Page report: only a site script's own (the Page report plugin does the rest with "run").
+    info: (m) => info(m.provider),
+    last: (m) => ({ raw: answerText(m.provider, lastReplyEl(m.provider)), thinking: mdOf(lastThinking(m.provider)), ...info(m.provider) }),
+    list: (m) => ({ chats: list(m.provider), ...info(m.provider) }),
+    // Page report: only a content script's own (the Page report plugin does the rest with "run").
     probe: () => ({}),
-    // Run a plugin's code in the page: new Function("PP", "site", code). Returns its object.
+    // Run a plugin's code in the page: new Function("PP", "provider", code). Returns its object.
     run: async (m) => {
-      const r = await new Function("PP", "site", m.code)(helpers, m.site);
+      const r = await new Function("PP", "provider", m.code)(helpers, m.provider);
       return r && typeof r === "object" ? r : { value: r };
     },
     cancel: () => ((cancelled = true), {}),
     // Earlier messages of the open chat, in page order: [{you, reply, thinking}].
     // The reply now on the page (or the one still coming): waits until it is finished.
     async follow(m) {
-      const raw = await waitReply(m.site, {}, m.idleMs || 0, m.maxMs || 0);
-      const replyEl = lastReplyEl(m.site);
-      const thinkEl = nearThinking(m.site, replyEl);
-      const users = pickAll(m.site.user);
-      return { raw: answerText(m.site, replyEl) || raw, thinking: mdOf(thinkEl), you: textOf(users[users.length - 1]), watch: lastWatch, ...info(m.site) };
+      const raw = await waitReply(m.provider, {}, m.idleMs || 0, m.maxMs || 0);
+      const replyEl = lastReplyEl(m.provider);
+      const thinkEl = nearThinking(m.provider, replyEl);
+      const users = pickAll(m.provider.user);
+      return { raw: answerText(m.provider, replyEl) || raw, thinking: mdOf(thinkEl), you: textOf(users[users.length - 1]), watch: lastWatch, ...info(m.provider) };
     },
     history: (m) => {
       const pick = pickAll;
-      const users = pick(m.site.user);
-      const replies = pick(m.site.reply).filter((r) => !users.some((u) => u.contains(r) || r.contains(u)));
-      if (!users.length && !replies.length) throw new Error("no messages found on the page (the site plugin may need 'user' selectors; try Copy page report)");
+      const users = pick(m.provider.user);
+      const replies = pick(m.provider.reply).filter((r) => !users.some((u) => u.contains(r) || r.contains(u)));
+      if (!users.length && !replies.length) throw new Error("no messages found on the page (the provider plugin may need 'user' selectors; try Copy page report)");
       const marks = [...users.map((el) => ({ el, you: true })), ...replies.map((el) => ({ el, you: false }))];
       marks.sort((a, b) => (a.el.compareDocumentPosition(b.el) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
       const turns = [];
@@ -540,39 +540,39 @@
         else {
           if (!turns.length || turns[turns.length - 1].reply) turns.push({ you: "", reply: "", thinking: "" });
           const t = turns[turns.length - 1];
-          const th = nearThinking(m.site, k.el);
-          t.reply = answerText(m.site, k.el);
+          const th = nearThinking(m.provider, k.el);
+          t.reply = answerText(m.provider, k.el);
           t.thinking = mdOf(th);
         }
       }
-      return { turns, ...info(m.site) };
+      return { turns, ...info(m.provider) };
     },
     async send(m) {
-      const snap = snapshot(m.site);
-      const thinkBefore = thinkCount(m.site);
-      const old = oldErrors(m.site);
-      await typeInto(m.site, m.text, snap, old);
-      const raw = await waitReply(m.site, snap, m.idleMs || 0, m.maxMs || 0, old);
+      const snap = snapshot(m.provider);
+      const thinkBefore = thinkCount(m.provider);
+      const old = oldErrors(m.provider);
+      await typeInto(m.provider, m.text, snap, old);
+      const raw = await waitReply(m.provider, snap, m.idleMs || 0, m.maxMs || 0, old);
       await sleep(300); // let the address update for a new chat
-      const replyEl = lastReplyEl(m.site);
+      const replyEl = lastReplyEl(m.provider);
       // Thinking: a new thinking block anywhere, or one sitting next to this reply.
-      const thinkEl = thinkCount(m.site) > thinkBefore ? lastThinking(m.site) : nearThinking(m.site, replyEl);
+      const thinkEl = thinkCount(m.provider) > thinkBefore ? lastThinking(m.provider) : nearThinking(m.provider, replyEl);
       return {
-        raw: answerText(m.site, replyEl) || raw,
+        raw: answerText(m.provider, replyEl) || raw,
         thinking: mdOf(thinkEl),
         watch: lastWatch,
-        ...info(m.site),
+        ...info(m.provider),
       };
     },
   };
 
-  // A site plugin may bring a script (its "siteScript" file). It runs here, in
+  // A provider plugin may bring a script (its "contentScript" file). It runs here, in
   // the AI page, gets these helpers, and returns the commands it replaces:
-  //   return { async send(text, site) { ...; return { raw } }, last(site), list(site), info(site) }
+  //   return { async send(text, provider) { ...; return { raw } }, last(provider), list(provider), info(provider) }
   // Commands it leaves out use the selector based defaults above.
   const helpers = { cancelled: () => cancelled, all, first, visible, sleep, textOf, typeInto, waitReply, snapshot, lastReply, lastReplyEl, lastThinking, answerText, toMarkdown: mdOf, list, info, status: (t, live) => status(t, live) };
-  // Driver plugins ("kind": "driver") bring the same kind of script for every
-  // site (site.drivers). Order: the site's own script, then drivers (the last
+  // Driver plugins (tag "driver") bring the same kind of script for every
+  // provider (provider.drivers). Order: the provider's own script, then drivers (the last
   // installed wins), then the defaults above.
   const compiled = new Map(); // code -> commands
   const compile = (code) => {
@@ -582,22 +582,22 @@
     }
     return compiled.get(code);
   };
-  const scriptFor = (site) => {
-    if (!site) return {};
-    const codes = [...(site.drivers || []), ...(site.script ? [site.script] : [])];
+  const scriptFor = (provider) => {
+    if (!provider) return {};
+    const codes = [...(provider.drivers || []), ...(provider.contentScript ? [provider.contentScript] : [])];
     return codes.length ? Object.assign({}, ...codes.map(compile)) : {};
   };
   const handlers = {};
   for (const cmd of Object.keys(builtin)) {
     handlers[cmd] = async (m) => {
-      const own = scriptFor(m.site)[cmd];
+      const own = scriptFor(m.provider)[cmd];
       if (!own) return builtin[cmd](m);
       // A fresh chat may still be loading when the send arrives. The built-in send waits for the
-      // box; a site script's own send asks for it at once, so wait here, once, for every site plugin.
-      if (cmd === "send" && m.site && m.site.input && !(await waitFor(() => first(m.site.input), 15000))) throw noBox();
-      const r = cmd === "send" ? await own(m.text, m.site, builtin.send.bind(null, m)) : await own(m.site);
-      if (cmd === "list") return { chats: Array.isArray(r) ? r : (r && r.chats) || [], ...info(m.site) };
-      return { ...info(m.site), ...(r || {}) };
+      // box; a content script's own send asks for it at once, so wait here, once, for every provider.
+      if (cmd === "send" && m.provider && m.provider.input && !(await waitFor(() => first(m.provider.input), 15000))) throw noBox();
+      const r = cmd === "send" ? await own(m.text, m.provider, builtin.send.bind(null, m)) : await own(m.provider);
+      if (cmd === "list") return { chats: Array.isArray(r) ? r : (r && r.chats) || [], ...info(m.provider) };
+      return { ...info(m.provider), ...(r || {}) };
     };
   }
 

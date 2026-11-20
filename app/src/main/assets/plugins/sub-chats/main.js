@@ -213,10 +213,10 @@ PP.plugin({
       seg = hit ? hit.seg : nextSeg(segs); // a site chat we haven't had: the app started fresh
     }
     if (st.mode) want.delete(chat);
-    // ctx.siteProfile: the profile the site and model came from (app 0.6.1+);
-    // ctx.profile: the one whose plugins ran (the profile picked at the top).
-    const site = ctx.siteProfile || ctx.profile;
-    ctx.setTurnData({ seg, url: ctx.url || "", profile: site.name, active: st.active || ctx.profile.name, ...(st.mode === "new" && Number.isInteger(st.cut) ? { cut: st.cut } : {}) });
+    // ctx.routedProfile: the profile the provider and model came from;
+    // ctx.profile: the one whose blocks ran (the profile picked at the top).
+    const from = ctx.routedProfile || ctx.profile;
+    ctx.setTurnData({ seg, url: ctx.url || "", profile: from.name, active: st.active || ctx.profile.name, ...(st.mode === "new" && Number.isInteger(st.cut) ? { cut: st.cut } : {}) });
     if (segs.length && !segs.some((s) => s.seg === seg)) ctx.note(`sub-chat ${segs.length + 1} started (${siteLabel(ctx.url)})`);
     return text;
   },
@@ -250,9 +250,9 @@ PP.plugin({
   messageActions: [{ label: "New sub-chat here", run: (raw, ctx) => (branchAt(ctx.chat, ctx.turn), openSheet(ctx.chat), ctx.turn.reply) }],
   menu: [{ label: "Sub-chats", run: () => openSheet(PP.chat) }],
 
-  renderBlock(ctx) {
-    const el = ctx.pill();
-    el.insertBefore(PP.h("button", { class: "pill-gear", title: "Sub-chats of this chat", "aria-label": "Sub-chats", onclick: () => openSheet(PP.chat) }, "☰"), el.lastChild);
+  renderToggle(ctx) {
+    const el = ctx.toggle();
+    el.insertBefore(PP.h("button", { class: "toggle-gear", title: "Sub-chats of this chat", "aria-label": "Sub-chats", onclick: () => openSheet(PP.chat) }, "☰"), el.lastChild);
     return el;
   },
 });

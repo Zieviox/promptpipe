@@ -1,5 +1,5 @@
 "use strict";
-// App part (chat screen): the Chat sheet (tap the title, F2). Name, tags, and
+// Chat screen: the Chat sheet (tap the title, F2). Name, tags, and
 // what you can do with this chat: copy, share, pin, move to a folder, sub-chats,
 // history. Each action is one row; the longer ones open their own screen with a
 // back row to here.

@@ -1,5 +1,5 @@
 "use strict";
-// App part (chat screen): Quick start. Four short guides of three steps:
+// Chat screen: Quick start. Four short guides of three steps:
 // welcome and log in (full screen, on first launch), chatting, the chat list and
 // plugins. Each opens by itself the first time you reach its place, lights up
 // the control to use, and moves on when you use it. Help › Quick start replays them.
@@ -10,7 +10,7 @@ const resetSeen = () => ((S.config.seen = {}), saveConfig());
 const pinCount = () => (S.config.pinned || []).length;
 const TRY = "Try it now: use the lit control";
 // Where a step's control lives (the card's "Take me there").
-const toChat = () => ((S.sheet = null), (S.drawer = false), (S.siteMenu = false), syncLayer());
+const toChat = () => ((S.sheet = null), (S.drawer = false), (S.providerMenu = false), syncLayer());
 const toList = () => ((S.sheet = null), (S.drawer = true), syncLayer());
 
 // ---------- the guides, as data ----------
@@ -24,7 +24,7 @@ const GUIDES = {
     { t: "Log in to your site", b: ["PromptPipe has no AI of its own. It uses the chat site for you, like you would. So you need to be logged in there."], login: true, note: "You log in on the site's own page, not in a PromptPipe form. Use an account you can afford to lose. Sites may limit automated use.", next: "Done" },
   ] },
   chat: { title: "Chatting", sub: "Send, find, quick edit", steps: [
-    { t: "Say hello", b: ["Pick how the AI should help, then type a message and tap send. The reply shows up above, live."], starter: true, sel: ".comp", go: toChat, hint: "Try it now: type and send", done: (b) => S.chat.turns.length > b.turns },
+    { t: "Say hello", b: ["Pick how the AI should help, then type a message and tap send. The reply shows up above, live."], template: true, sel: ".comp", go: toChat, hint: "Try it now: type and send", done: (b) => S.chat.turns.length > b.turns },
     { t: "Find anything", b: ["Find searches your chats and every setting, and lights up where each one lives."], sel: '[aria-label="Find chats and functions"]', go: toChat, hint: TRY, done: () => S.sheet?.title === "Find", after: closeSheet },
     { t: "Quick edit", b: ["This turns your profile's plugins on or off and reorders them, without leaving the chat."], sel: '[aria-label="Quick edit and add"]', go: toChat, hint: TRY, done: () => S.sheet?.id === "quick", after: closeSheet },
   ] },
@@ -34,7 +34,7 @@ const GUIDES = {
     { t: "Search", b: ["Type a name or a #tag."], sel: "#cs", go: toList, hint: "Try it now: type a letter", done: () => !!(S.query || "").length },
   ] },
   plugins: { title: "Plugins", sub: "Updates and repos", steps: [
-    { t: "Open the Library", b: ["Plugins add sites and tools. A dot on Library means an update is waiting."], sel: ".tabs button:last-child", go: () => openPlugins("profile"), hint: TRY, done: () => S.sheet?.title === "Plugins" && LIB.tab === "library" },
+    { t: "Open the Library", b: ["Plugins add providers, themes and more. A dot on Library means an update is waiting."], sel: ".tabs button:last-child", go: () => openPlugins("profile"), hint: TRY, done: () => S.sheet?.title === "Plugins" && LIB.tab === "library" },
     { t: "Update everything", b: ["Tap Update all. You can roll a plugin back later."], sel: '[data-row="library.updall"]', go: () => openPlugins("library"), hint: TRY, done: () => updateCount() === 0 },
     { t: "Plugins from friends", b: ["A repo is a list of plugins. A friend can send you a link. Tap Get plugins, then Sources."], warn: "Only add repos from people you trust. Plugins are code. They can read your chats. Never add one from a random site.", go: () => openPlugins("library"), sel: '[data-row="library.getp"]', hint: TRY, done: () => S.sheet?.title === "Get plugins" },
   ] },
@@ -44,7 +44,7 @@ const GUIDES = {
 // S.tour: { name, i, base } while a guide is open. base: counts when the step began.
 S.tour = null;
 const curStep = () => (S.tour ? GUIDES[S.tour.name].steps[S.tour.i] : null);
-const enterStep = (i) => ((S.tour.i = i), (S.tour.advancing = false), (S.tour.base = { turns: S.chat.turns.length, pins: pinCount(), starters: S.config.profiles.length <= 1 }));
+const enterStep = (i) => ((S.tour.i = i), (S.tour.advancing = false), (S.tour.base = { turns: S.chat.turns.length, pins: pinCount(), templates: S.config.profiles.length <= 1 }));
 // beginTour only sets the state (a redraw is on its way); startTour also redraws.
 const beginTour = (k) => {
   markSeen(k);
@@ -85,7 +85,7 @@ const maybeTour = () => {
   if (S.config.welcomed && !seen().setup) seen().setup = true; // set up before the guides existed
   const top = S.sheet?.title;
   if (!seen().setup) beginTour("setup");
-  else if (!seen().chat && !S.drawer && !S.sheet && !S.siteMenu && !S.sv) beginTour("chat");
+  else if (!seen().chat && !S.drawer && !S.sheet && !S.providerMenu && !S.sv) beginTour("chat");
   else if (!seen().list && S.drawer && !S.sheet && S.chats.length) beginTour("list"); // it needs a chat to pin
   else if (!seen().plugins && top === "Plugins") beginTour("plugins");
 };
@@ -99,7 +99,7 @@ const watchLogin = () => {
   stopLoginWatch();
   loginTimer = setInterval(async () => {
     if (!S.tour || tourSite.login !== 1) return stopLoginWatch();
-    const site = siteFor();
+    const site = providerFor();
     if (!site) return;
     try {
       const r = await api("/api/site", { cmd: "info", site, page: S.page });
@@ -108,12 +108,12 @@ const watchLogin = () => {
   }, 2000);
 };
 // The sites the official source offers (and the ones already here), then Later.
-const siteChoices = () => {
+const providerChoices = () => {
   const src = srcList()[0];
   const c = catOf(src);
   if (!c.loaded && !c.busy) loadSource(src);
-  const here = [...S.plugins.values()].filter(isSite).map((p) => ({ id: p.id, name: p.manifest.name || p.id, sub: "Installed" }));
-  const offered = c.plugins.filter((e) => e.kind === "site" && !S.plugins.has(e.id)).map((e) => ({ id: e.id, name: e.name || e.id, sub: e.note || (e.default ? "Tested" : "Opt in"), offer: { src, entry: e } }));
+  const here = [...S.plugins.values()].filter(isProvider).map((p) => ({ id: p.id, name: p.manifest.name || p.id, sub: "Installed" }));
+  const offered = c.plugins.filter((e) => tagsOf(e).includes("provider") && !S.plugins.has(e.id)).map((e) => ({ id: e.id, name: e.name || e.id, sub: e.note || (e.default ? "Tested" : "Opt in"), offer: { src, entry: e } }));
   return { list: [...here, ...offered, { id: "", name: "Later", sub: "Add one in Settings › Sites" }], busy: c.busy, error: c.error };
 };
 // Picking a site installs it when it isn't here, and makes it this profile's site.
@@ -125,31 +125,31 @@ const pickSite = async (ch) => {
     const n = await installOffers([ch.offer], { quiet: true });
     if (!n) return toast("Couldn't get " + ch.name + ". Pick it again or choose Later.", "error");
   }
-  setChatSite(ch.id);
+  setChatProvider(ch.id);
   render();
 };
-const siteName = () => siteFor()?.name || "your site";
+const siteName = () => providerFor()?.name || "your site";
 
-// ---------- the chatting guide's starter profile ----------
-// A starter is a ready-made profile. Picking one makes it the active profile (made from the
-// starter the first time, found by name after that). Plain is the profile you already have.
-const STARTER_CHOICES = [
+// ---------- the chatting guide's template profile ----------
+// A template is a ready-made profile. Picking one makes it the active profile (made from the
+// template the first time, found by name after that). Plain is the profile you already have.
+const TEMPLATE_CHOICES = [
   { id: "plain", name: "Plain", sub: "Just your message" },
   { id: "feedback", name: "Writing feedback", sub: "An honest editor for your text" },
   { id: "dialogue", name: "Dialogue & Role play", sub: "Dialogue scenes, or the AI plays the world and every other character" },
   { id: "story", name: "Story & Prose", sub: "A co-writer for stories, with prose and dialogue craft" },
 ];
-const starterProfile = (ch) => (ch.id === "plain" ? S.config.profiles[0] : S.config.profiles.find((p) => p.name === ch.name));
-const pickStarter = (ch) => {
-  const prof = starterProfile(ch) || PP.pipeline.makeProfile(ch.name, ch.id);
+const templateProfile = (ch) => (ch.id === "plain" ? S.config.profiles[0] : S.config.profiles.find((p) => p.name === ch.name));
+const pickTemplate = (ch) => {
+  const prof = templateProfile(ch) || PP.profiles.makeProfile(ch.name, ch.id);
   if (prof.id !== profile().id) switchProfile(prof.id);
   else render();
 };
-const starterBody = () =>
+const templateBody = () =>
   h("div", { style: "display:flex;flex-direction:column;gap:6px", role: "radiogroup", "aria-label": "Starter profile" },
-    ...STARTER_CHOICES.map((ch) => {
-      const on = starterProfile(ch)?.id === profile().id;
-      return h("button", { class: "it", role: "radio", "aria-checked": String(on), onclick: () => pickStarter(ch) },
+    ...TEMPLATE_CHOICES.map((ch) => {
+      const on = templateProfile(ch)?.id === profile().id;
+      return h("button", { class: "it", role: "radio", "aria-checked": String(on), onclick: () => pickTemplate(ch) },
         h("span", { class: "on" }, on ? "●" : "○"), h("div", { class: "g" }, ch.name, h("small", {}, ch.sub)));
     }));
 
@@ -162,7 +162,7 @@ const skipBtn = () => h("button", { class: "pill", onclick: () => endTour() }, "
 const loginBody = () => {
   const name = siteName();
   const state = tourSite.login === 2 ? "Logged in" : tourSite.login === 1 ? "Waiting for you…" : "Not logged in";
-  if (!siteFor()) return h("div", { class: "sub2" }, "No site yet. Add one any time in Settings › Sites, then log in there.");
+  if (!providerFor()) return h("div", { class: "sub2" }, "No site yet. Add one any time in Settings › Sites, then log in there.");
   return h("div", { style: "display:flex;flex-direction:column;gap:10px" },
     ...["Tap “Open " + name + "”", "Log in like normal. Google, email, whatever the site offers.", "Come back here. That is it."].map((x, k) =>
       h("div", { style: "display:flex;gap:10px;align-items:center;font-size:16px" }, h("span", { class: "num" }, String(k + 1)), x)),
@@ -176,7 +176,7 @@ const tourBody = (G, i) => {
   const d = G.steps[i];
   const last = i === G.steps.length - 1;
   const full = G.full;
-  const sites = d.choice ? siteChoices() : null;
+  const sites = d.choice ? providerChoices() : null;
   return [
     tourDots(G, i),
     h("div", { class: "sh", style: `font-size:${full ? 26 : 17}px;margin-top:${full ? 8 : 0}px` }, d.t),
@@ -189,7 +189,7 @@ const tourBody = (G, i) => {
           sites.error ? h("div", { class: "sub2 error" }, "Couldn't load the list: " + sites.error + ". Install a site from a file later in Settings › Sites.") : null)
       : null,
     d.login ? loginBody() : null,
-    d.starter && S.tour.base.starters ? starterBody() : null, // asked once: not when you have profiles of your own
+    d.template && S.tour.base.templates ? templateBody() : null, // asked once: not when you have profiles of your own
     d.warn ? h("div", { class: "warnbox" }, d.warn) : null,
     d.note ? h("div", { class: "sub2" }, d.note) : null,
     d.hint ? h("div", { style: "color:var(--accent);font-weight:700;font-size:14px" }, d.hint) : null,
@@ -227,7 +227,7 @@ const tourLayer = () => {
   // The site view covers the app and the real page sits in it: the welcome's login card goes
   // under the page (siteViewFoot) and any other guide waits until you are back.
   if (S.sv) return null;
-  if (G.full) return h("div", { class: "layer tourl full" }, h("div", {}, ...(d.login && tourSite.login >= 1 && siteFor() ? loginCard(G, i) : tourBody(G, i))));
+  if (G.full) return h("div", { class: "layer tourl full" }, h("div", {}, ...(d.login && tourSite.login >= 1 && providerFor() ? loginCard(G, i) : tourBody(G, i))));
   return h("div", { class: "layer tourl pass" }, h("section", { class: "sheet", role: "dialog", "aria-label": "Quick start: " + d.t }, ...tourBody(G, i)));
 };
 
@@ -292,7 +292,7 @@ const openQuickStartList = () =>
     ...Object.entries(GUIDES).map(([k, G]) =>
       item({ id: "qs.qs_" + k, label: G.title, sub: G.sub + " · 3 steps", right: seen()[k] ? "Seen" : "New", onclick: () => {
         S.dd = {};
-        S.siteMenu = false;
+        S.providerMenu = false;
         if (k === "plugins") return (openPlugins("profile"), startTour(k));
         S.sheet = null;
         S.drawer = k === "list";
@@ -305,5 +305,5 @@ const openQuickStartList = () =>
 // On the site view, while you log in: the card under the page says whether it sees you in.
 siteViewFoot.push(() => {
   const d = curStep();
-  return d && d.login && S.tour.name === "setup" && tourSite.login >= 1 && siteFor() ? h("section", { class: "svfoot" }, ...loginCard(GUIDES.setup, S.tour.i)) : null;
+  return d && d.login && S.tour.name === "setup" && tourSite.login >= 1 && providerFor() ? h("section", { class: "svfoot" }, ...loginCard(GUIDES.setup, S.tour.i)) : null;
 });

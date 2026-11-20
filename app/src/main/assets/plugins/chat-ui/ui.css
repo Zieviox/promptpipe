@@ -1,6 +1,6 @@
 /* The look, taken 1:1 from the wireframe (Prism, v35): one phone-sized column, 14px text,
    card rows, one warm accent. Every colour is a variable, so a theme plugin
-   ("kind": "theme") can change all of it. Follows the system's dark or light setting
+   (a plugin tagged "theme") can change all of it. Follows the system's dark or light setting
    unless Settings › Look picks one. Sizes are in px at 100% UI scale (Look › UI scale
    zooms the whole page). */
 :root {
@@ -89,10 +89,10 @@ mark { background: color-mix(in srgb, var(--warn) 30%, transparent); color: inhe
 .chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .chips .pill { background: var(--raise); }
 .pill.on, .chips .pill.on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
-.sw { width: 38px; height: 22px; border-radius: 99px; background: var(--hair); position: relative; flex: none; padding: 0; }
-.sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--text); transition: left .15s; }
-.sw.on { background: var(--accent); }
-.sw.on::after { left: 19px; background: var(--on-accent); }
+.tgl { width: 38px; height: 22px; border-radius: 99px; background: var(--hair); position: relative; flex: none; padding: 0; }
+.tgl::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--text); transition: left .15s; }
+.tgl.on { background: var(--accent); }
+.tgl.on::after { left: 19px; background: var(--on-accent); }
 .seg { display: flex; border: 1px solid var(--hair); border-radius: 99px; overflow: hidden; flex: none; }
 .seg button { padding: 5px 12px; font-size: 13px; text-align: center; }
 .seg .on { background: var(--accent); color: var(--on-accent); }
@@ -264,9 +264,9 @@ details summary { cursor: pointer; color: var(--muted); }
 .empty-note { color: var(--muted); font-size: 12px; padding: 2px 6px 2px 22px; }
 .fpanel { gap: 6px; flex-wrap: wrap; }
 /* the site pill's menu */
-.sitemenu { position: absolute; top: 54px; right: 10px; width: 250px; background: var(--raise); border-radius: 16px; padding: 6px; box-shadow: 0 10px 30px rgba(0, 0, 0, .45); display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--hair); }
-.sitemenu .it { background: transparent; }
-.sitemenu .sep { height: 1px; background: var(--hair); margin: 2px 6px; }
+.providermenu { position: absolute; top: 54px; right: 10px; width: 250px; background: var(--raise); border-radius: 16px; padding: 6px; box-shadow: 0 10px 30px rgba(0, 0, 0, .45); display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--hair); }
+.providermenu .it { background: transparent; }
+.providermenu .sep { height: 1px; background: var(--hair); margin: 2px 6px; }
 /* dropdowns that open in place (profile, accent, theme) */
 .dd { display: flex; flex-direction: column; gap: 6px; background: var(--raise); border-radius: 14px; padding: 4px; }
 .dd-list { max-height: 176px; overflow: auto; display: flex; flex-direction: column; gap: 4px; padding: 2px; }
@@ -292,8 +292,8 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); width: 20
 .btn.grow { flex: 1; }
 .it.danger { color: var(--err); }
 .it.rename input { background: transparent; border: 0; padding: 0; font: inherit; width: 100%; color: inherit; outline: 0; }
-.pipe-details { padding: 4px 12px 12px; display: flex; flex-direction: column; gap: 10px; }
-.pipe-preview { white-space: pre-wrap; word-break: break-word; background: var(--raise); border-radius: 12px; padding: 10px 12px; margin: 0; font-size: 13px; max-height: 40dvh; overflow: auto; }
+.send-details { padding: 4px 12px 12px; display: flex; flex-direction: column; gap: 10px; }
+.send-preview { white-space: pre-wrap; word-break: break-word; background: var(--raise); border-radius: 12px; padding: 10px 12px; margin: 0; font-size: 13px; max-height: 40dvh; overflow: auto; }
 .prow { display: flex; flex-direction: column; background: var(--raise); border-radius: 12px; }
 .prow > .it { background: transparent; }
 .it.off .g { opacity: .55; }
@@ -377,7 +377,7 @@ button.icon { width: 34px; height: 34px; border-radius: 50%; display: grid; plac
 [data-swatch="green"] .swatch { background: #7fd1a3; }
 [data-swatch="rose"] .swatch { background: #f28bab; }
 [data-swatch="violet"] .swatch { background: #b69cff; }
-.pill-main, .pill-gear { display: inline-flex; align-items: center; gap: 6px; }
+.toggle-main, .toggle-gear { display: inline-flex; align-items: center; gap: 6px; }
 .sheet:not(.tall) { min-height: 0; }
 /* rows whose middle is a button of its own (open the row) */
 .it > button.g { text-align: left; display: block; padding: 0; align-self: stretch; display: flex; flex-direction: column; justify-content: center; }
@@ -392,13 +392,13 @@ textarea.box { background: var(--raise); border: 0; border-radius: 12px; padding
 /* the site view: header, tabs, address bar, link row, then the hole the page shows in */
 .svl { position: fixed; inset: 0; z-index: 9; background: var(--bg); display: flex; flex-direction: column; }
 .svl .top .t { flex: 1; }
-.svtabs { display: flex; gap: 4px; overflow: auto; padding: 0 10px 6px; flex: none; }
-.svtab { width: auto; flex: none; padding: 6px 6px 6px 10px; gap: 4px; }
-.svtab.on { outline: 1.5px solid var(--accent); }
-.svtab > button:first-child { display: flex; gap: 6px; align-items: center; max-width: 140px; }
-.svtab .tx { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.svtab .act { width: 24px; height: 24px; }
-.svtabs > .ic { flex: none; background: var(--raise); }
+.svpages { display: flex; gap: 4px; overflow: auto; padding: 0 10px 6px; flex: none; }
+.svpage { width: auto; flex: none; padding: 6px 6px 6px 10px; gap: 4px; }
+.svpage.on { outline: 1.5px solid var(--accent); }
+.svpage > button:first-child { display: flex; gap: 6px; align-items: center; max-width: 140px; }
+.svpage .tx { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.svpage .act { width: 24px; height: 24px; }
+.svpages > .ic { flex: none; background: var(--raise); }
 .svbar { display: flex; gap: 6px; align-items: center; margin: 0 10px 8px; flex: none; }
 .svbar .search { flex: 1; min-width: 0; padding: 7px 10px; }
 .svbar .ic { background: var(--raise); }

@@ -1,0 +1,12 @@
+{
+  "name": "Profiles",
+  "version": "2.0.0",
+  "tags": [
+    "core"
+  ],
+  "order": 15,
+  "description": "Core plugin: what goes to the provider. A profile's blocks (System prompts, plugins and your message) in order, with groups, toggles, templates and the prompt library.",
+  "scripts": [
+    "profiles.js"
+  ]
+}

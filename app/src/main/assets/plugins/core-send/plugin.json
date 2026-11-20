@@ -1,9 +1,11 @@
 {
   "name": "Sending",
-  "version": "1.4.3",
-  "kind": "core",
+  "version": "2.0.0",
+  "tags": [
+    "core"
+  ],
   "order": 20,
-  "description": "App part: the send pipeline, page pool, queue and PP.ask.",
+  "description": "Core plugin: sending. The page pool, the queue, the model and options set on the page, and PP.ask.",
   "scripts": [
     "send.js"
   ]

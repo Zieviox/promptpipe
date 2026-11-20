@@ -156,7 +156,7 @@
         keyed.delete(key);
       } else {
         // The next few unkeyed nodes of the same kind (keyed ones are skipped: a later child may want them).
-        for (let c = cursor, steps = 0; c && steps < 6; c = c.nextSibling, steps++) {
+        for (let c = cursor, tries = 0; c && tries < 6; c = c.nextSibling, tries++) {
           if (keyOf(c)) continue;
           if (sameKind(c, k) && !(k.nodeType === 1 && k.hasAttribute("data-replace"))) {
             match = c;

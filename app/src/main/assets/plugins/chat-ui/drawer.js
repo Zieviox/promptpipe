@@ -1,5 +1,5 @@
 "use strict";
-// App part (chat screen): the chats drawer (burger).
+// Chat screen: the chats drawer (burger).
 // Pinned, folders and chats are ONE compact list. The list is data: rows are
 // keys, "c:<path>" for a chat and "f:<folder>" for a folder. Every change (drop,
 // move, rename, delete) is a pure plan built from a model of the list; one edge
@@ -504,9 +504,9 @@ const selectBar = (m) => {
   );
 };
 
-// The chats in the AI site's own sidebar, to open here (Find: "Open a chat from the site").
+// The chats in the AI website's own sidebar, to open here (Find: "Open a chat from the site").
 const openSiteChats = () =>
-  openSheet("Chats on " + (siteFor()?.name || "the AI site"), () => [
+  openSheet("Chats on " + (providerFor()?.name || "the AI website"), () => [
     h("div", { class: "chips" }, h("button", { class: "pill", onclick: refreshSiteChats }, svgIcon("retry"), "Refresh the list")),
     ...(S.siteChats.length
       ? S.siteChats.map((c) => item({ label: c.title, sub: S.chats.some((x) => sameUrl(x.meta.source, c.url)) ? "Already here · opens it" : "Opens it here, linked to the site chat", onclick: () => (closeSheet(), openSiteChat(c)) }))

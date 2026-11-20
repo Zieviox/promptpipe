@@ -1,13 +1,13 @@
 "use strict";
-// App part: the chat screen ("kind": "ui"). Everything you see: the header,
+// Core plugin: the chat screen (tags "core" and "ui"). Everything you see: the header,
 // messages, composer, drawer, sheets, search, command list and keys. It fills
 // in the core's render, renderStatus, toast (optional), openSheet,
 // rerenderSheet, closeDrawer, scrollDown, fillComposer and markUnseen.
-// Replace it with your own UI plugin of id "chat-ui", or pick another
-// "kind": "ui" plugin in Settings.
+// Replace it with your own copy of id "chat-ui", or pick another screen
+// (a plugin tagged "core" and "ui") in Settings › Core plugins.
 
 // ---------- look: UI scale and theme ----------
-// Themes are plugins too ("kind": "theme" with a CSS file of colour variables).
+// Themes are plugins too (tagged "theme", with a CSS file of colour variables).
 // ui.mode: "" follows the system, "dark", "light". ui.accent: "" (warm orange)
 // or one of ACCENTS. ui.scale: the size of text and controls. A theme plugin sets its own colours.
 const ACCENTS = { "": "Warm orange", blue: "Blue", green: "Green", rose: "Rose", violet: "Violet" };
@@ -66,19 +66,19 @@ const setLook = (key, value) => {
 };
 const setTheme = (id) => setLook("theme", id);
 
-// Model and switches, as in the wireframe: the site's models as a radio list,
-// then its switches. Read from the page; saved in the profile and set on the
+// Model and options, as in the wireframe: the site's models as a radio list,
+// then its options (DeepThink, Search ...). Read from the page; saved per provider and set on the
 // page before each message.
 const MODELS = { r: null, error: "" }; // what the page said last
 const openModels = () => {
   const load = () =>
     siteCmd("models")
       .then((r) => ((MODELS.r = r), (MODELS.error = "")))
-      .catch((e) => siteCmd("info").then((r) => (MODELS.r = { ...r, models: [], switches: (siteFor()?.switches || []).map((x) => ({ name: x.name, found: true, on: false })) }), () => (MODELS.error = e.message)))
+      .catch((e) => siteCmd("info").then((r) => (MODELS.r = { ...r, models: [], options: (providerFor()?.options || []).map((x) => ({ name: x.name, found: true, on: false })) }), () => (MODELS.error = e.message)))
       .finally(rerenderSheet);
   MODELS.r = null;
   load();
-  openSheet("Model and switches", () => {
+  openSheet("Model and options", () => {
     const want = choicesFor();
     const r = MODELS.r;
     const pick = async (m) => {
@@ -93,12 +93,12 @@ const openModels = () => {
       }
       render();
     };
-    const flip = async (sw, on) => {
-      want.switches[sw.name] = on;
+    const flip = async (opt, on) => {
+      want.options[opt.name] = on;
       saveConfig();
       rerenderSheet();
       try {
-        await siteCmd("setSwitch", { name: sw.name, on });
+        await siteCmd("setOption", { name: opt.name, on });
       } catch (e) {
         toast(e.message, "error");
       }
@@ -109,22 +109,22 @@ const openModels = () => {
     return [
       ...(r.models || []).map((m) => item({ id: "models.m" + m, label: m, sub: r.model && r.model.includes(m) ? "On the page now" : "", radio: cur === m || (!want.model && !!r.model && r.model.includes(m)), onclick: () => pick(m) })),
       (r.models || []).length ? null : item({ label: "Couldn't read the model list", sub: "Pick it on the site itself; the app then leaves the model alone. On the page now: " + (r.model || "unknown") }),
-      (r.switches || []).length ? h("div", { class: "lbl" }, "Switches") : null,
-      ...(r.switches || []).map((sw) => {
-        const on = sw.name in want.switches ? want.switches[sw.name] : sw.on;
-        return item({ id: "models.sw" + sw.name, label: sw.name, sub: sw.found ? "" : "Not found on the page", toggle: !!on, onclick: () => flip(sw, !on) });
+      (r.options || []).length ? h("div", { class: "lbl" }, "Options") : null,
+      ...(r.options || []).map((opt) => {
+        const on = opt.name in want.options ? want.options[opt.name] : opt.on;
+        return item({ id: "models.opt" + opt.name, label: opt.name, sub: opt.found ? "" : "Not found on the page", toggle: !!on, onclick: () => flip(opt, !on) });
       }),
       h("div", { class: "lbl" }, "More"),
       item({ label: "Choose on the site", sub: "Show the page and pick the model there", onclick: () => ((want.model = ""), saveConfig(), closeSheet(), showSite()) }),
       want.model ? item({ label: "Don't choose a model", sub: "Use whatever the site has", onclick: () => ((want.model = ""), saveConfig(), rerenderSheet(), render()) }) : null,
       item({ label: "Read the page again", onclick: () => ((MODELS.r = null), load(), rerenderSheet()) }),
-      h("div", { class: "sub2" }, `Saved in the profile “${profile().name}” and set on the page before each message.`),
+      h("div", { class: "sub2" }, `Saved for ${providerFor()?.name || "this provider"} and set on the page before each message.`),
     ];
-  }, { back: openSiteSheet });
+  }, { back: openProviderSheet });
 };
 
 
-// Open a chat that exists on the AI site: its local file if there is one,
+// Open a chat that exists on the AI website: its local file if there is one,
 // otherwise a new local chat linked to it.
 // Open any chat on the site by pasting its link.
 const siteLinkRow = () => {
@@ -188,7 +188,7 @@ render = () => {
     S.sv ? keyed(svLayer(), "sv") : null,
     S.drawer ? keyed(h("div", { class: "drawer-scrim", onclick: closeDrawer }), "drawer-scrim") : null,
     S.drawer ? keyed(withClass(renderDrawer(), enter(hadDrawer)), "drawer") : null,
-    S.siteMenu ? keyed(siteMenu(), "sitemenu") : null,
+    S.providerMenu ? keyed(providerMenu(), "providermenu") : null,
     // Each sheet is its own: another sheet starts at its top with empty fields.
     S.sheet ? keyed(withClass(renderSheet(), enter(hadSheet)), "sheet:" + sheetTitle()) : null,
     tl ? keyed(tl, "tour") : null,
@@ -270,8 +270,8 @@ const checkSeen = (box) => {
 };
 
 renderStatus = () => {
-  const el = document.querySelector(".top .site-pill");
-  if (el) morph(el, siteButton());
+  const el = document.querySelector(".top .provider-pill");
+  if (el) morph(el, providerButton());
   const pr = document.querySelector(".progress .progress-text");
   if (pr) pr.textContent = composerProgress();
   renderLive();
@@ -352,96 +352,96 @@ document.addEventListener("selectionchange", () => {
 
 // The site's state in plain words (one vocabulary for the dot, the header and the site sheet).
 const siteState = () => {
-  if (!siteFor()) return { key: "none", words: "No site plugin" };
+  if (!providerFor()) return { key: "none", words: "No provider" };
   if ([...Array(pageCount()).keys()].some((i) => pg(i).busy)) return { key: "busy", words: "Busy" };
   if (!S.site.connected) return { key: "off", words: "Page not open" };
-  if (S.site.url && !sameHost(S.site.url, siteFor().url)) return { key: "off", words: "Page on another site" };
+  if (S.site.url && !sameHost(S.site.url, providerFor().url)) return { key: "off", words: "Page on another site" };
   return { key: "ready", words: "Ready" };
 };
 
-// "● site · model" in the header: the site, the model read from the page (or
+// "● provider · model" in the header: the provider, the model read from the page (or
 // the one you picked, marked "wanted" until the page shows it) and the state.
-const siteButton = () => {
+const providerButton = () => {
   const st = siteState();
-  const want = siteIdOf() ? choicesFor().model : "";
+  const want = providerIdOf() ? choicesFor().model : "";
   const onPage = S.site.model || "";
   const model = onPage || want;
   const mismatch = want && onPage && !onPage.toLowerCase().includes(want.toLowerCase());
-  const site = siteFor();
-  const short = site ? site.name.split(" ")[0] : "No site";
+  const prov = providerFor();
+  const short = prov ? prov.name.split(" ")[0] : "No provider";
   const busy = Object.keys(S.pageTurns || {}).length;
-  return h("button", { class: "pill site-pill " + st.key, title: `${st.words}${mismatch ? ` · the page shows ${onPage}, you picked ${want}` : ""} · switch site`, "aria-label": "Switch site", "aria-haspopup": "menu", "aria-expanded": String(!!S.siteMenu), onclick: () => ((S.siteMenu = !S.siteMenu), render()) },
+  return h("button", { class: "pill provider-pill " + st.key, title: `${st.words}${mismatch ? ` · the page shows ${onPage}, you picked ${want}` : ""} · switch provider`, "aria-label": "Switch provider", "aria-haspopup": "menu", "aria-expanded": String(!!S.providerMenu), onclick: () => ((S.providerMenu = !S.providerMenu), render()) },
     h("span", { class: "dot", "aria-hidden": "true" }),
     h("span", { class: "tx" }, short + (model ? " · " + shortModel(model) + (mismatch ? " ⚠" : "") : "") + (busy > 1 ? ` · ${busy} replying` : "")),
     h("span", { class: "ch", style: "margin-left:4px" }, svgIcon("down")),
-    siteUpdate() ? h("span", { class: "pdot", title: "Update available" }) : null);
+    providerUpdate() ? h("span", { class: "pdot", title: "Update available" }) : null);
 };
 // "Qwen3-Max" -> "Max": the part after the name's own digits.
 const shortModel = (m) => m.replace(/^[A-Za-z]+\d*[.\d]*-?/, "") || m;
-// The open chat's site plugin has an update waiting (the pill gets a dot).
-const siteUpdate = () => {
-  const id = siteIdOf();
+// The open chat's provider has an update waiting (the pill gets a dot).
+const providerUpdate = () => {
+  const id = providerIdOf();
   return !!id && updateItems().some((i) => i.id === id);
 };
-// The pill's menu: each site with its model, then "Site, model and profile…".
-// Picking a site switches the open chat to it (and new chats start on it).
-const pickChatSite = async (id) => {
-  S.siteMenu = false;
-  if (id !== siteIdOf()) {
-    setChatSite(id);
-    if (S.chat.path) await saveChat(S.chat, "site: " + pluginName(id)).catch((e) => toast(e.message, "error"));
+// The pill's menu: each provider with its model, then "Provider, model and profile…".
+// Picking a provider moves the open chat to it (and new chats start on it).
+const pickChatProvider = async (id) => {
+  S.providerMenu = false;
+  if (id !== providerIdOf()) {
+    setChatProvider(id);
+    if (S.chat.path) await saveChat(S.chat, "provider: " + pluginName(id)).catch((e) => toast(e.message, "error"));
     toast("This chat uses " + pluginName(id));
   }
   render();
   warmSite();
 };
-const siteMenu = () => {
-  const cur = siteIdOf();
-  const sites = [...S.plugins.values()].filter(isSite);
-  const close = () => ((S.siteMenu = false), render());
+const providerMenu = () => {
+  const cur = providerIdOf();
+  const providers = [...S.plugins.values()].filter(isProvider);
+  const close = () => ((S.providerMenu = false), render());
   return h("div", { class: "layer", style: "z-index:14" },
     h("div", { style: "position:absolute;inset:0", onclick: close }),
-    h("div", { class: "sitemenu", role: "menu" },
-      ...sites.map((x) => h("button", { role: "menuitemradio", "aria-checked": String(x.id === cur), class: "it", "data-row": "sitemenu." + x.id, onclick: () => pickChatSite(x.id) },
+    h("div", { class: "providermenu", role: "menu" },
+      ...providers.map((x) => h("button", { role: "menuitemradio", "aria-checked": String(x.id === cur), class: "it", "data-row": "providermenu." + x.id, onclick: () => pickChatProvider(x.id) },
         h("span", { class: "on" }, x.id === cur ? "●" : "○"),
         h("div", { class: "g" }, x.manifest.name, h("small", {}, (x.id === cur ? S.site.model : "") || choicesFor(x.id).model || "Model: as the site has it")),
         h("span", { class: "dot", style: "margin:0" }))),
-      sites.length ? h("div", { class: "sep" }) : null,
-      h("button", { role: "menuitem", class: "it", "data-row": "sitemenu.more", onclick: () => ((S.siteMenu = false), openSiteSheet()) }, h("div", { class: "g" }, sites.length ? "Site, model and profile…" : "Get site plugins…"))));
+      providers.length ? h("div", { class: "sep" }) : null,
+      h("button", { role: "menuitem", class: "it", "data-row": "providermenu.more", onclick: () => ((S.providerMenu = false), openProviderSheet()) }, h("div", { class: "g" }, providers.length ? "Provider, model and profile…" : "Get providers…"))));
 };
 
-const SAFETY = "Use a separate account on the AI site (a throwaway Gmail works), not an important one: promptpipe drives the site for you and isn't built for account security. You can also sign in by hand on the site.";
+const SAFETY = "Use a separate account on the AI website (a throwaway Gmail works), not an important one: promptpipe drives the site for you and isn't built for account security. You can also sign in by hand on the site.";
 
 
-// The site sheet: everything about the site in one place.
-const openSiteSheet = () =>
-  openSheet("Profile and site", () => {
+// The provider sheet: everything about the provider and its page in one place.
+const openProviderSheet = () =>
+  openSheet("Profile and provider", () => {
     const prof = profile();
-    const site = siteFor();
+    const site = providerFor();
     const st = siteState();
     const want = site ? choicesFor().model : "";
-    const sites = [...S.plugins.values()].filter(isSite);
+    const providers = [...S.plugins.values()].filter(isProvider);
     const pr = S.plugins.get("page-report");
     const upd = site && updateItems().find((i) => i.id === site.id);
     const pageItem = (label, sub, fn, id) => item({ id: "site." + id, label, sub, onclick: fn });
     return [
-      !site ? item({ id: "site.get", prim: true, label: "Get site plugins", sub: "No AI site yet", onclick: openGetSites }) : null,
+      !site ? item({ id: "site.get", prim: true, label: "Get providers", sub: "No provider yet", onclick: openGetProviders }) : null,
       upd ? item({ id: "site.upd", prim: true, label: `${site.name} ${upd.update.entry.version} is available`, sub: "Updates on its own; tap to do it now", onclick: LIB.busy ? null : () => installOffers([upd.update], { quiet: true }).then(() => toast(`${site.name} updated to ${upd.update.entry.version}`)) }) : null,
       h("div", { class: "lbl" }, "Profile"),
       profileDropdown({ id: "site", current: prof, pick: (p) => (switchProfile(p.id), rerenderSheet()) }),
-      site ? h("div", { class: "lbl" }, "AI site (for this chat)") : null,
-      site ? item({ id: "site.sitesw", label: site.name, sub: sites.length > 1 ? "Switch site" : "The only site plugin installed", onclick: sites.length > 1 ? () => ((S.sheet = null), (S.siteMenu = true), syncLayer(), render()) : openGetSites }) : null,
+      site ? h("div", { class: "lbl" }, "Provider (for this chat)") : null,
+      site ? item({ id: "site.sitesw", label: site.name, sub: providers.length > 1 ? "Switch provider" : "The only provider installed", onclick: providers.length > 1 ? () => ((S.sheet = null), (S.providerMenu = true), syncLayer(), render()) : openGetProviders }) : null,
       site ? pageItem("Show the page", `${site.name} · ${st.words}${S.site.url ? " · " + S.site.url : ""}`, () => (closeSheet(), showSite()), "show") : null,
-      site ? item({ id: "site.model", label: S.site.model || want || "Choose a model", sub: "Model and switches" + (want && S.site.model && !S.site.model.toLowerCase().includes(want.toLowerCase()) ? " · you picked " + want : ""), key: "Ctrl+M", onclick: openModels }) : null,
+      site ? item({ id: "site.model", label: S.site.model || want || "Choose a model", sub: "Model and options" + (want && S.site.model && !S.site.model.toLowerCase().includes(want.toLowerCase()) ? " · you picked " + want : ""), key: "Ctrl+M", onclick: openModels }) : null,
       h("div", { class: "lbl" }, "This chat and the page"),
       pageItem("Link this chat to the open page", null, linkToSite, "link"),
       pageItem("Import messages from the site chat", null, importHistory, "import"),
       pageItem("Add the page's newest reply", null, addFromPage, "newest"),
       h("div", { class: "lbl" }, "Pages"),
       item({ id: "site.pages", label: `${maxReplies()} replies at once at most`, sub: `${pageCount()} ${pageCount() === 1 ? "page is" : "pages are"} open`, right: "Change", onclick: () => settingsPage("Sites", settingsBody("Sites")) }),
-      h("div", { class: "lbl" }, "Site plugins"),
-      item({ id: "site.getsites", label: "Get site plugins", chev: true, onclick: openGetSites }),
-      site ? item({ id: "site.plugset", label: "Site plugin settings", chev: true, onclick: () => openPluginSettings(site.id) }) : null,
+      h("div", { class: "lbl" }, "Providers"),
+      item({ id: "site.getsites", label: "Get providers", chev: true, onclick: openGetProviders }),
+      site ? item({ id: "site.plugset", label: site.name + " settings", chev: true, onclick: () => openPluginSettings(site.id) }) : null,
       h("div", { class: "lbl" }, "Developer"),
       ...((pr && pr.def && pr.def.menu) || []).map((m) => item({ id: "site.dev." + m.label, label: m.label, onclick: () => Promise.resolve().then(() => m.run()).catch((e) => toast(e.message, "error")) })),
       item({ id: "site.decode", label: "Decode the newest reply (preview)", onclick: decodeLast }),
@@ -455,8 +455,8 @@ const renderTop = () => {
     { class: "top" },
     h("button", { class: "ic", title: "Chats · Ctrl+B", "aria-label": "Chats", onclick: openDrawer }, svgIcon("menu"), Object.keys(S.chatStatus || {}).some((k) => S.chatStatus[k] === "Reply ready") ? h("span", { class: "pdot", style: "top:2px;right:2px" }) : null),
     h("button", { class: "t", title: "Chat actions · F2", "aria-label": "Chat title", onclick: openChatSheet }, (c.meta.title || "New chat") + " ▾"),
-    siteButton(),
-    ...topBlocks(),
+    providerButton(),
+    ...headerToggles(),
     h("button", { class: "ic find", title: "Find chats and functions · Ctrl+K or F3", "aria-label": "Find chats and functions", onclick: () => openFind() }, svgIcon("search")),
     helpBtn(),
   );
@@ -522,7 +522,7 @@ const item = (o) => {
     o.key ? h("kbd", {}, o.key) : null,
     o.badge ? h("span", { class: "badge" }, o.badge) : null,
     o.right ? h("span", { class: "ch on" }, o.right) : null,
-    on(o.toggle) != null ? h("span", { class: "sw" + (o.toggle ? " on" : "") }) : null,
+    on(o.toggle) != null ? h("span", { class: "tgl" + (o.toggle ? " on" : "") }) : null,
     on(o.radio) != null ? h("span", { class: "on" }, o.radio ? "●" : "○") : null,
     o.chev ? h("span", { class: "ch" }, "›") : null,
   );
@@ -544,10 +544,10 @@ const renderMessages = () => {
   if (!c.turns.length) {
     // A new chat is empty, as in the wireframe. Only what you need to start is said here.
     const lines = [];
-    if (!siteFor())
+    if (!providerFor())
       lines.push(
-        h("p", {}, "No AI site yet. PromptPipe talks to the AI chat site you log in to, through a site plugin."),
-        h("div", { class: "row" }, h("button", { class: "it prim", style: "width:auto", onclick: openGetSites }, "Get site plugins"), h("button", { class: "pill", onclick: () => api("/api/app/action", { action: "pickPlugin" }) }, "Install from a file")),
+        h("p", {}, "No provider yet. PromptPipe talks to the AI chat website you log in to, through a provider plugin."),
+        h("div", { class: "row" }, h("button", { class: "it prim", style: "width:auto", onclick: openGetProviders }, "Get providers"), h("button", { class: "pill", onclick: () => api("/api/app/action", { action: "pickPlugin" }) }, "Install from a file")),
       );
     if (c.meta.source) lines.push(h("p", {}, "Linked to " + c.meta.source + ". Your message continues that chat."), h("div", { class: "row" }, h("button", { class: "pill", onclick: importHistory }, "Import its earlier messages")));
     if (lines.length) box.append(h("div", { class: "empty" }, lines));
@@ -675,11 +675,11 @@ const openMessageMenu = (c, t, i) => {
 // toggle overrides it for that reply.
 const qaMode = () => S.config.quickActions || "newest";
 const qaOpen = (t, newest) => (S.qaSet.has(t) ? S.qaSet.get(t) : qaMode() === "every" || (qaMode() === "newest" && newest));
-// What went out with a reply: the profile's rows that were on, then your message.
+// What went out with a reply: the profile's blocks that were on, then your message.
 const sentWith = (t, c = S.chat) => {
   const prof = forChat(S.config.profiles.find((p) => p.name === t.profile), c);
-  const rows = prof ? prof.pipe.rows.filter((r) => r.type !== "message" && r.on !== false && PP.pipeline.rowLive(prof.pipe, r)).map((r) => PP.pipeline.rowName(r)) : [];
-  return { prof, rows };
+  const names = prof ? prof.blocks.filter((b) => b.type !== "message" && PP.profiles.blockLive(prof, b)).map((b) => PP.profiles.blockName(b)) : [];
+  return { prof, names };
 };
 
 // Long: more than 8 lines or 600 characters.
@@ -719,14 +719,14 @@ const renderTurn = (c, t, i) => {
     long ? h("button", { class: "thin", "aria-expanded": String(!tucked), onclick: () => (tucked ? S.openLong.add(t) : S.openLong.delete(t), render()) }, svgIcon(tucked ? "down" : "up"), tucked ? "Show more" : "Show less") : null,
     h("div", { class: "acts right" }, act("copy", "Copy your message", () => copyText(t.you, "Copied")), act("edit", "Edit and send again", () => fillComposer(t.you))));
   // "Thought for N s · sent with N": folded; opened it shows the thinking, what was sent with it, and the full trace.
-  const sw = sentWith(t, c);
+  const sent = sentWith(t, c);
   const sentOpen = S.openSent.has(t);
   const thin = t.pending ? null : h("button", { class: "thin", "aria-expanded": String(sentOpen), onclick: () => (S.openSent.has(t) ? S.openSent.delete(t) : S.openSent.add(t), render()) },
-    svgIcon(sentOpen ? "up" : "down"), t.thinking ? (t.secs != null ? `Thought for ${t.secs} s` : "Thought") : "Sent with", h("span", { class: "dim2" }, (t.thinking ? " · sent with " : " ") + (sw.rows.length + 1)));
+    svgIcon(sentOpen ? "up" : "down"), t.thinking ? (t.secs != null ? `Thought for ${t.secs} s` : "Thought") : "Sent with", h("span", { class: "dim2" }, (t.thinking ? " · sent with " : " ") + (sent.names.length + 1)));
   const thinBox = !sentOpen || t.pending ? null : h("div", { class: "thinbox" },
     t.thinking ? [h("div", { class: "lbl" }, "Thinking"), h("div", { class: "md", html: mdToHtml(t.thinking) })] : null,
     h("div", { class: "lbl" }, "Sent with"),
-    h("div", { class: "sentlist" }, h("div", {}, "Profile: " + (t.profile || "?") + (c.meta.model ? " · " + c.meta.model : "")), ...sw.rows.map((r) => h("div", {}, "· " + r)), h("div", {}, "· Your message")),
+    h("div", { class: "sentlist" }, h("div", {}, "Profile: " + (t.profile || "?") + (c.meta.model ? " · " + c.meta.model : "")), ...sent.names.map((n) => h("div", {}, "· " + n)), h("div", {}, "· Your message")),
     S.openTrace.has(t)
       ? h("details", { class: "trace", open: true, ontoggle: (e) => !e.target.open && (S.openTrace.delete(t), render()) }, h("summary", {}, "The full text that was sent"), ...traceOf(t))
       : h("button", { class: "pill", onclick: () => (S.openTrace.add(t), render()) }, "Show the full text"));
@@ -791,55 +791,48 @@ const codeCopy = (root) => {
   }
 };
 
-// Plugin blocks: a switch per plugin (its own block if it draws one).
-// Blocks marked advanced sit in the Advanced row, which is folded but always shown.
-const blockFor = (e, n) => {
-  const p = S.plugins.get(e.id);
-  const label = p.manifest.block?.label || p.manifest.name || p.id;
-  // The switch is this chat's own (the profile's is the default it starts from).
-  const on = stepOn(e.id, forChat(profile(), S.chat));
-  const toggle = () => {
-    const P = PP.pipeline;
-    if (P) P.setChatSwitch(S.chat, e.id, !on, stepOn(e.id));
-    else setStepOn(e.id, !on);
-    saveSwitches();
+// Toggles: one per plugin of the profile, under the message box (its own look if it draws one).
+// A plugin's file says where its toggle goes ("toggle": { "place": "toolbar" | "header", "label" }).
+const toggleFor = (id, n) => {
+  const p = S.plugins.get(id);
+  const label = p.manifest.toggle?.label || p.manifest.name || p.id;
+  // The toggle is this chat's own (the profile's is the default it starts from).
+  const on = pluginOn(id, forChat(profile(), S.chat));
+  const flip = () => {
+    if (PP.profiles) PP.profiles.setChatToggle(S.chat, id, !on, pluginOn(id));
+    else setPluginOn(id, !on);
+    saveToggles();
     render();
   };
-  const pill = (text) =>
+  const toggle = (text) =>
     h(
       "span",
-      { class: "pill " + (on ? "on" : "off") + (p.error ? " broken" : "") },
-      h("button", { class: "pill-main", "aria-pressed": String(on), title: (n <= 9 ? `Alt+${n} toggles. ` : "") + (p.manifest.description || ""), onclick: toggle }, h("span", { class: "dot" }), text ?? label),
-      h("button", { class: "pill-gear", title: "Settings", "aria-label": label + " settings", onclick: () => openPluginSettings(e.id) }, svgIcon("settings")),
+      { class: "pill toggle " + (on ? "on" : "off") + (p.error ? " broken" : ""), "data-key": "tg:" + id },
+      h("button", { class: "toggle-main", "aria-pressed": String(on), title: (n <= 9 ? `Alt+${n} toggles it. ` : "") + (p.manifest.description || ""), onclick: flip }, h("span", { class: "dot" }), text ?? label),
+      h("button", { class: "toggle-gear", title: "Settings", "aria-label": label + " settings", onclick: () => openPluginSettings(id) }, svgIcon("settings")),
     );
-  if (p.def && typeof p.def.renderBlock === "function") {
+  if (p.def && typeof p.def.renderToggle === "function") {
     try {
-      const el = p.def.renderBlock({ settings: settingsFor(e.id), set: (k, v) => setSetting(e.id, k, v), on, toggle, pill, openSettings: () => openPluginSettings(e.id), chat: S.chat });
+      const el = p.def.renderToggle({ settings: settingsFor(id), set: (k, v) => setSetting(id, k, v), on, flip, toggle, openSettings: () => openPluginSettings(id), chat: S.chat });
       if (el instanceof Node) return el;
     } catch (err) {
-      p.error = "renderBlock: " + err.message;
+      p.error = "renderToggle: " + err.message;
     }
   }
-  return pill();
+  return toggle();
 };
 
-// In the order of the preset's rows (plugins without a row come last).
-const blockEntries = (place) => {
-  const rows = presetOf()?.rows || [];
-  const at = (id) => {
-    const i = rows.findIndex((r) => r.type === "step" && r.plugin === id);
-    return i < 0 ? 1e9 : i;
-  };
-  return profile()
-    .plugins.filter((e) => {
-      const p = S.plugins.get(e.id);
-      if (!isStep(p) || p.manifest.block === false) return false;
-      return (p.manifest.block?.place || "toggles") === place;
-    })
-    .sort((a, b) => at(a.id) - at(b.id));
+// The profile's plugins with a toggle at `place`, in the order of its blocks.
+const toggleEntries = (place) => {
+  const ids = [...new Set(profile().blocks.filter((b) => b.type === "plugin" && !b.textId).map((b) => b.plugin))];
+  return ids.filter((id) => {
+    const p = S.plugins.get(id);
+    if (!isBlockPlugin(p) || p.manifest.toggle === false) return false;
+    return (p.manifest.toggle?.place || "toolbar") === place;
+  });
 };
 
-const topBlocks = () => blockEntries("top").map((e, i) => blockFor(e, 99));
+const headerToggles = () => toggleEntries("header").map((id) => toggleFor(id, 99));
 
 // The message bar, as in the wireframe: Quick edit, the box, bigger box, Send. A line under it
 // says what else is going on (other chats being answered).
@@ -1127,13 +1120,13 @@ const settingsForm = (id) => {
   return out;
 };
 
-// Saved per site for site plugins, per profile for the others.
+// Saved per provider for providers, per profile for the others.
 const openPluginSettings = (id) => {
   const p = S.plugins.get(id);
   openSheet("Settings", () => [
     p.error ? item({ cls: "danger", label: "It didn't load", sub: p.error }) : null,
     ...settingsForm(id),
-  ], { sub: (p.manifest?.name || id) + (isSite(p) ? " · every chat on this site" : " · profile " + profile().name), back: () => openPluginPage(id) });
+  ], { sub: (p.manifest?.name || id) + (isProvider(p) ? " · every chat on this site" : " · profile " + profile().name), back: () => openPluginPage(id) });
 };
 
 // A copy of yours with the same id replaces the app's plugin. When the app's own
@@ -1281,7 +1274,7 @@ const openGit = () => {
   }, { back: () => openSettingsGroup("Chats and storage", settingsBody("Chats and storage")) });
 };
 
-// A switch between a few options, shown at the end of a row.
+// A choice between a few options, shown at the end of a sheet's row.
 const seg = (opts, cur, pick, aria = "", disabled = false) =>
   h("div", { class: "seg" }, opts.map(([v, l]) => h("button", { class: v === cur ? "on" : "", "aria-pressed": String(v === cur), "aria-label": (aria ? aria + " " : "") + l, disabled, onclick: () => pick(v) }, l)));
 const segRow = (id, label, sub, control) => h("div", { class: "it", "data-row": id }, h("div", { class: "g" }, label, sub ? h("small", {}, sub) : null), control);
@@ -1300,15 +1293,15 @@ const openAccent = () =>
   openSheet("Accent", () => Object.entries(ACCENTS).map(([v, l]) => item({ label: l, radio: (S.config.ui.accent || "") === v, onclick: () => (setLook("accent", v), rerenderSheet()) })), { back: () => openSettingsGroup("Look", settingsBody("Look")) });
 
 
-// App parts: the core/ui plugins the app is made of, which ones are yours, and
+// Core plugins: the plugins the app is made of, which ones are yours, and
 // a way out (safe mode) if one of yours breaks.
-const appPartsControls = () => {
-  const uis = [...S.plugins.values()].filter((p) => isPart(p) && p.manifest.kind === "ui");
-  const loaded = new Map((S.parts || []).map((p) => [p.id, p]));
-  const parts = [...S.plugins.values()].filter((p) => isPart(p) || isDriver(p));
+const corePluginsControls = () => {
+  const screens = [...S.plugins.values()].filter(isScreen);
+  const loaded = new Map((S.cores || []).map((p) => [p.id, p]));
+  const cores = [...S.plugins.values()].filter((p) => isCore(p) || isDriver(p));
   return [
     h("p", { class: "muted" }, "The app is made of plugins too: sending, chat files, history, the local API and this screen. Copy one to change it; your copy replaces the built-in one when the app restarts. If yours breaks, the app opens in safe mode with only built-in plugins."),
-    ...parts.map((p) =>
+    ...cores.map((p) =>
       h(
         "div",
         { class: "plugin-row" },
@@ -1317,19 +1310,19 @@ const appPartsControls = () => {
           { class: "grow" },
           h("b", {}, p.manifest.name || p.id),
           " ",
-          h("small", { class: "muted" }, `${p.id} · v${p.manifest.version || "?"} · ${p.source === "builtin" ? (p.updated ? "updated" : "built-in") : p.overrides ? "your copy" : "yours"}${isDriver(p) ? " · site driver" : isPart(p) && !loaded.has(p.id) ? " · not loaded" : ""}`),
+          h("small", { class: "muted" }, `${p.id} · v${p.manifest.version || "?"} · ${p.source === "builtin" ? (p.updated ? "updated" : "built-in") : p.overrides ? "your copy" : "yours"}${isDriver(p) ? " · driver" : isCore(p) && !loaded.has(p.id) ? " · not loaded" : ""}`),
           p.error ? h("div", { class: "error" }, "✕ " + p.error) : null,
           staleNote(p),
         ),
         p.source === "builtin" && !SAFE ? h("button", { class: "small", title: "Copy into your plugin folder to edit it", onclick: () => forkPlugin(p.id) }, "Copy") : null,
       ),
     ),
-    uis.length > 1
+    screens.length > 1
       ? h(
           "label",
           { class: "field inline" },
-          h("span", {}, "App screen (UI plugin)"),
-          h("select", { onchange: (e) => ((S.config.ui.part = e.target.value), saveConfig(), toast("Restart the app to switch")) }, uis.map((p) => h("option", { value: p.id, selected: (S.config.ui.part || "chat-ui") === p.id }, p.manifest.name || p.id))),
+          h("span", {}, "App screen"),
+          h("select", { onchange: (e) => ((S.config.ui.screen = e.target.value), saveConfig(), toast("Restart the app to switch")) }, screens.map((p) => h("option", { value: p.id, selected: (S.config.ui.screen || "chat-ui") === p.id }, p.manifest.name || p.id))),
         )
       : null,
     h("h3", {}, "Plugin updates"),
@@ -1391,7 +1384,7 @@ const openCoreLog = async () => {
     h("div", { class: "row" },
       h("button", { class: "small primary", onclick: () => copyText(textOf(), "Log copied") }, "Copy"),
       h("button", { class: "small", onclick: async () => ((log = await read()), rerenderSheet(), toEnd()) }, "Refresh")),
-    h("pre", { class: "pipe-preview core-log" }, textOf()),
+    h("pre", { class: "send-preview core-log" }, textOf()),
   ]);
   toEnd();
 };
@@ -1405,13 +1398,13 @@ const openHelp = () =>
       ["Swipe a reply left", "copy it"],
       ["Long-press any text", "select it (or Options › Select text)"],
       ["Press and hold a chat in the list", "start selecting chats (then Pin, Move…, Delete)"],
-      ["Drag the ⋮⋮ grip of a row", "move it into a folder, reorder it, or onto Pinned to pin it"],
+      ["Drag the ⋮⋮ grip of a chat or folder", "move it into a folder, reorder it, or onto Pinned to pin it"],
       ["Tap the title", "the Chat sheet: name, tags, copy, share, pin, move, history"],
       ["Tap the magnifier", "Find: chats, messages, every function and setting"],
-      ["Tap \u201c\u25cf site \u00b7 model\u201d at the top", "the site sheet: status, model, profile, pages, site plugins"],
+      ["Tap \u201c\u25cf provider \u00b7 model\u201d at the top", "the provider sheet: status, model, profile, pages, providers"],
       ["⋯ under a reply, or long-press it", "the message menu: copy, quote, select, send again, tags, what was sent, plugin actions"],
       ["Tap a reply", "shows Copy and Quote under it"],
-      ["The layers button next to the box", "quick edit and add: switch rows on or off, reorder them, put in a text file"],
+      ["The layers button next to the box", "quick edit and add: turn blocks on or off, reorder them, put in a text file"],
       ["■ (Send while a reply is coming)", "stop waiting; type to queue a message instead"],
       ["⤢ next to Send", "big message box"],
     ].map(([a, b]) => h("div", { class: "menu-item" }, h("span", {}, a), h("kbd", {}, b))),
@@ -1468,8 +1461,8 @@ const linkToSite = async () => {
   try {
     const r = await siteCmd("info");
     S.chat.meta.source = r.url;
-    S.chat.meta.site = siteIdOf();
-    S.chat.meta.ai = siteFor()?.name || "";
+    S.chat.meta.site = providerIdOf();
+    S.chat.meta.ai = providerFor()?.name || "";
     if (S.chat.path) await saveChat(S.chat, "link: " + S.chat.meta.title);
     render();
     toast("Linked to " + r.url);
@@ -1504,7 +1497,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     if (S.helpCard) return run(() => ((S.helpCard = null), render()));
     if (S.help) return run(() => ((S.help = false), render()));
-    if (S.siteMenu) return run(() => ((S.siteMenu = false), render()));
+    if (S.providerMenu) return run(() => ((S.providerMenu = false), render()));
     if (S.sheet) return run(closeSheet);
     if (S.drawer) return run(closeDrawer);
     const b = document.querySelector(".comp .send.stop");

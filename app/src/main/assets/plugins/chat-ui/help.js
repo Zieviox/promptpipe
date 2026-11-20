@@ -1,5 +1,5 @@
 "use strict";
-// App part (chat screen): the ? button and help mode. Tap ?, then tap anything: a card says
+// Chat screen: the ? button and help mode. Tap ?, then tap anything: a card says
 // what it does, with "Do it" to use it. A mouse also gets a small ? on whatever it hovers.
 
 const helpOn = () => S.config.helpButton !== false;
@@ -11,15 +11,15 @@ const helpBtn = () =>
 const HELP_TEXT = {
   "chats": "Your chat list. Folders, pins and search live here.",
   "find": "Search your chats and every setting. It shows where each one lives and lights it up.",
-  "quick edit and add": "Switch your profile's rows on or off, reorder them, or put a text file in your message.",
+  "quick edit and add": "Turn your profile's blocks on or off for this chat, reorder them, or put a text file in your message.",
   "message": "Type your message here.",
-  "send": "Sends your message, with your profile's rows added, to the site.",
+  "send": "Sends your message, with your profile's blocks added, to the provider.",
   "stop": "Stops waiting for the reply.",
   "bigger message box": "Makes the box taller for long messages. Ctrl+E.",
   "smaller message box": "Makes the box small again. Ctrl+E.",
   "close": "Closes this screen.",
   "back": "Goes back one screen.",
-  "switch site": "The site and model this chat uses. Tap to switch.",
+  "switch provider": "The provider and model this chat uses. Tap to switch.",
   "find chats and functions": "Search your chats and every setting. It shows where each one lives and lights it up.",
   "jump to latest ↓": "Scrolls to the newest message.",
   "chat title": "Tap for rename, tags, pin, copy, export, folders and history.",
@@ -31,9 +31,9 @@ const HELP_TEXT = {
   "select text": "Opens the text so you can select a part of it.",
   "copy your message": "Copies what you wrote.",
   "edit and send again": "Puts your message back in the box so you can change it and send it again.",
-  "drag to reorder": "Hold and drag to move this row. The arrows next to it do the same.",
-  "move up": "Moves this row up. It is sent earlier.",
-  "move down": "Moves this row down. It is sent later.",
+  "drag to reorder": "Hold and drag to move this block. The arrows next to it do the same.",
+  "move up": "Moves this block up. It is sent earlier.",
+  "move down": "Moves this block down. It is sent later.",
 };
 // What a control is, what it does, and where it lives (from Find's list of functions).
 const helpFor = (el) => {

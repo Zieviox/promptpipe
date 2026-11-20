@@ -1,13 +1,18 @@
 "use strict";
-// App part (chat screen): the Plugins screen. Two tabs: Profile (what goes with
+// Chat screen: the Plugins screen. Two tabs: Profile (the blocks that go with
 // your message, in this profile) and Library (every plugin there is: installed,
 // or on offer from a source). A plugin has a page of its own (update, go back to
 // the earlier version, remove). Sources are repos with an index.json; the
 // official one is always there. The Plugin guide helps write one with an AI.
 
 const OFFICIAL = "Zieviox/promptpipe-plugins";
-const KINDS = [["all", "All"], ["site", "AI sites"], ["message", "Message plugins"], ["theme", "Themes"], ["tool", "Tools"]];
-const KIND_WORDS = { site: "AI site", message: "Message plugin", theme: "Theme", tool: "Tool", part: "App part" };
+// Every plugin is a plugin; its tags say what else it is (see core.js, hasTag). The Library
+// shows "Plugin · its tags" and filters by tag.
+const MAIN_TAGS = ["provider", "theme", "passive", "core", "driver"];
+const TAG_CHIPS = [["all", "All"], ["provider", "Providers"], ["theme", "Themes"], ["passive", "Passive"]];
+const tagsOf = (m) => (Array.isArray(m && m.tags) ? m.tags : []);
+const mainTag = (tags) => MAIN_TAGS.find((t) => tags.includes(t)) || "";
+const typeLabel = (tags) => ["Plugin", ...tags].join(" · ");
 
 // What the screen remembers while it is open. Redraws never reset it.
 const LIB = { tab: "profile", filter: "all", cat: new Map(), ticked: new Set(), done: {}, busy: false };
@@ -34,7 +39,7 @@ const parseSource = (text) => {
   return { repo: `${parts[0]}/${parts[1]}`, branch: parts[2] === "tree" && parts[3] ? parts.slice(3).join("/") : "main" };
 };
 
-const kindOfPlugin = (p) => (isSite(p) ? "site" : isTheme(p) ? "theme" : p.manifest.block === false ? "tool" : "message");
+const tagOfPlugin = (p) => mainTag(tagsOf(p.manifest));
 const fromKey = (id) => (S.config.pluginFrom || {})[id];
 // Where an installed plugin's updates come from: the source it was got from, and
 // for the app's own plugins, the official source.
@@ -60,7 +65,7 @@ const libItems = () => {
   const byId = new Map();
   for (const p of S.plugins.values()) {
     if (!p.manifest || isDriver(p)) continue;
-    const it = { id: p.id, name: p.manifest.name || p.id, kind: isPart(p) ? "part" : kindOfPlugin(p), part: isPart(p), plugin: p, version: p.manifest.version, update: null };
+    const it = { id: p.id, name: p.manifest.name || p.id, tags: tagsOf(p.manifest), tag: tagOfPlugin(p), core: isCore(p), plugin: p, version: p.manifest.version, update: null };
     items.push(it);
     byId.set(p.id, it);
   }
@@ -74,7 +79,7 @@ const libItems = () => {
           if (appAtLeast(e.minApp)) have.update = offer;
           else have.needsApp = e.minApp;
         }
-      } else offers.push({ id: e.id, name: e.name || e.id, kind: e.kind || "tool", plugin: null, version: e.version, offer, installedElsewhere: !!have });
+      } else offers.push({ id: e.id, name: e.name || e.id, tags: tagsOf(e), tag: mainTag(tagsOf(e)), plugin: null, version: e.version, offer, installedElsewhere: !!have });
     }
   }
   return [...items, ...offers];
@@ -140,13 +145,14 @@ const installOffers = async (offers, { quiet = false } = {}) => {
     try {
       const r = await installOffer(o);
       LIB.done[doneKey(o)] = r ? "ok" : "";
-      if (r) made.push({ ...r, kind: o.entry.kind });
+      if (r) made.push(r);
     } catch (e) {
       LIB.done[doneKey(o)] = e.message;
     }
   }
   await loadPlugins();
-  for (const m of made) if (m.fresh && S.plugins.get(m.id) && kindOfPlugin(S.plugins.get(m.id)) === "message") setStepOn(m.id, true);
+  // A new plugin that can be a block goes into the active profile, on.
+  for (const m of made) if (m.fresh && isBlockPlugin(S.plugins.get(m.id))) setPluginOn(m.id, true);
   syncProfiles();
   saveConfig();
   LIB.busy = false;
@@ -206,8 +212,7 @@ const removePlugin = async (p) => {
 
 // ---------- the screen ----------
 
-const THIRD_PARTY = "This source isn't checked by PromptPipe. A plugin can read your chats and run code in the AI site pages you are logged in to. Only use sources you trust.";
-const KIND_CHIPS = [["all", "All"], ["site", "AI sites"], ["message", "Message plugins"], ["theme", "Themes"], ["tool", "Tools"]];
+const THIRD_PARTY = "This source isn't checked by PromptPipe. A plugin can read your chats and run code in the AI website pages you are logged in to. Only use sources you trust.";
 const filterChips = (list, cur, pick) =>
   h("div", { class: "chips" }, list.map(([k, l]) => h("button", { class: "pill" + (cur === k ? " on" : ""), "aria-pressed": String(cur === k), onclick: () => (pick(k), rerenderSheet()) }, l)));
 const origin = (it) =>
@@ -215,12 +220,12 @@ const origin = (it) =>
 
 // Library: an installed plugin's card. Its update shows as old → new.
 const libRow = (it) =>
-  item({ id: "library.pl" + it.id, label: it.name, sub: [KIND_WORDS[it.kind] || "Plugin", (it.version || "?") + (it.update ? " → " + it.update.entry.version : ""), it.needsApp ? "update needs app " + it.needsApp : "", origin(it)].filter(Boolean).join(" · "), badge: it.update ? "Update" : null, right: it.update ? null : "›", onclick: () => openPluginPage(it.id) });
+  item({ id: "library.pl" + it.id, label: it.name, sub: [typeLabel(it.tags), (it.version || "?") + (it.update ? " → " + it.update.entry.version : ""), it.needsApp ? "update needs app " + it.needsApp : "", origin(it)].filter(Boolean).join(" · "), badge: it.update ? "Update" : null, right: it.update ? null : "›", onclick: () => openPluginPage(it.id) });
 
 // The Plugins screen's tabs; the Profile tab's dot says a plugin it uses has an update.
 const tabs = () => {
   const upd = updateCount();
-  const profUpd = editedProfile().pipe.rows.some((r) => r.type === "step" && libUpdate(r.plugin));
+  const profUpd = editedProfile().blocks.some((b) => b.type === "plugin" && libUpdate(b.plugin));
   return h("div", { class: "tabs" },
     [["profile", "Profile", profUpd ? "●" : ""], ["library", "Library", upd ? String(upd) : ""]].map(([t, l, b]) =>
       h("button", { class: LIB.tab === t ? "on" : "", "aria-pressed": String(LIB.tab === t), onclick: () => ((LIB.tab = t), (S.dd = {}), t === "library" && loadSources(), rerenderSheet()) }, l, b ? h("span", { class: "badge" }, b) : null)));
@@ -230,13 +235,13 @@ const libUpdate = (id) => updateItems().some((i) => i.id === id);
 const libraryTab = () => {
   const n = updateCount();
   const busy = (S.updates || {}).busy;
-  const items = libItems().filter((i) => i.plugin && (!i.part || i.update) && (LIB.filter === "all" || i.kind === LIB.filter)).sort((a, b) => !!b.update - !!a.update || a.name.localeCompare(b.name));
+  const items = libItems().filter((i) => i.plugin && (!i.core || i.update) && (LIB.filter === "all" || i.tags.includes(LIB.filter))).sort((a, b) => !!b.update - !!a.update || a.name.localeCompare(b.name));
   const on = onSources();
   return [
-    filterChips(KIND_CHIPS, LIB.filter, (k) => (LIB.filter = k)),
+    filterChips(TAG_CHIPS, LIB.filter, (k) => (LIB.filter = k)),
     n || busy ? item({ id: "library.updall", prim: true, label: busy ? "Checking…" : "Update all", sub: n + " update" + (n === 1 ? "" : "s") + " available", onclick: LIB.busy || SAFE ? null : updateAll }) : null,
     ...items.map(libRow),
-    items.length ? null : item({ label: LIB.filter === "all" ? "Nothing installed yet" : "Nothing of this kind yet", sub: "Get plugins below", chev: true, onclick: () => openGetPlugins() }),
+    items.length ? null : item({ label: LIB.filter === "all" ? "Nothing installed yet" : "Nothing with this tag yet", sub: "Get plugins below", chev: true, onclick: () => openGetPlugins() }),
     h("div", { class: "lbl" }, "Manage"),
     item({ id: "library.reload", label: "Reload plugins", key: "Ctrl+Shift+R", onclick: reloadPlugins }),
     item({ id: "library.getp", label: "Get plugins", sub: "From " + on.length + (on.length === 1 ? " source" : " sources"), chev: true, onclick: () => openGetPlugins() }),
@@ -266,7 +271,7 @@ const sourceRow = (s) => {
   return h("div", { class: "it", "data-row": "library.src" + k },
     h("button", { class: "g", title: "Check again", onclick: () => srcOn(s) && loadSource(s) }, s.repo + (s.branch && s.branch !== "main" ? " · " + s.branch : ""), h("small", {}, state + (s.official ? " · Official" : " · Third party"))),
     s.official ? null : h("button", { class: "act", "aria-label": "Remove source", onclick: () => removeSource(s) }, svgIcon("close")),
-    switchBtn(srcOn(s), s.repo + " on or off", flip));
+    toggleBtn(srcOn(s), s.repo + " on or off", flip));
 };
 const removeSource = async (s) => {
   if (!(await askConfirm(`Remove ${s.repo}? Plugins you installed from it stay.`, "Remove"))) return;
@@ -310,18 +315,18 @@ const openAddSource = () =>
   }, { back: () => openPlugins("library") });
 
 // Get plugins: what the sources that are on offer, by source.
-const openGetPlugins = (kind = "") => {
-  LIB.kind = kind;
+const openGetPlugins = (tag = "") => {
+  LIB.tag = tag;
   loadSources();
   openSheet("Get plugins", () => {
     const on = onSources();
     if (LIB.src !== "all" && !on.some((s) => srcKey(s) === LIB.src)) LIB.src = "all";
-    const offers = libItems().filter((i) => i.offer && (LIB.src === "all" || srcKey(i.offer.src) === LIB.src) && (!LIB.kind || i.kind === LIB.kind));
+    const offers = libItems().filter((i) => i.offer && (LIB.src === "all" || srcKey(i.offer.src) === LIB.src) && (!LIB.tag || i.tags.includes(LIB.tag)));
     const loading = on.some((s) => catOf(s).busy);
     const failed = on.filter((s) => catOf(s).error);
     return [
       filterChips([["all", "All sources"], ...on.map((s) => [srcKey(s), s.repo.split("/")[1]])], LIB.src, (k) => (LIB.src = k)),
-      LIB.kind ? h("div", { class: "chips" }, h("button", { class: "pill on", onclick: () => ((LIB.kind = ""), rerenderSheet()) }, (KIND_WORDS[LIB.kind] || LIB.kind) + "s only ✕")) : null,
+      LIB.tag ? h("div", { class: "chips" }, h("button", { class: "pill on", onclick: () => ((LIB.tag = ""), rerenderSheet()) }, (TAG_CHIPS.find((c) => c[0] === LIB.tag)?.[1] || LIB.tag) + " only ✕")) : null,
       ...offers.map(offerRow),
       loading ? item({ label: "Checking the sources…" }) : null,
       ...failed.map((s) => item({ label: "Couldn't load " + s.repo, sub: catOf(s).error + " · tap to try again", onclick: () => loadSource(s) })),
@@ -337,19 +342,19 @@ const offerRow = (it) => {
   const bad = mark && !["ok", "…", ""].includes(mark);
   return h("div", { class: "it", "data-row": "getplugins.c" + it.id + srcKey(o.src) },
     h("button", { class: "g", onclick: () => openOfferPage(o) }, it.name,
-      h("small", {}, [KIND_WORDS[it.kind] || "Plugin", o.entry.version, o.entry.note].filter(Boolean).join(" · ")),
+      h("small", {}, [typeLabel(it.tags), o.entry.version, o.entry.note].filter(Boolean).join(" · ")),
       h("small", { class: bad ? "error" : "" }, bad ? mark : "From " + o.src.repo + (o.src.official ? " · Official" : " · Third party") + (it.installedElsewhere ? " · same name installed" : ""))),
     mark === "ok" ? h("span", { class: "ch" }, "Installed") : h("button", { class: "pill", disabled: LIB.busy, onclick: () => installOffers([o]) }, mark === "…" ? "…" : "Get"));
 };
 
 const openOfferPage = (offer) =>
   openSheet("Plugin", () => [
-    item({ label: offer.entry.name || offer.entry.id, sub: `${KIND_WORDS[offer.entry.kind] || "Plugin"} · version ${offer.entry.version || "?"} · from ${offer.src.repo}` }),
+    item({ label: offer.entry.name || offer.entry.id, sub: `${typeLabel(tagsOf(offer.entry))} · version ${offer.entry.version || "?"} · from ${offer.src.repo}` }),
     offer.entry.note ? item({ label: offer.entry.note }) : null,
     offer.src.official ? null : item({ cls: "warn", label: "Third party", sub: THIRD_PARTY }),
-    offer.entry.kind === "site" ? item({ cls: "warn", label: "Use a spare account", sub: SAFETY }) : null,
+    tagsOf(offer.entry).includes("provider") ? item({ cls: "warn", label: "Use a spare account", sub: SAFETY }) : null,
     item({ prim: true, label: LIB.busy ? "Installing…" : "Get it", onclick: LIB.busy ? null : () => installOffers([offer]).then(() => S.plugins.has(offer.entry.id) && openPluginPage(offer.entry.id)) }),
-  ], { back: () => openGetPlugins(LIB.kind) });
+  ], { back: () => openGetPlugins(LIB.tag) });
 
 // Install from a file or link (a GitHub folder, plugin.json or .zip).
 let linkDraft = "";
@@ -386,7 +391,7 @@ const openPlugins = (tab, filter) => {
     head: () => h("button", { class: "ic", "aria-label": "Quick start: plugins", title: "Quick start: plugins", onclick: () => startTour("plugins") }, svgIcon("play")),
   });
 };
-const openGetSites = () => openGetPlugins("site");
+const openGetProviders = () => openGetPlugins("provider");
 
 // ---------- one plugin ----------
 
@@ -398,27 +403,27 @@ const openPluginPage = (id) =>
     const prof = profile();
     const up = updateItems().find((i) => i.id === id)?.update;
     const where = p.source === "builtin" ? (p.updated ? "built in, updated with the app" : "built in") : fromKey(id) ? "from " + srcName(fromKey(id)) : p.overrides ? "your copy (it replaces the built-in one)" : "yours";
-    const kind = kindOfPlugin(p);
+    const tag = tagOfPlugin(p);
     const hasSettings = Object.values(m.settings || {}).some((d) => d.type !== "hidden");
     return [
-      item({ id: "plugin.pinfo", label: m.name || id, sub: `${KIND_WORDS[kind]} · version ${m.version || "?"}${up ? " · " + up.entry.version + " available" : ""}` }),
+      item({ id: "plugin.pinfo", label: m.name || id, sub: `${typeLabel(tagsOf(m))} · version ${m.version || "?"}${up ? " · " + up.entry.version + " available" : ""}` }),
       p.error ? item({ cls: "danger", label: "It didn't load", sub: p.error }) : null,
       staleNote(p),
       up ? item({ id: "plugin.pupd", prim: true, label: "Update to " + up.entry.version, onclick: LIB.busy ? null : () => installOffers([up], { quiet: true }).then(() => (toast(`${m.name || id} updated`), rerenderSheet())) }) : null,
-      kind === "site" ? item({ id: "plugin.puse", label: "Sites belong to chats", sub: "Pick it from the pill in the header. Profiles do not change the site." }) : null,
-      kind === "message" ? item({ id: "plugin.pon", label: "On", sub: `In the profile “${prof.name}”`, toggle: stepOn(id, prof), onclick: () => (setStepOn(id, !stepOn(id, prof), prof), render(), rerenderSheet()) }) : null,
-      kind === "theme" ? item({ id: "plugin.pon", label: "Use this theme", toggle: S.config.ui.theme === id, onclick: () => (setTheme(S.config.ui.theme === id ? "" : id), rerenderSheet()) }) : null,
+      tag === "provider" ? item({ id: "plugin.puse", label: "Providers belong to chats", sub: "Pick it from the pill in the header. Profiles do not change the provider." }) : null,
+      isBlockPlugin(p) ? item({ id: "plugin.pon", label: "On", sub: `A block of the profile “${prof.name}”`, toggle: pluginOn(id, prof), onclick: () => (setPluginOn(id, !pluginOn(id, prof), prof), render(), rerenderSheet()) }) : null,
+      tag === "theme" ? item({ id: "plugin.pon", label: "Use this theme", toggle: S.config.ui.theme === id, onclick: () => (setTheme(S.config.ui.theme === id ? "" : id), rerenderSheet()) }) : null,
       hasSettings ? item({ id: "plugin.pset", label: "Settings", sub: "This plugin's options", chev: true, onclick: () => openPluginSettings(id) }) : null,
       p.previous ? item({ id: "plugin.prb", label: verNewer(p.previous, m.version) ? `Go forward to version ${p.previous}` : `Roll back to the previous version`, sub: verNewer(p.previous, m.version) ? "" : "Version " + p.previous, onclick: () => rollBack(id) }) : null,
       p.source === "builtin" && !SAFE ? item({ id: "plugin.fork", label: "Copy to edit", sub: "Into your plugin folder; your copy replaces this one", onclick: () => forkPlugin(id).then(() => rerenderSheet()) }) : null,
       m.description ? item({ id: "plugin.about", cls: LIB.about === id ? "" : "clamp", label: "About", sub: m.description + " · " + where[0].toUpperCase() + where.slice(1) + (m.advanced ? " · advanced" : ""), onclick: () => ((LIB.about = LIB.about === id ? "" : id), rerenderSheet()) }) : null,
-      p.source === "user" ? item({ id: "plugin.prm", cls: "danger", label: "Remove", onclick: () => removePlugin(p) }) : item({ id: "plugin.prm", label: "Built in", sub: "Built-in plugins can't be removed. Switch them off in a profile." }),
+      p.source === "user" ? item({ id: "plugin.prm", cls: "danger", label: "Remove", onclick: () => removePlugin(p) }) : item({ id: "plugin.prm", label: "Built in", sub: "Built-in plugins can't be removed. Take them out of a profile instead." }),
     ];
   }, { back: () => openPlugins("library") });
 
 // ---------- the Plugin guide ----------
 
-const REQUEST_HEAD = "I want a plugin for PromptPipe, an Android app that sends my messages to AI chat sites. Below is the guide for writing plugins. Read it, then write the plugin I ask for.";
+const REQUEST_HEAD = "I want a plugin for PromptPipe, an Android app that sends my messages to AI chat websites. Below is the guide for writing plugins. Read it, then write the plugin I ask for.";
 const REQUEST_TAIL = "Reply with every file of the plugin. Write each file's name alone on the line before its code block (for example plugin.json, then the block), and always include plugin.json. Keep it small and simple. After the files, say in two sentences what it does.";
 // Without a want, the AI asks for it first (you say it in the AI chat).
 const aiInstructions = (guide, want) => `${REQUEST_HEAD}\n\n=== PromptPipe plugin guide ===\n${guide}\n=== end of guide ===\n\n${want ? "What I want the plugin to do:\n" + want : "First ask me what the plugin should do, then write it."}\n\n${REQUEST_TAIL}`;
