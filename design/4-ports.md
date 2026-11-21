@@ -1,275 +1,221 @@
-# 4. Ports (stage 4)
+# 4. The port and the calls (stage 4)
 
 Inside-out: the application sits in the middle (sending, chats, profiles, prompts, plugins,
-settings, credentials, jobs). **Driving ports** are how the outside starts something in it;
-**driven ports** are what it needs from the outside, named by role, each with only the calls the
-use cases need (role interfaces). Built from `0-intent.md`, `2-requirements.md` and
-`3-terms.md` only. Records in `Ada_Case` are the ones defined in `3-terms.md`.
+settings, credentials, jobs). Everything between the application and the outside goes through
+**one port each way**, carrying one envelope (`3-terms.md`):
 
-## Who drives the application
+- **In**: the outside calls the application (the screen, plugins through `PP`, other apps through
+  the core's local API, the phone through the platform).
+- **Out**: the application calls the outside (files, pages, sites, HTTP, credentials, the
+  repository, plugin installs, the phone's services). It doesn't know which layer answers.
 
-| Driver | Through | Starts |
+There are no per-topic ports: a port is the message protocol, and what was a "port" per topic is
+only a group of call names. **One table of calls is the contract.** It is data, and the same data
+is the routing (each layer registers the calls it answers), the check at the boundary, the "not
+supported on this platform" answer for a call nobody registered (P5), and the stand-ins used to
+test the application without a phone. Each use case uses only the calls it needs, which the
+coverage table shows (role separation without separate ports).
+
+Built from `0-intent.md`, `2-requirements.md` and `3-terms.md` only.
+
+## The calls
+
+Grouped by who answers. "Callers" says who may call it: **S** the screen, **P** plugins (through
+`PP`), **A** the application, **C** the core's local API.
+
+### Answered by the application
+
+**Records**: one set of operations for every collection (S1). Each collection's schema gives its
+fields, labels, rules, and where it's stored.
+
+| Call | In → out | Callers |
 |---|---|---|
-| You | the screen (a driving adapter: it calls driving ports and draws the `State`) | almost every use case |
-| Other apps | the core's local API (a driving adapter: it turns a request into `job_run`) | UC41 |
-| The phone | the platform (it forwards sharing, Back, start) | UC14, UC48, R5 |
-| Plugins | `PP` (the driving port for plugin authors) | UC42–UC47 |
+| `record_list` | collection, filter → records | S, P |
+| `record_get` | collection, id → record | S, P |
+| `record_create` | collection, fields, place → record | S, P |
+| `record_set` | collection, id, fields → record | S, P |
+| `record_move` | collection, id, place → record | S, P |
+| `record_copy` | collection, id → record | S, P |
+| `record_delete` | collection, id → done | S, P |
 
-## Driving ports
+Collections: `chats` (rename, pin, tags, folder, provider, model, profile, site chat link),
+`folders`, `turns` (message tags), `profiles`, `templates`, `blocks`, `groups`, `prompts`,
+`connections`, `sources`, `sends` (queued messages: move up, edit, remove), `drafts`,
+`settings`, `plugin_settings`, `toggles`.
 
-### A. Records: one set of operations for every collection (S1)
+**Everything with its own behaviour**
 
-Most of what you manage is a collection of records. One set of operations covers all of them;
-each collection's schema (its fields, labels, rules and where it's stored) says the rest.
+| Call | In → out | Callers | Use cases |
+|---|---|---|---|
+| `message_send` | chat, text, attachments, options (`saved`, `replace_last`, `profile`) → `Send` | S, P, A | UC1, UC2, UC5, UC15, UC42.3, UC43, UC44 |
+| `message_build` | profile, chat → the text that would be sent | S, P, A | UC1, UC25 |
+| `send_stop` | send → done | S, P | UC3 |
+| `failure_resolve` | send, choice (`retry` · `check` · `edit` · `dismiss`) → done | S | UC4 |
+| `attachment_add` | chat, files → the draft's attachments | S | UC48 |
+| `model_list` | chat → models | S | UC10 |
+| `option_list` | chat → options | S | UC10 |
+| `site_chat_open` | provider, address → chat | S | UC13 |
+| `site_chat_import` | chat, page, which (`all` · `newest`) → turns | S | UC13 |
+| `chat_create` | folder, text → chat | S, A | UC14, UC16 |
+| `chat_open` | chat → chat with its turns | S, P | UC16 |
+| `chat_find` | query → matches | S, P | UC18 |
+| `commit_list` | chat → its history | S | UC19 |
+| `chat_export` | chat, to (`clipboard` · `share` · `file`) → done | S | UC6, UC21 |
+| `profile_export` | profiles, to → done | S | UC27 |
+| `profile_import` | file → profiles | S | UC27 |
+| `prompt_export` | prompts, to → done | S | UC26, UC27 |
+| `prompt_import` | files → prompts | S | UC27 |
+| `catalogue_load` | → offers and available updates, verified | S | UC28, UC31 |
+| `plugin_install` | from (a catalogue entry, a link, a zip, an AI answer's files) → plugin | S | UC29, UC30 |
+| `plugin_update` | plugins, or all; or back to the previous version → plugins | S | UC29, UC31 |
+| `plugin_copy` | plugin → your copy | S | UC29, UC38 |
+| `chats_folder_move` | folder, copy → done | S | UC36 |
+| `storage_verify` | → each test with the system's answer | S | UC36 |
+| `api_token_create` | → the new token (shown once) | S | UC37 |
+| `change_resolve` | change, choice (`theirs` · `ours` · `both`) → done | S | D7 |
+| `job_run` | job → the job's results, as `job_changed` events | C | UC41 |
+| `plugin_set` | the plugin's definition (its hooks and commands) | P | UC42.2 |
+| `chat_data_read` | chat → the plugin's data for it | P | UC43, UC44 |
+| `chat_data_write` | chat, data → done | P | UC43, UC44 |
+| `sheet_open` | the sheet's definition → done | P | UC42.4 |
+| `event_on` | event name, handler | P | UC42 |
 
-| Call | Does |
-|---|---|
-| `record_list(collection, filter)` | the records, in order |
-| `record_get(collection, id)` | one record |
-| `record_create(collection, fields, at)` | a new record, at a place in the order |
-| `record_set(collection, id, fields)` | change fields |
-| `record_move(collection, id, to)` | change its place (order, folder or group) |
-| `record_copy(collection, id)` | duplicate it |
-| `record_delete(collection, id)` | delete it (the schema says what must be asked first) |
+### Answered by the core
 
-| Collection | Use cases | Notes |
-|---|---|---|
-| `chats` | UC16, UC17, UC19, UC20 | rename, pin, tags, move between folders; saving rebuilds the readable file |
-| `folders` | UC17 | |
-| `turns` (of a chat) | UC20 | message tags |
-| `profiles`, `templates` | UC22 | a new profile is `record_copy` of a template |
-| `blocks`, `groups` (of a profile) | UC23, UC24 | toggles' defaults, "send it", scope, picked blocks |
-| `prompts` | UC26 | add, edit, pin, delete |
-| `connections`, `sources` | UC40.6, UC30 | |
-| `queue` | UC2 | move up, edit, remove |
-| `failed` | UC4 | Dismiss is `record_delete` |
-| `drafts` | UC7 | the message box's text, per chat |
-| `settings` | UC34–UC39 | the settings map: `record_set("settings", key, value)`; the schema gives defaults and limits |
-| `plugin_settings` | UC32 | per profile and plugin |
-| `toggles` (of a chat) | UC11 | |
+| Call | In → out | Callers | Use cases |
+|---|---|---|---|
+| `file_read` | root, path or pattern → files, each with its version and whether it changed outside the app | A | UC16 and every saved record |
+| `file_write` | root, path, data, expected version → the new version, or an `Outside_Change` | A | D4, D7 |
+| `file_move` | root, from, to, expected version → the new version, or an `Outside_Change` | A | UC17, UC36 |
+| `file_delete` | root, path, expected version → done, or an `Outside_Change` | A | UC17 |
+| `file_list` | root, folder → names, kinds, sizes, times | A | UC16, UC36 |
+| `file_find` | root, query → matching files and lines | A | UC18 |
+| `catalogue_verify` | data, signature → `Catalogue`, or an error | A | S3 |
+| `plugin_list` | → installed copies, versions, changed-outside status | S, A | UC28, UC29, S4 |
+| `plugin_write` | plugin, files, catalogue entry → plugin (each file's hash checked against the entry) | A | UC29–UC31, S3 |
+| `plugin_remove` | plugin, copy → done | S | UC29 |
+| `log_read` | → the core log | S | UC38 |
 
-### B. Operations with their own behaviour
+Roots: `app`, `chats`, `built_in` (read-only). The change check is the expected version on every
+write, move and delete: one mechanism for every file (D7).
 
-**Sending** (UC1–UC5, UC15, UC48)
-- `message_send(chat, text, attachments)`: builds, runs hooks, picks the provider, sends (or
-  queues when the chat is busy); progress comes back as events.
-- `send_stop(send)`: UC3.
-- `failed_retry(id)`, `failed_check(id)`, `failed_edit(id)` (back into the draft): UC4.
-- `turn_resend(chat, text)`: replace your last message and send again (UC5).
-- `attachment_add(chat, files)`: into the draft, from a pick, a share or a paste (UC48).
-- `message_preview(profile, chat)`: what would be sent (UC25).
+### Answered by the platform
 
-**Provider, model, pages and the site's chats** (UC9–UC13)
-- `provider_choose(chat, provider)` (UC9).
-- `model_list(chat)`, `model_choose(chat, model)`, `option_list(chat)`, `option_set(chat, name, on)`
-  (UC10).
-- `page_open(provider, url)`, `page_close(page)`, `page_show(page)`, `page_navigate(page, to)`
-  (UC12; `to` is an address, `"back"` or `"reload"`).
-- `site_chat_list(provider)`, `site_chat_open(provider, url)`, `chat_link_page(chat, page)`,
-  `site_chat_import(chat, page)`, `page_reply_add(chat, page)` (UC13).
+| Call | In → out | Callers | Use cases |
+|---|---|---|---|
+| `page_open` | address, kind (`main` · `side`) → `Page` | S, A | UC9, UC12, UC13 |
+| `page_close` | page → done | S, A | UC12 |
+| `page_navigate` | page, to (an address · `back` · `reload`) → done | S | UC12 |
+| `view_set` | page, or none → done (the site view's region) | S | UC9, UC12 |
+| `http_fetch` | request (address, method, headers, body, credential name, streaming, file to save to) → response; parts as `http_received` events | A, P | UC15, UC29–UC31 |
+| `credential_create` | fields, value → credential | S | UC40 |
+| `credential_list` | → credentials (no values) | S, A | UC40 |
+| `credential_delete` | name → done | S | UC40 |
+| `repo_commit` | paths, message → commit | A | D2 |
+| `repo_push` | → done (the token comes from the credential named in settings) | S, A | UC36 |
+| `repo_pull` | → done | S | UC36 |
+| `commit_list` | path, count → commits (the repository's side of the same call above) | A | UC19 |
+| `clipboard_write` | text → done | S, A | UC6 |
+| `clipboard_read` | → text or an image | S | UC6, UC48 |
+| `content_export` | content (text or file), to (`share` · `file`) → done | A | UC21, UC26, UC27 |
+| `picker_open` | types, many → files | S | UC7, UC27, UC30, UC48 |
+| `url_open` | address → done | S | UC9, UC39 |
+| `vibration_start` | → done | S | I1 |
+| `bars_set` | colours → done | S | UC34 |
+| `storage_access_open` | → done (the system's file access screen) | S | UC36 |
+| `app_get` | → version, platform, the calls it answers, safe mode | S, A | P5, UC38 |
+| `app_start` | mode (`normal` · `safe`) → done | S | UC33 |
+| `app_close` | → done (to the background) | S | UC38 |
+| `service_stop` | → done | S | UC38 |
 
-**Chats** (UC14, UC16, UC18, UC19, UC21)
-- `chat_create(folder, text)`: also for shared text (UC14).
-- `chat_open(chat)`, `chat_find(query)` (UC18), `chat_history(chat)` (UC19).
-- `chat_export(chat)` (its text, for copy), `chat_share(chat)` (UC21).
+### Answered by the page script (through the platform)
 
-**Profiles and prompts** (UC23, UC26, UC27)
-- `block_link_save(profile, block)`: save a System prompt's own text to the library and link it.
-- `prompt_link(profile, prompt)`: add a linked block before Your message.
-- `profile_export(ids)`, `profile_import(file)`, `prompt_export(ids)`, `prompt_import(files)`.
+| Call | In → out | Callers | Use cases |
+|---|---|---|---|
+| `site_send` | page, text, attachments, model, options → done; progress as `reply_changed` | A | UC1, UC48 |
+| `site_stop` | page → done | A | UC3 |
+| `site_read` | page → the newest reply and thinking | A | UC4, UC13 |
+| `site_model_list` | page → models | A | UC10 |
+| `site_option_list` | page → options | A | UC10 |
+| `site_chat_list` | page → the site's own chats | S, A | UC13 |
+| `site_report_build` | page → the page report | S | UC46 |
 
-**Plugins** (UC28–UC33)
-- `catalogue_load()`: every source's catalogue, verified.
-- `plugin_install(from)`: `from` is a catalogue entry, a link, a zip or an AI answer's files.
-- `plugin_update(id)`, `plugin_update_all()`, `plugin_rollback(id)`, `plugin_remove(id)`,
-  `plugin_copy(id)` (your copy).
-- `update_check()`: the automatic check (as set) and the one you start.
-- `plugin_guide_copy()`: the plugin-writing instructions for an AI (UC30).
-- `app_restart(safe)`: safe mode on or off (UC33).
+One generic routine answers these from the provider's `Provider_Def`; a content script replaces
+single stages of it (UC42.7).
 
-**Storage, history, local API, app** (UC36–UC38)
-- `chats_folder_move(path, copy)`, `storage_check()`.
-- `repo_push()`, `repo_pull()`.
-- `api_token_create()`.
-- `app_reset()`, `log_read()`, `service_stop()`.
+## The events
 
-**Credentials** (UC40): `credential_add(fields, value)`, `credential_list()`,
-`credential_remove(name)`.
+| Event | From | Data | Listened to by |
+|---|---|---|---|
+| `page_changed` | platform | page, state (`loading` · `ready` · `busy` · `failed`), address, title, reason (no connection, address not found, certificate refused) | application (UC12, #241) |
+| `popup_changed` | platform | page, open or closed | application (UC12, #244) |
+| `reply_changed` | page script | page, text and thinking so far, state (`streaming` · `finished` · `failed`), reason | application (UC1, UC1.5) |
+| `http_received` | platform | request, the part received | application, plugins (UC15) |
+| `share_received` | platform | text or files | application (UC14, UC48) |
+| `back_pressed` | platform | — (answered: handled or not) | screen (R5) |
+| `app_resumed` | platform | — | application (R3) |
+| `job_received` | core | `Job` | application (UC41) |
+| `job_changed` | application | job, a part of the answer, state | core (UC41) |
 
-**The change check** (D7): `outside_change_resolve(change, choice)`, choice `"theirs"`, `"ours"`
-or `"both"`.
-
-**Other apps** (UC41): `job_run(job)`, called by the core's local API adapter.
-
-**Plugin authors** (UC42–UC47): `PP` offers the operations above, plus:
-- `plugin_define(definition)`: the plugin's hooks (`block_text`, `send_before`, `reply_after`,
-  `chat_route`, `turn_render`, `toggle_render`, `menu_items`) and commands.
-- `side_ask(prompt, options)`: a fresh, unsaved request to the provider (UC42.3).
-- `chat_data_read(chat)`, `chat_data_write(chat, data)`: the plugin's own data for a chat (Memory's
-  summaries).
-- `sheet_open(definition)`: the plugin's own sheet, drawn by the generic viewer (UC42.4).
-- `event_on(name, handler)`.
-
-## Driven ports (named by role)
-
-Each port lists only the calls the use cases need. A library feature no call needs is not wrapped.
-
-### `for_keeping_files` (the core)
-
-| Call | In → out |
-|---|---|
-| `file_read(root, path)` | → `{ data, version, changed_outside }` |
-| `file_read_all(root, pattern)` | → many small files at once (every chat's `meta.json`) |
-| `file_write(root, path, data, expected)` | → `version`, or an `Outside_Change` if the file changed since `expected` (D7) |
-| `file_move(root, from, to, expected)` | → `version` or `Outside_Change` |
-| `file_delete(root, path, expected)` | → done or `Outside_Change` |
-| `file_list(root, folder)` | → names, kinds, sizes, times |
-| `file_find(root, query)` | → the matching files and lines (UC18, fast without reading every file in full) |
-
-Roots: `app`, `chats`, `built_in` (read-only). The change check is part of `file_write`,
-`file_move` and `file_delete` (the expected version), not a separate system: one mechanism for
-every file (D7). Used by: chats, prompts, settings, plugin copies, attachments, export.
-
-### `for_driving_pages` (the platform)
-
-| Call | In → out |
-|---|---|
-| `page_open(url, kind)` | → `Page` (`kind`: main or side) |
-| `page_close(page)` | |
-| `page_show(page)` | shows it in the site view's region, or nothing (`none`) |
-| `page_navigate(page, to)` | an address, `"back"` or `"reload"` |
-
-Events: `page_loaded`, `page_navigated`, `page_failed` (with the reason: no connection, address
-not found, certificate refused, #241), `page_closed`, `popup_opened`, `popup_closed` (UC12).
-
-### `for_using_a_site` (the page script, reached through the platform)
-
-| Call | In → out |
-|---|---|
-| `site_send(page, text, attachments, model, options)` | starts; progress as events |
-| `site_stop(page)` | |
-| `site_read(page)` | → the newest reply and thinking (Check, UC4; add the newest reply, UC13) |
-| `site_models(page)`, `site_options(page)` | → what the page offers (UC10) |
-| `site_chats(page)` | → the site's own chats (UC13) |
-| `site_report(page)` | → the page report (UC46) |
-
-Events: `reply_changed` (text and thinking so far), `reply_finished`, `reply_failed` (refusal,
-human check, error, with the reason; UC1.5). One generic routine implements them from the
-provider's `Provider_Def`; a content script replaces single stages of it (UC42.7).
-
-### `for_http` (the platform)
-
-| Call | In → out |
-|---|---|
-| `http_fetch(request)` | `request`: `url`, `method`, `headers`, `body`, `credential` (a name), `stream`, `save_to` (a file) → a response, or `http_chunk` events then `http_done` |
-
-Used by: API providers (UC15), downloads and the catalogue (UC29–UC31). A credential's value is
-added inside the platform, only for its hosts (UC40.3).
-
-### `for_credentials` (the platform)
-
-`credential_add(Credential, value)`, `credential_list()` → list of `Credential`,
-`credential_remove(name)`. Event: `credential_changed`. Values are used only inside `http_fetch`
-and the repository calls.
-
-### `for_history` (the platform)
-
-`repo_commit(paths, message)`, `repo_log(path, count)` → commits, `repo_push(remote, credential)`,
-`repo_pull(remote, credential)` (D2, UC19, UC36).
-
-### `for_installing_plugins` (the core: trusted, not updatable)
-
-| Call | In → out |
-|---|---|
-| `catalogue_verify(data, signature)` | → `Catalogue` or an error (S3) |
-| `plugin_install(id, files, entry)` | checks every file's hash against the entry when it came from a catalogue, then writes the copy → `Plugin` |
-| `plugin_remove(id, copy)` | |
-| `plugin_list()` | → the copies (built-in, updated, yours), their versions, changed-outside status (UC29, S4) |
-
-### `for_answering_apps` (the core's local API)
-
-The core turns a request into `job_received(Job)` (a driving event); the application answers with
-`job_reply(job, part)` (`part`: a chunk, the end, or an error). Keep-alive, cancel on a closed
-connection and joining a retried request are the core's (UC41).
-
-### `for_phone` (the platform)
-
-`clipboard_copy(text)`, `clipboard_read()`, `share_text(text)`, `share_file(path)`,
-`url_open(url)`, `vibration_play()`, `files_access_request()`, `file_pick(types, many)` → files,
-`file_save(name, data)` (exports through the system), `bars_set(colours)`, `app_background()`,
-`service_stop()`.
-
-Driving events from the phone: `shared_in` (text or files; UC14, UC48), `back_pressed` (answered
-with handled or not; R5), `app_resumed`.
-
-### `for_app` (the core and the platform)
-
-`app_info()` → `{ version, platform, calls, safe_mode }` (`calls` lists what this platform offers,
-so a missing feature is said, never hidden: P5), `app_restart(safe)`, `log_read()`.
-
-### `for_device` (the screen)
-
-`store_local_get(key)`, `store_local_set(key, value)`: per-device conveniences only (an open
-folder, a remembered tab).
-
-### `for_time_and_ids` (every layer)
-
-`clock_now()`, `id_new()`. Given to the pure functions as inputs, so they stay pure and testable.
+The screen needs no events of its own: it draws the `State` after every change.
 
 ## Coverage
 
-| Use case | Driving | Driven |
-|---|---|---|
-| UC1 send | `message_send` | `for_using_a_site` or `for_http`; `for_keeping_files`; `for_history` |
-| UC2 queue | `record_*` on `queue` | — |
-| UC3 stop | `send_stop` | `site_stop` / closes the stream |
-| UC4 failed | `failed_*`, `record_delete` | `site_read` |
-| UC5 resend | `turn_resend` | as UC1 |
-| UC6 reuse text | (screen), `chat_export` | `clipboard_copy` |
-| UC7 long text | `record_set` on `drafts` | `file_pick` |
-| UC8 new reply | (screen only) | — |
-| UC9 provider | `provider_choose`, `page_show` | `for_driving_pages` |
-| UC10 model, options | `model_*`, `option_*` | `site_models`, `site_options` |
-| UC11 toggles | `record_set` on `toggles` | — |
-| UC12 site view | `page_*` | `for_driving_pages` |
-| UC13 site chats | `site_chat_*`, `chat_link_page`, `page_reply_add` | `site_chats`, `site_read`, `page_open` |
-| UC14 share in | `chat_create` | `shared_in` |
-| UC15 API | `message_send` | `for_http`, `for_credentials` |
-| UC16–UC17 chats | `chat_create`, `chat_open`, `record_*` | `for_keeping_files`, `for_history` |
-| UC18 find | `chat_find` | `file_find` |
-| UC19 details | `record_get`, `chat_history` | `repo_log` |
-| UC20 tags | `record_set` | — |
-| UC21 copy, share | `chat_export`, `chat_share` | `clipboard_copy`, `share_text` |
-| UC22–UC24 profiles, blocks, groups | `record_*` | `for_keeping_files` |
-| UC25 preview | `message_preview` | — |
-| UC26 prompts | `record_*`, `prompt_link`, `block_link_save`, `prompt_export` | `for_keeping_files`, `file_save` |
-| UC27 export, import | `*_export`, `*_import` | `file_save`, `file_pick` |
-| UC28–UC31 plugins | `catalogue_load`, `plugin_*`, `update_check` | `for_http`, `for_installing_plugins` |
-| UC32 plugin settings | `record_set` on `plugin_settings` | — |
-| UC33 safe mode | `app_restart` | `for_app` |
-| UC34–UC35 look, sites | `record_set` on `settings` | `bars_set` |
-| UC36 storage, git | `chats_folder_move`, `storage_check`, `repo_*` | `for_keeping_files`, `for_history`, `files_access_request` |
-| UC37 local API | `api_token_create` | `for_credentials` |
-| UC38 advanced | `app_reset`, `log_read`, `service_stop`, `plugin_copy` | `for_app`, `for_phone` |
-| UC39 help | (screen), `record_set` on `settings` | — |
-| UC40 credentials | `credential_*`, `record_*` on `connections` | `for_credentials` |
-| UC41 other apps | `job_run` | `for_answering_apps` |
-| UC42 plugin authors | `PP` | — |
-| UC43–UC47 built-in plugins | `PP`: `side_ask`, `chat_data_*`, hooks | as UC1 |
-| UC48 attachments | `attachment_add`, `message_send` | `file_pick`, `shared_in`, `for_keeping_files` |
-| D7 change check | `outside_change_resolve` | `for_keeping_files` |
+| Use case | Calls |
+|---|---|
+| UC1 send | `message_send` → `message_build`, `site_send` or `http_fetch`, `file_write`, `repo_commit` |
+| UC2 queue | `record_move`, `record_set`, `record_delete` on `sends` |
+| UC3 stop | `send_stop` → `site_stop` |
+| UC4 failed | `failure_resolve` → `site_read` |
+| UC5 resend | `message_send` with `replace_last` |
+| UC6 reuse text | `chat_export`, `clipboard_write` |
+| UC7 long text | `record_set` on `drafts`, `picker_open` |
+| UC8 new reply | the screen alone |
+| UC9 provider | `record_set` on `chats`, `page_open`, `view_set`, `url_open` |
+| UC10 model, options | `model_list`, `option_list` → `site_model_list`, `site_option_list`; `record_set` on `chats` |
+| UC11 toggles | `record_set` on `toggles` |
+| UC12 site view | `page_open`, `page_close`, `page_navigate`, `view_set`; `page_changed`, `popup_changed` |
+| UC13 site chats | `site_chat_list`, `site_chat_open`, `site_chat_import`, `record_set` on `chats` (link to the page) |
+| UC14 share in | `share_received` → `chat_create` |
+| UC15 API | `message_send` → `http_fetch` with a credential |
+| UC16–UC17 chats | `chat_create`, `chat_open`, `record_*` on `chats` and `folders` → `file_*`, `repo_commit` |
+| UC18 find | `chat_find` → `file_find` |
+| UC19 details | `record_get`, `commit_list` |
+| UC20 tags | `record_set` on `chats` and `turns` |
+| UC21 copy, share | `chat_export` → `clipboard_write`, `content_export` |
+| UC22–UC24 profiles, blocks, groups | `record_*` on `profiles`, `templates`, `blocks`, `groups` |
+| UC25 preview | `message_build` |
+| UC26 prompts | `record_*` on `prompts` and `blocks`, `prompt_export` |
+| UC27 export, import | `profile_export`, `profile_import`, `prompt_export`, `prompt_import` → `content_export`, `picker_open` |
+| UC28–UC31 plugins | `catalogue_load`, `plugin_install`, `plugin_update`, `plugin_remove` → `http_fetch`, `catalogue_verify`, `plugin_write` |
+| UC32 plugin settings | `record_set` on `plugin_settings` |
+| UC33 safe mode | `app_start` |
+| UC34–UC35 look, sites | `record_set` on `settings`, `bars_set` |
+| UC36 storage, git | `chats_folder_move`, `storage_verify`, `storage_access_open`, `repo_push`, `repo_pull` |
+| UC37 local API | `api_token_create` → `credential_create` |
+| UC38 advanced | `record_delete` on `settings` (reset to defaults), `plugin_copy`, `log_read`, `app_close`, `service_stop`, `app_get` |
+| UC39 help | the screen, `record_set` on `settings` |
+| UC40 credentials | `credential_create`, `credential_list`, `credential_delete`, `record_*` on `connections` |
+| UC41 other apps | `job_received` → `job_run` → `job_changed` |
+| UC42 plugin authors | `plugin_set`, `sheet_open`, `event_on`, and the calls marked P |
+| UC43–UC47 built-in plugins | `message_send` (unsaved), `chat_data_read`, `chat_data_write`, `site_report_build`, hooks |
+| UC48 attachments | `attachment_add`, `picker_open`, `clipboard_read`, `share_received`, `site_send` |
+| D7 change check | `change_resolve`; the expected version on `file_write`, `file_move`, `file_delete` |
 
 ## What this leaves out on purpose
 
-- No file watching: the change check runs when a file is read or written (D7).
-- No notification port: the keep-alive notification is the platform's own business (R2).
-- No separate download or zip port: downloads are `http_fetch` with `save_to`; zips are read in
-  the runtime and their files handed to `plugin_install`.
-- No port for the screen's drawing: the screen is a driving adapter that draws the `State`.
+- Per-topic ports, wrappers and documents: one port each way, one table.
+- File watching: the change check runs on write, move and delete (D7).
+- A notification call: the keep-alive notification is the platform's own (R2).
+- Download and zip calls: downloads are `http_fetch` with a file to save to; zips are read in the
+  runtime and their files handed to `plugin_write`.
+- Time and ids: given to the pure functions as inputs by the loader; not calls to the outside.
+- Per-device conveniences: the screen's own business, not the application's.
 
 ## In numbers
 
-- Driving: 7 record operations for 15 collections, plus about 55 operations with their own
-  behaviour (most of them a few lines over a driven call).
-- Driven: 11 ports, about 50 calls in all.
-- Stage 6 maps each driven call to its adapter and counts the lines.
+- One port each way, one envelope.
+- 7 record operations for 15 collections; 32 more calls answered by the application (5 of them
+  only for plugins).
+- 11 calls answered by the core, 24 by the platform, 7 by the page script.
+- 9 events.
