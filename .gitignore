@@ -1,1 +1,6 @@
 build/
+app/src/main/assets/plugins/
+app/src/main/jniLibs/
+app/build/
+local.properties
+debug.keystore
