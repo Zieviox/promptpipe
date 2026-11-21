@@ -183,13 +183,12 @@ optional plugins), with every feature. The last 700 are not found yet. Pass 2 lo
 the architecture itself (where the boundaries sit, what can merge), still without packing lines
 or cutting features. If 3k turns out to need either of those, I'll say so instead of hiding it.
 
-## Decide
+## Decided (2026-11-20)
 
-- **A.** Which strategies to adopt (recommended: all eleven).
-- **B.** Libraries (S10): allowed behind adapters, pinned, and not counted in the 3k?
-- **C.** What the 3k covers: (a) the app (core, platform, loader, page script, runtime plugins
-  with the screen and its data and CSS), with the optional catalogue plugins (providers, Memory,
-  Sub-chats, Base64, Page report, themes) counted separately; or (b) everything.
+- **A.** All eleven strategies.
+- **B.** Libraries are allowed behind adapters, pinned to exact versions, and not counted.
+- **C.** The 3k covers the app (core, platform, loader, page script, runtime plugins with the
+  screen, its data and CSS); ideally the optional plugins fit in it too.
 
 ## Sources
 

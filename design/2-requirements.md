@@ -198,12 +198,17 @@ Words in this file are today's glossary words; `3-terms.md` proposes the final o
 
 ## O. The rewrite itself
 
-- **O1** The new app is written from zero from the design; the current code is read-only reference
-  and nothing is copied from it (U 2026-11-20: "start fresh. From zero. Not edit").
+- **O1** The new app is a full remake from the design; the current code is read-only reference
+  and nothing is reused from it unless stuck, and then it is reported in that stage's review
+  (U 2026-11-20: "start fresh. From zero. Not edit"; U 2026-11-21: "Do NOT reuse any old code
+  unless you get stuck").
 - **O2** Both repos are rewritten: the core, the platform, the loader, the page script, and every
   plugin (runtime plugins, providers, block plugins, themes).
-- **O3** The user's saved data opens in the new app: chat files, config, prompt library,
-  profiles, plugin settings (K4).
+- **O3** Only the intent and the UX/UI survive (U 2026-11-21). Internal formats are new. Whether
+  the user's content (chats, prompt library, profiles) is imported once from the old formats is
+  open (pass 2, decision 4).
+- **O6** The new screen matches the old one's look and interactions, checked against screenshots
+  of every screen and state taken from the old app before building.
 - **O4** The old app stays usable until the new one passes every requirement; then the old code is
   removed in one change.
 - **O5** The core targets the current Odin release (dev-2026-11 today); the phone's compiler must

@@ -116,6 +116,8 @@ as package appears to be invalid", which looks like a broken file but isn't.
 - `.claude/skills/clone-detection/`: a Claude Code skill that finds duplicate code across both
   repos (token-based with jscpd, token-bag for near-miss copies, and a by-hand inventory of jobs
   done twice); `jobs.md` and `accepted.md` hold what earlier runs found and kept.
+- `.claude/skills/remake/`: the staged, supervised process for the full remake (only the intent
+  and the UX/UI survive); the remake's design is in `design/`, one numbered file per stage.
 
 Built on Odin, GeckoView (Firefox's engine) and JGit.
 

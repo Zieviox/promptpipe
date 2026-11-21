@@ -3,18 +3,25 @@
 The rules every later part of the design (requirements, terms, functions) is checked against.
 They come first because they decide what counts as a good answer.
 
-## Rewrite from zero, not edit
+## A full remake, not an edit
 
-The refactor is a rewrite: new code, written from this design, in new files. The current code is
-not edited, moved or copied in.
+The refactor is a full remake: new code, written from this design, in new files. The current
+code is not edited, moved or copied in (U 2026-11-21: "Do NOT reuse any old code unless you
+get stuck").
 
+- **Only the intent and the UX/UI survive** (U 2026-11-21): what the app is for, and what the
+  user sees and does (screens, layout, look, gestures, wording). Everything else is new: code,
+  structure, internal file formats, the plugin format, names, the plugin surface.
+- **The old app is the UX/UI reference**: screenshots of every screen and state are captured from
+  it before building, and the new screen is checked against them.
 - **The old code is a reference, read-only.** It tells what the app does and the edge cases
   learned the hard way (a site's quirks, Android's timing, the bugs in BUGS.md). Each lesson is
   written into the requirements or the function list first, then implemented fresh.
 - **No copy-paste from the old code.** Copying brings its names, its duplicates and its hidden
   assumptions back. Even a function that looks right is rewritten to the new names and rules.
-- **What carries over is data, not code**: the user's chat files, config, prompt library and
-  profiles must open in the new app (migrated on first start, requirement K4).
+- **Only when stuck**, old code may be looked at closely or reused, and then it is said in the
+  review of that stage (what, from where, why), never done silently.
+- **What carries over is the user's content, not code or formats**: see requirement O3.
 - **The old app keeps working until the new one does everything** in the requirements, checked
   requirement by requirement. Then the old code is removed in one change.
 - **Each part is built against its checks** (the core's route tests, the stand-in checks, terms
