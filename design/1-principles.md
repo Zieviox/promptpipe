@@ -46,6 +46,12 @@ glossary, the decisions recorded in these files), then the standard term. The sc
 reference for look and behaviour, not for words: their labels are used only where the design has
 no term (U 2026-11-21). A new name only when none fits, and it goes into the terms.
 
+**Refine, don't bolt on** (U 2026-11-21: "Always reuse and refine instead of bolting on"): when
+something is missing, first extend or reshape what exists (a requirement's text, a record's field, a
+call's parameters, an existing id or file) so it covers the new case; a new requirement id, record,
+call, file or mechanism beside the old one only when refining would be counterproductive by the
+standards above, and the review says why.
+
 Examples already in the design: one set of record operations for every collection; one port each
 way; one change check for every file; one `Send` record for queued, sending and failed messages; one "linked or own" rule for every
 choice a chat, a profile or the app can override (D8);

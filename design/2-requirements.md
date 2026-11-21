@@ -23,7 +23,8 @@ Requirements win over the screenshots (U 2026-11-21).
      and many at once can look like a bot to the site); no hard maximum (F, U 2026-11-21).
   5. A refusal, a human check or an error from the site ends the send at once, with the reason in
      plain words (F, #245, #247); no connection, a wrong address or a refused certificate is said
-     at once, not after a wait (#241).
+     at once, not after a wait, for sites and downloads alike, in plain words with the host; a
+     connection cut off is tried once more (#241; F, from the old app's code).
   6. Waiting limits are optional: idle and total, in minutes, 0 = none (F).
   Also: a short vibration when a reply arrives; replies are read from the page as Markdown (lists, headings, code, tables kept), with thinking kept out of the reply's text; a site that shows a "Log in" or "Sign in" button ends the send with "log in on the site"; errors already on the page before a send belong to an earlier message, and a human check over the whole page stops the send at once; a wait of 30 s or more keeps a numbers-only diagnosis with the message (when the page's stop signal and the reply's length changed, no text), so a wait that never ends can be looked into without sharing the chat; links in replies open in the phone's browser, not inside the app (F, from the old app's code).
 - **UC2 Send while a reply is coming**: the message waits in the chat's queue, shown under the
@@ -286,15 +287,6 @@ Requirements win over the screenshots (U 2026-11-21).
   the plugin's defaults) and for the app's settings (linked to their defaults). One mechanism,
   the same idea as a linked System prompt. Standard name: cascading settings with local override
   (as git's system, global and local config).
-- **D9** **The old app's data**: on the first start of the remade app, the old app's folders
-  (`/sdcard/PromptPipe` and the app's own old folder) get a `.nomedia` marker, are zipped whole (git
-  history included) into `.promptpipe/backups/old-app-<date>.zip`, then imported: chats (every old
-  chats folder, every field of the old chat file), profiles (every earlier shape), the prompt library,
-  settings, plugin settings and Memory's summaries. Apart from the `.nomedia` marker the app never
-  changes the old folders, and it deletes them only when you ask;
-  Settings › Chats and storage shows them with their backup and lets you delete them. An import that
-  stops part way loses nothing (U 2026-11-21).
-
 ### S. Security
 
 - **S1** Every call to the core needs the security key, made new at every start; the Host header is
@@ -337,17 +329,14 @@ Requirements win over the screenshots (U 2026-11-21).
   the old app's code).
 - **R7** The screen fits the visible area above the on-screen keyboard (F, from the old app's code).
 - **R8** Starting shows "Starting…"; if the core doesn't answer, the screen says why, never a blank
-  page (F, from the old app's code).
-- **R9** The core is started again when it stops, waiting longer each time it fails quickly (1 s,
+  page; the core is started again when it stops, waiting longer each time it fails quickly (1 s,
   doubling, at most 30 s) (F, from the old app's code).
-- **R10** A download or request that fails says what happened in plain words with the host (not
-  found, no answer in time, the secure connection failed, cut off); a connection cut off is tried
-  once more (F, from the old app's code).
-
 ### Q. Quality
 
-- **Q1** The screen matches the screenshots in `design/ux/` (look, layout, gestures, wording),
-  except where a requirement changes something (U 2026-11-21).
+- **Q1** The screen matches the screenshots in `design/ux/` (look, layout, gestures, wording), and
+  the app does everything `design/2b-behaviour.md` lists (behaviour, wording, limits and messages a
+  screenshot can't show), except where a requirement changes something; both are the reference for
+  parity (X4) (U 2026-11-21: "the functionality needs to carry over").
 - **Q2** Touch first; every action has a button or a gesture; keyboard shortcuts for a hardware
   keyboard, as listed in `help-menu-keys` (Ctrl+Enter, Ctrl+K, Ctrl+B, Ctrl+F, Alt+↑/↓, Alt+S,
   Ctrl+M, F2, Ctrl+T, ↑ in an empty box, Ctrl+E, Ctrl+/, Ctrl+Shift+L, Ctrl+P, Ctrl+Shift+P,
@@ -365,10 +354,6 @@ Requirements win over the screenshots (U 2026-11-21).
   in use right now: the thinking of a reply that is still streaming, the folder of the open chat,
   what you just unfolded. Anything can be unfolded by a tap and stays unfolded until you fold it
   or leave.
-- **Q6** The app does everything `design/2b-behaviour.md` lists (behaviour, wording, limits and
-  messages the screenshots can't show), except where a requirement changes it; it is the reference
-  for parity (X4) (U 2026-11-21: "the functionality needs to carry over").
-
 ### W. Words
 
 - **W1** One glossary for the app, the guides and the code; standard programming terms first, no
@@ -399,7 +384,13 @@ Requirements win over the screenshots (U 2026-11-21).
 - **X4** The old app stays usable until the new one passes every requirement; then the old code is
   removed in one change.
 - **X5** Your content from the old app is backed up and imported once, on the new app's first
-  start (decided 2026-11-21; how: D9).
+  start (decided 2026-11-21). The old app's folders (`/sdcard/PromptPipe` and the app's own old
+  folder) get a `.nomedia` marker and are zipped whole (git history included) into
+  `.promptpipe/backups/old-app-<date>.zip`; then everything is imported: chats (every old chats
+  folder, every field of the old chat file), profiles (every earlier shape), the prompt library,
+  settings, plugin settings and Memory's summaries. Apart from the marker the app never changes the
+  old folders; Settings › Chats and storage shows them with their backup and deletes them when you
+  ask. An import that stops part way loses nothing (U 2026-11-21).
 - **X6** The shipped templates' blocks and texts (Plain, Writing feedback, Dialogue & Role play,
   Story & Prose) and the built-in plugins' wording (Memory's requests and labels, Base64's
   instruction, the providers' messages) carry over word for word, as content (F, U 2026-11-21).
@@ -473,7 +464,7 @@ the app's own files in a hidden folder (D6); attachments supported (UC48).
 `design/2b-behaviour.md` lists everything the old app does. From it: a draft per chat, kept on the
 device (UC7); the chats list's order and pinned order saved by chat id (UC16); the API token shown
 masked with Copy and Show (UC37); Memory's summaries as JSON shown and edited in a folded section of
-the readable file (UC43, D1, D6); the old app's folders marked, backed up and imported (D9); the
+the readable file (UC43, D1, D6); the old app's folders marked, backed up and imported (X5); the
 templates' and plugins' texts carried over word for word (X6).
 
 ## Open

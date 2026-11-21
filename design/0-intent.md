@@ -156,7 +156,7 @@ case, a call or a record); what was missing went into the requirements, the mode
 
 `design/2b-behaviour.md` lists everything the old app does that a screenshot can't show (behaviour,
 wording, limits, messages), read line by line from its code on 2026-11-21; it is the reference for
-behaviour (Q6).
+behaviour (Q1).
 
 Not in screenshots, kept as written:
 

@@ -19,7 +19,7 @@ other by id, never by holding each other.
   .promptpipe/                     hidden, .nomedia
     config.json                    Config
     plugins/<id>/                  your copies of plugins
-    backups/old-app-<date>.zip     the old app's folders, backed up before the import (D9)
+    backups/old-app-<date>.zip     the old app's folders, backed up before the import (X5)
     drafts.json                    the drafts, one per chat (UC7); on this device, never in the history
   chats/                           the chats folder (default; can be moved, UC36)
     Trip ideas.md                  the readable chat: built from its data, the only files in "Recent"
@@ -31,11 +31,11 @@ other by id, never by holding each other.
         attachments/               UC48
         <plugin id>.json           a plugin's data for this chat (Memory's summaries, ...)
       prompts.json                 the prompt library
-      chat_list.json               Chat_List: your order of the list and of the pinned chats
+      folders.json                 Folder records: your order in each folder, and of the pinned chats
       tags.json                    counter tags' last numbers (when they count across all chats)
       repo/                        the history repository (its working tree is the chats folder)
 <app-private storage>              updated plugins, the revision record (D7), where the chats folder is,
-                                   the core's key and the local API token's hash, the core log
+                                   the core's key, the core log
 <the platform's credential store>  credentials, encrypted with the key store (S7)
 <the APK>                          the built-in plugins, the loader, the page script (read-only)
 <memory>                           the screen's State, lost on restart by design
@@ -66,17 +66,15 @@ readable `.md` built from them. Owner: the runtime's chats module.
 | `turns` | list of `Turn` | in order |
 
 The folder is part of `file`, not a field of its own (not stored twice). Whether a chat is pinned is
-its place in `Chat_List.pinned` (not stored twice). The readable file's form
+its place in the top-level `Folder`'s `pinned` (not stored twice). The readable file's form
 (a short header, one section per turn, then the plugins' folded sections, D1) is settled in the
 function list.
 
-Folders are the chats folder's own folders, not records stored elsewhere; an empty one holds a
-marker file so the history keeps it (UC17).
-
-**`Chat_List`**: your order of the chats list (UC16, UC17), in `chat_list.json`. Owner: the
-runtime's chats module. Fields: `pinned` (list of chat ids, in order), `order` (map folder path
-("" for the top level) → list of entries in order: a chat id, or a folder's name). What isn't listed
-keeps the default order; renaming or moving a folder updates its keys.
+**`Folder`**: a folder of the chats folder (UC16, UC17). The folder itself is the file system's (an
+empty one holds a marker file so the history keeps it); its record keeps only what the file system
+can't: `path` ("" for the top level), `order` (your order of its entries: chat ids and folder names;
+what isn't listed keeps the default order), and for the top level `pinned` (chat ids, in order). All
+in `folders.json`; moving or renaming a folder moves its record. Owner: the runtime's chats module.
 
 **`Turn`**: your message and its reply; part of a `Chat`.
 
@@ -137,6 +135,7 @@ is computed (`value_get`, a pure function), never stored.
 | `provider_choices` | map plugin id → `{ model, options, settings }` | the model, options and plugin settings saved for each provider (UC10, D8) |
 | `connections` | list of `Connection` | UC40.6 |
 | `sources` | list of `Source` | UC30 |
+| `api_token_hash` | string | how the core checks the local API token (the token itself is a credential, UC37); the core trusts it only while the file's revision is the one it wrote (D7) |
 | `settings` | map setting key → value | only values you changed; the rest are linked to the schema's defaults (`Setting_Def`, D8), so nothing is stored twice |
 
 App settings are keys like `look.mode`, `look.accent`, `look.scale`, `sites.pages` (default 5), `sites.idle_min`, `sites.total_min`, `look.enter_sends`, `look.stay_at_bottom` (on),
@@ -217,7 +216,7 @@ api: `protocol` (`"openai"` first), `base_url` (the default).
 **`Setting_Def`**: one setting, for the app and for plugins alike (D8, DRY): `key`, `type`
 (`"toggle"` · `"choice"` · `"text"` · `"number"` · `"credential"` · `"list"`), `label`, `description`,
 `default`, `choices` (list of `{ value, label }`), `min`, `max`, `section`, `old_keys` (for the
-one-time import, D9).
+one-time import, X5).
 
 **`Catalogue`**: what a source offers: `source`, `signature`, `entries` (list of
 `Catalogue_Entry`). **`Catalogue_Entry`**: `id`, `name`, `version`, `description`, `tags`,
@@ -288,8 +287,7 @@ function (the only writer).
   `message` (what happened and what to do), `page` (the page involved, if any: then the screen
   offers Open the site and Copy page report, UC4).
 - Each side's own small state stays private to it: the core's (its key, its folders, the revision
-  record, the local API token's hash (set by `api_token_set`; kept out of the shared settings, which
-  another app could edit), the local API's open requests), the platform's (its views, pop-ups, the credential
+  record, the local API's open requests), the platform's (its views, pop-ups, the credential
   store, the core process), a page script's (its provider description, the send it is watching).
 
 ### Who writes what
@@ -305,9 +303,9 @@ function (the only writer).
 | updated plugins | core (install, after verifying) | app-private `updates/` |
 | the revision record (D7) | core | app-private `revisions.json` |
 | counter tags' numbers | runtime, chats module | `.promptpipe/tags.json` |
-| `Chat_List` | runtime, chats module | `.promptpipe/chat_list.json` |
+| `Folder` | runtime, chats module | `.promptpipe/folders.json` |
 | drafts | runtime, chats module | the app folder's `.promptpipe/drafts.json` |
-| the old app's backup | core (`folder_export`, on the runtime's call) | the app folder's `.promptpipe/backups/` |
+| the old app's backup | runtime (zipped with the same zip adapter that reads plugin zips) | the app folder's `.promptpipe/backups/` |
 | history commits | platform (the repository adapter), on the runtime's call | `.promptpipe/repo/` |
 | `State` | runtime, the apply function | memory |
 
@@ -365,7 +363,7 @@ function (the only writer).
 | `verify` | integrity or authenticity | `catalogue_verify`, `storage_verify` |
 | `compare` | order two values | `version_compare` |
 | `apply` | a change record to state | (the application's apply function) |
-| `migrate` | old saved data to the current format | (inside `content_import`, D9) |
+| `migrate` | old saved data to the current format | (the one-time import of the old app's content, X5) |
 | `open` / `close` | something shown or held open | `page_open`, `page_close`, `picker_open` |
 | `start` / `stop` | a process, stream, job or service | `app_start`, `send_stop`, `vibration_start` |
 | `send` | hand a message to a provider, page or the platform | `message_send`, `site_send` |
@@ -392,8 +390,7 @@ The module nouns are the record names in lower case plus these: `app`, `file`, `
 `option`, `model`, `http`, `version`, `bundle` (the release's zip of built-in plugins), `screen`
 and its parts (`sheet`, `drawer`, `menu`, `toast`, `dialog`, `item`), `theme`, `log`, `schema`
 (the list of `Setting_Def`), `failure` (a failed send), `change` (an outside change, D7),
-`commit`, `view` (the site view), `content` (your content as a whole: exported, or imported from the
-old app), `chat_section` (a plugin's part of the readable chat file), `picker` (the system's file
+`commit`, `view` (the site view), `content` (what's exported), `chat_section` (a plugin's part of the readable chat file), `picker` (the system's file
 picker), `clipboard`, `url`, `vibration`, `bars` (the system bars), `storage`, `storage_access`,
 `service` (the background service), `api_token`, `chats_folder`, `chat_data`, `catalogue`,
 `record` (any record of a collection), `collection`, `popup` (a sign-in window a site opens),
