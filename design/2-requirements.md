@@ -29,7 +29,10 @@ Requirements win over the screenshots (U 2026-11-21).
   chat; queued messages go in order and can be moved up, edited or removed (F).
 - **UC3 Stop waiting**: gives up on the reply at once; the page is told to stop (F).
 - **UC4 Recover a failed send**: the failed message shows its reason with Check (keep what the
-  page shows), Retry, Edit (back into the box) and Dismiss (F).
+  page shows), Retry, Edit (back into the box) and Dismiss (F). When the error involves a site (a
+  refusal, a human check, a page that didn't load, the page not behaving as the provider expects),
+  two more actions sit under the message: **Open the site** (shows that page in the site view, to
+  deal with it there) and **Copy page report** (U 2026-11-21).
 - **UC5 Edit and resend** your last message, or send a message again unchanged (F, seen in
   `chat-message-menu`).
 - **UC6 Reuse text**: swipe a reply right to quote it into the box, left to copy it; copy a code
@@ -327,6 +330,9 @@ Requirements win over the screenshots (U 2026-11-21).
 - **N2** A fingerprint lock and spending hints for keys (U 2026-11-20).
 - **N3** Shared groups across profiles (#255) and the Memory reminder for API chats.
 - **N4** Sync other than git; several users; cloud services (kept as not now, 2026-11-21).
+- **N5** Branching: continuing a chat from an earlier message (U 2026-11-21: "later"). Kept open
+  now by giving every turn a stable id, so either form (a branch inside a chat, or a new chat
+  starting from a turn) needs no change to the data format.
 
 ## Where the earlier ids went
 

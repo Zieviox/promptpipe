@@ -70,6 +70,7 @@ The folder is part of `file`, not a field of its own (not stored twice). The rea
 
 | Field | Type | Meaning |
 |---|---|---|
+| `id` | string | stable, so plugin data, sends and later branches (N5) can point to a turn |
 | `at` | time | when it was sent |
 | `message` | string | what you typed (the "Your message" block) |
 | `attachments` | list of `Attachment` | UC48 |
@@ -232,19 +233,19 @@ function (the only writer).
 | `ui` | `Ui` |
 
 - **`Send`**: one message from the moment you send it until it's saved or dismissed: `id`, `chat`
-  (none for side requests and jobs), `text`, `attachments`, `status` (`"queued"` · `"waiting"`
-  (for a free page) · `"sending"` · `"failed"`), `error`, `provider`, `page` (none for api
+  (none for side requests and jobs), `turn` (the turn it fills), `text`, `attachments`, `status` (`"queued"` · `"waiting"`
+  (for a free page) · `"sending"` · `"failed"`), `error` (an `Error`), `provider`, `page` (none for api
   providers), `saved` (false for side requests), `job`, `at`, `progress`. The queue and the failed
   list are views of `sends` by status, not lists of their own (UC1–UC4, UC41, UC42.3).
 - **`Page`**: one open site page: `id`, `provider`, `url`, `title`, `state` (`"loading"` ·
-  `"ready"` · `"busy"` · `"failed"`), `kind` (`"main"` · `"side"`, UC12), `error`. (Which send
+  `"ready"` · `"busy"` · `"failed"`), `type` (`"main"` · `"side"`, UC12), `error`. (Which send
   uses a page is on the `Send`, not here: one direction only.)
 - **`Job`**: a request from another app: `id`, `profile`, `chat` (to continue, or none),
   `messages`, `stream`, `status` (UC41). (Its send points to it, not the other way.)
 - **`Ui`**: `sheets` (a stack of `{ type, id }`; Back takes the top one, R5), `drawer`,
   `site_view` (`{ open, page }`), `select` (`{ on, ids }`), `find` (the query), `help` (the ?
   mode), `tour` (`{ place, stop }`), `composer` (`{ expanded }`), `toasts` (list of
-  `{ id, text, kind }`).
+  `{ id, text, type }`).
 - **`Command`**: one action the person can take (screen data): `id`, `label`, `icon`, `key`,
   `when`, `run`. The one table menus, keys, help and the tour read.
 
@@ -252,12 +253,14 @@ function (the only writer).
 
 - **`Version`** (D7): what the core recorded when the app last wrote a file: `path`, `hash`
   (SHA-256), `at`. Every write says which version it expects; a mismatch is an `Outside_Change`.
-- **`Outside_Change`**: `path`, `ours` and `theirs` (their versions; what kind of file it is follows
+- **`Outside_Change`**: `path`, `ours` and `theirs` (their versions; what type of file it is follows
   from the path); answered once in the shared dialog: keep
   theirs, keep ours, keep both.
 - **`Envelope`**: every message between the screen, the core, the platform and a page:
   `type` (`"call"` · `"reply"` · `"event"`), `name`, `data`, `id`, `error`.
-- **`Error`**: `code`, `message` (what happened and what to do).
+- **`Error`**: `code` (which error: `site_refused`, `human_check`, `page_failed`, `page_unexpected`,
+  `no_connection`, `not_supported`, …; the screen offers Open the site and Copy page report for the
+  site ones, UC4), `message` (what happened and what to do), `page` (when a page was involved).
 - Each side's own small state stays private to it: the core's (its key, its folders, the version
   record, the local API's open requests), the platform's (its views, pop-ups, the credential
   store, the core process), a page script's (its provider description, the send it is watching).
@@ -316,7 +319,7 @@ function (the only writer).
 |---|---|---|
 | `get` | a value from data, no effects | `profile_get(state, id)` |
 | `set` | data with one value changed, or the one place that writes it | `toggle_set` |
-| `list` | every record of a kind | `plugin_list` |
+| `list` | every record of one type | `plugin_list` |
 | `find` | the records that match a query | `chat_find(query)` |
 | `read` / `write` | raw text or bytes at a location | `file_read`, `file_write` |
 | `load` / `save` | read and parse / format and write a record | `config_load`, `chat_save` |

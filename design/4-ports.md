@@ -90,7 +90,7 @@ model, options and toggles, D8),
 | `file_write` | root, path, data, expected version → the new version, or an `Outside_Change` | A | D4, D7 |
 | `file_move` | root, from, to, expected version → the new version, or an `Outside_Change` | A | UC17, UC36 |
 | `file_delete` | root, path, expected version → done, or an `Outside_Change` | A | UC17 |
-| `file_list` | root, folder → names, kinds, sizes, times | A | UC16, UC36 |
+| `file_list` | root, folder → names, types (file or folder), sizes, times | A | UC16, UC36 |
 | `file_find` | root, query → matching files and lines | A | UC18 |
 | `catalogue_verify` | data, signature → `Catalogue`, or an error | A | S3 |
 | `plugin_list` | → installed copies, versions, changed-outside status | S, A | UC28, UC29, S4 |
@@ -106,10 +106,10 @@ write, move and delete: one mechanism for every file (D7).
 
 | Call | In → out | Callers | Use cases |
 |---|---|---|---|
-| `page_open` | address, kind (`main` · `side`) → `Page` | S, A | UC9, UC12, UC13 |
+| `page_open` | address, type (`main` · `side`) → `Page` | S, A | UC9, UC12, UC13 |
 | `page_close` | page → done | S, A | UC12 |
 | `page_navigate` | page, to (an address · `back` · `reload`) → done | S | UC12 |
-| `view_set` | page, or none → done (the site view's region) | S | UC9, UC12 |
+| `view_set` | page, or none → done (the site view's region) | S | UC4, UC9, UC12 |
 | `http_fetch` | request (address, method, headers, body, credential name, streaming, file to save to) → response; parts as `http_received` events | A, P | UC15, UC29–UC31 |
 | `credential_create` | fields, value → credential | S | UC40 |
 | `credential_list` | → credentials (no values) | S, A | UC40 |
@@ -118,7 +118,7 @@ write, move and delete: one mechanism for every file (D7).
 | `repo_push` | → done (the token comes from the credential named in settings) | S, A | UC36 |
 | `repo_pull` | → done | S | UC36 |
 | `commit_list` | path, count → commits (the repository's side of the same call above) | A | UC19 |
-| `clipboard_write` | text → done | S, A | UC6 |
+| `clipboard_write` | text → done | S, A | UC4, UC6 |
 | `clipboard_read` | → text or an image | S | UC6, UC48 |
 | `content_export` | content (text or file), to (`share` · `file`) → done | A | UC21, UC26, UC27 |
 | `picker_open` | types, many → files | S | UC7, UC27, UC30, UC48 |
@@ -141,7 +141,7 @@ write, move and delete: one mechanism for every file (D7).
 | `site_model_list` | page → models | A | UC10 |
 | `site_option_list` | page → options | A | UC10 |
 | `site_chat_list` | page → the site's own chats | S, A | UC13 |
-| `site_report_build` | page → the page report | S | UC46 |
+| `site_report_build` | page → the page report | S | UC4, UC46 |
 
 One generic routine answers these from the provider's `Provider_Def`; a content script replaces
 single stages of it (UC42.7).
@@ -169,7 +169,7 @@ The screen needs no events of its own: it draws the `State` after every change.
 | UC1 send | `message_send` → `message_build`, `site_send` or `http_fetch`, `file_write`, `repo_commit` |
 | UC2 queue | `record_move`, `record_set`, `record_delete` on `sends` |
 | UC3 stop | `send_stop` → `site_stop` |
-| UC4 failed | `failure_resolve` → `site_read` |
+| UC4 failed | `failure_resolve` → `site_read`; for site errors also `view_set` (Open the site) and `site_report_build`, `clipboard_write` (Copy page report) |
 | UC5 resend | `message_send` with `replace_last` |
 | UC6 reuse text | `chat_export`, `clipboard_write` |
 | UC7 long text | `record_set` on `drafts`, `picker_open` |
