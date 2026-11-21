@@ -52,8 +52,8 @@ Requirements win over the screenshots (U 2026-11-21).
   inside the site (#243); sign-in pop-ups get their own view and are closed when done (#244);
   Back closes the site view when nothing is on top of it (#239).
 - **UC13 The site's own chats**: list the site's sidebar chats, open one and continue it here,
-  paste a chat link, import a site chat's earlier messages, add the page's newest reply to this
-  chat (F).
+  paste a chat link, link this chat to the open page, import a site chat's earlier messages, add
+  the page's newest reply to this chat (F).
 - **UC14 Share in**: text shared from another app (or "Send to promptpipe" on selected text)
   starts a new chat with it (F).
 - **UC15 Chat through an API**: providers of type api call an AI API with a key from secure
@@ -79,12 +79,17 @@ Requirements win over the screenshots (U 2026-11-21).
 - **UC23 Blocks**: a profile is an ordered list of blocks plus its plugins' settings. Block
   types: System prompt (its own text, or linked from the prompt library), plugin (with an optional
   text block, and what it works on: the blocks above, your message, or picked blocks), Your
-  message. Add, reorder, turn on or off, open a block's page (F).
+  message. Add, reorder, turn on or off, open a block's page (F). A System prompt is sent: every
+  message, on the first message of a site chat, every N messages, at depth N (N messages up in the
+  earlier chat), or off; its own text can be saved to the library and linked (F, seen in
+  `profile-block-page`).
 - **UC24 Groups**: several blocks under one toggle (F). Later: a group shared by several profiles
   (#255, N3).
 - **UC25 Preview** what a profile will send (F).
 - **UC26 Prompt library**: add, edit, pin System prompts; link one into a profile; a linked block
-  sends the library's current text, so one edit changes every profile that links it (F).
+  sends the library's current text, so one edit changes every profile that links it; a prompt's page
+  shows which profiles link it, and can add it to the active profile, pin it, copy its text, export
+  it as Markdown, or delete it (F, seen in `prompt-page`).
 - **UC27 Export and import** profiles and the library; on a name clash: ask, keep both or replace,
   as set in Settings (F).
 
