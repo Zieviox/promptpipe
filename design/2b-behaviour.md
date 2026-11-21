@@ -850,3 +850,393 @@ Numbers, texts and limits are kept exactly; texts in quotes are the screen's wor
 - Highlights (Find, a guide): an accent outline with a pulsing glow. Search matches: a soft warning
   background.
 - Reduced motion turns every animation off.
+
+## 2. The app's own plugins (runtime)
+
+### 2.1 Sending (UC1–UC4, UC13, UC35, UC42, R1–R3)
+
+- **Pages at once**: sends run side by side, each on its own site page, up to "Max replies at once"
+  (1–5, up to 10 when unlocked). A send takes a free page and gives it back when done; when all
+  are busy it waits ("Waiting for a free site page…") and one more page is opened if the limit
+  allows. A send for a chat prefers a free page already on that chat's link, then on the same
+  site. The number of pages is set on the platform at start when it differs.
+- **Warming up**: the chat's provider site is loaded in the background (on the chat's own link when
+  it has one on that site) when the app is ready, after a plugin is installed and after switching
+  profile, so it is ready to log in or send.
+- **Showing the site**: on the page the open chat is being answered on, else the page in front; a
+  sheet or the chats list closes first (#230, #239). No provider: "Get a provider first: tap the
+  pill at the top".
+- **Model and options before a send**: the provider's saved model is set when the page shows
+  another one (matched by "contains", ignoring case; progress "Choosing <model>…"), then each saved
+  option the provider has; an option that can't be set doesn't stop the send ("Sending without the
+  "<name>" option: <why>").
+- **One chat, one send at a time**: a chat's messages go in order; chats run side by side. A
+  message sent while one is on its way waits in the chat's queue (shown under the chat, editable,
+  removable; a removed one is dropped quietly).
+- **Choosing where (a route hook)**: before a send, a plugin may pick the profile and the site chat
+  ("new" or a link) for this message; a note says "<plugin> chose a new site chat / <link> / the
+  profile <name>". It may keep the current profile's blocks and take only the provider and model
+  from the routed one. A route error is shown ("route: <why>") and the send goes on.
+- **The provider**: the chat's (the first one it was sent on is kept); none: "no provider yet (get
+  one from the pill at the top)". The target: the route's choice, else the chat's link, else a
+  fresh site chat; a link on another site than the provider's starts fresh.
+- **The turn while sending**: shown at once with its progress; the page is navigated to the target
+  unless already there; the toggles used are the chat's as they are when it goes (a message that
+  waited uses the latest). "First message" is true for the chat's first turn or a fresh site chat.
+  The message is built through the blocks (the trace keeps each step: "You", each block, "Raw
+  reply", "Error"). Progress: "Sending to <provider> (page N)…" or "Reading the reply on …".
+- **Waiting limits**: no activity for N minutes, N minutes in total (0 = none); the app waits as
+  long as the page may (a week without a limit).
+- **Check / Add from page** (follow): no sending, takes the reply the page is giving on that page;
+  added from the page with no message of yours: your side is what the page shows, decoded like a
+  reply, or "(from the page)", with the note "added from the page".
+- **The reply**: thinking kept; seconds taken (at least 1); the reply goes through the after-reply
+  hooks (an error there keeps the raw reply and shows the error); a long wait adds "waited: …".
+  Then the chat keeps the site chat's link (cleared when it pointed at another site), the
+  provider's name, the model the page reported, the profile; the chat's name becomes the first line
+  of the message (60 characters) when it has none; the message gets the chat's tags (counting tags
+  count up); saved and committed "chat: <name> (#N)" with the tags file; a short vibration; the reply
+  is marked new if you aren't looking.
+- **Cut short**: if part of the reply had arrived, it is kept as the reply with "<why>. The reply so
+  far is kept.", the note "cut short: <why>", committed "(#N, cut short)".
+- **Failed**: nothing arrived: the turn leaves the chat and becomes a failed message (your text, the
+  reason, the time, the page), not saved to the file, to Retry, Check or Edit.
+- **Side requests** (`ask` for plugins): a message in a fresh site chat on its own page, not saved
+  as a chat; optionally through a named profile's blocks and hooks; returns reply, raw, thinking,
+  link, page; its progress isn't shown under the box. From inside a hook it needs at least 2 pages
+  ("… needs Max replies at once to be 2 or more (Settings › Sites)"), or it would wait for itself.
+- The last 5 messages you sent are remembered on the device.
+
+### 2.2 Profiles: blocks, building the message, templates (UC22–UC26, X6)
+
+- **Blocks**, top to bottom: a System prompt (own text, or linked to a library prompt by id), a
+  plugin (its whole self, or one of its named texts as a block of its own), and "Your message"
+  (exactly one; added at the end if missing). A block may sit in a group; it is sent only when it
+  and its group are on. A plugin can be a block when it is a block plugin (not a provider, theme or
+  passive one) with at least one of: before send, after reply, text, route, draw a turn.
+- **When a System prompt goes**: Every message; First message of a site chat; Every N messages
+  (also on the first message of a site chat; N ≥ 1, default 5); At depth N (N messages up inside
+  the earlier chat a plugin sends, e.g. Memory's recent messages; without one, just before your
+  message; N ≥ 0); Off. An empty one is never sent. Its name: its own, the library prompt's (or "(no
+  longer in the library)"), else its first line (40 characters), else "(empty system prompt)".
+- **Building the message** (pure apart from the plugins it calls), top to bottom:
+  - a System prompt adds its text (and a trace step "System prompt · <name>");
+  - "Your message" marks where your message goes;
+  - a plugin with text (or a named text) adds its text there (given the message);
+  - a plugin that changes text changes, by its block's scope: everything above it (joined into one),
+    only your message, or only the picked blocks above it plus maybe your message (each on its own,
+    told "block i of n", so it can mark them and say so once); a trace step "<plugin> · before";
+    its notes go to the turn as "<plugin>: <note>";
+  - depth prompts go where the earlier-chat plugin puts them, else just before your message;
+  - the parts are joined with a blank line, empty ones dropped; the turn's notes get "<profile>:
+    <the System prompts sent>, <depth ones> (depth N[, before your message])".
+- **Preview**: the same walk without running anything: "⟨your message⟩", the texts that would go,
+  "⟨<name> goes here⟩", "⟨<plugin> adds its text here⟩", "⟨<plugin> changes your message / <picked
+  names or "no block yet"> / everything above⟩", "⟨at depth: <name> N up in the earlier chat, …⟩";
+  first message or a later one.
+- **A chat's own toggles** (D8): only where they differ from the profile, keyed by the block (a
+  System prompt's id; a plugin's id, + "/<text id>") and by group; setting one back to the
+  profile's value removes it. Every message reads them when it is built.
+- **Turning a plugin on** from elsewhere (a header toggle, its page) adds its block to the profile
+  when missing; when its group is off: "<plugin> is on, but its group “<name>” is off". Providers,
+  themes and passive plugins are never blocks. The plugins that run on replies are each plugin with
+  any block on, once.
+- **Templates** are shipped data a new profile is copied from (with new block ids); changing a
+  profile never changes a template or another profile. A newer set of shipped templates replaces
+  the old set once (templates you added stay); a first start makes the profile you have from
+  Plain. Every template: "Master system prompt" (empty, every message), its blocks, Base64 (off,
+  changes everything above), Your message.
+  - Plain: master, your message.
+  - Writing feedback: master, Editor (every), Base64 off, your message.
+  - Dialogue & Role play: master, Development (first), Scene rules (every), Dialogue craft (every),
+    Characters and setting (empty, first), Memory, Reminder "(Stay in character, and don't write for
+    my character.)" (every 5), Base64 off, your message.
+  - Story & Prose: master, Co-writer, Development, Prose style, Bridge, Dialogue craft, Prose craft
+    (all every), Story notes (empty, first), Memory, Base64 off, your message.
+  - The texts (Development, Scene rules, Dialogue craft, Prose craft, Prose style, Bridge,
+    Co-writer, Editor) are UX copy and carry over word for word from
+    `promptpipe-plugins/core-profiles/profiles.js` (content, not code; X6).
+- **The prompt library** is kept with the chats (in git), each prompt with id, name, text, pinned,
+  created, edited; saving commits "prompt library: <what>"; a failure: "Couldn't save the prompt
+  library: <why>".
+- **Gap to carry:** the old app's saved profiles (every earlier shape: rows, pipes, plugins that
+  were on, the System prompt plugin's stack and its library file) must import into the new model,
+  as the old app did when it upgraded itself.
+
+### 2.3 History: chat files, folders, tags (UC16, UC17, UC20, UC13)
+
+- **The list**: every chat file in the chats folder and its folders (hidden folders, starting with a
+  dot, left out), each with its front matter read; newest change first.
+- **A new chat** isn't a file yet: name "New chat", the active profile, empty toggles and tags, in
+  the folder you are in. Opening it focuses the box. It becomes a file with its first message:
+  `<name as a slug>-YYYYMMDD-HHMMSS.md` in its folder.
+- **Saving** writes the chat and commits it with a message saying what happened; git failing doesn't
+  lose the save ("Saved, but git failed: <why>"). Saving invalidates the search index and makes the
+  chat the one to reopen.
+- **Opening a chat** makes its profile the active one (new chats then start with it), clears the
+  new-reply marks, closes the chats list and goes to the bottom. A missing file: "chat file not
+  found: <path>". At start, the last chat opened is opened again (if it still exists), else a new
+  chat.
+- **A site chat from the list**: a saved chat already linked to it opens; otherwise a new chat with
+  its name and link: "Linked to the site chat. Your next message continues it there."
+- **Moving** keeps the file name ("move: <name> -> <folder>|(top)", "Moved to <folder> / top
+  level"); a chat not saved yet: "Send a message first, then move it". **Deleting** removes the
+  file in a commit ("delete: <path>"), so the history keeps it; the open chat becomes a new one.
+- **Folders**: names may be nested with "/"; an empty part or one starting with a dot is refused
+  ("Not a valid folder name (no empty parts, no dots at the start)"); an empty folder is kept in git
+  by a marker file ("folder: <name>"; a failure there is only "Not saved to git: <why>"); the new
+  folder and every folder around it are opened in the list; "Folder "<name>" created".
+- **Tags** live on messages; a chat's tags are what each new message of it gets. Spaces become "-".
+  Known tags (for suggestions): every tag used, every counter ("name#"), every chat tag.
+- **Counting tags**: "name#" takes the next number (name#1, name#2…). As a chat tag it stays "name#"
+  (a numbered one given to a chat becomes "name#") and each new message gets the next number. A
+  message holds one number per counter: tagging "name#" gives the next; tagging "name#7" sets 7 (and
+  the counter moves up to at least 7), replacing its earlier number; +1 on its chip moves it to the
+  next free number. Counters are kept in the tags file with the chats (in git); today one counter
+  per name for all chats (the design's `tags.counter_scope` keeps that as the default).
+- Tag changes commit "tag: <chat> +<tag> (chat)", "tag: <chat> #N +<tag>", "… -<tag>"; a chat not
+  saved yet keeps them until its first message (the tags file is still saved).
+
+### 2.4 The chat file people read (D1–D3, UC21)
+
+The remake keeps the data in `.promptpipe/` and builds the readable file from it; what a person sees
+in the file carries over:
+
+- Front matter: title, source (the site chat's link), provider, ai (the provider's name), model,
+  profile, toggles, tags (`[story, "draft#"]`), created, updated; plain values bare, others quoted.
+- `# <title>` ("Untitled chat"), then one line "> Source: [<ai>](<link>) · Model: … · Profile: … ·
+  Chat tags: `a` `b`" ("AI: <name>" when there is no link).
+- Per message: `## N · YYYY-MM-DD HH:MM`, "Tags: `…`" (its own plus the chat's plain tags), "### You"
+  and your text, the thinking folded ("Thinking"), "### <ai>" and the reply, then folded "Sent and
+  raw reply" with both in code fences long enough never to clash with the text's own backticks.
+- Each message keeps (as data) its time, profile, tags, notes, error, seconds, and plugins' own data
+  by plugin id.
+- Reading back an edited file (D7, only when you keep an outside edit): the sections are found by
+  markers alone on their line; the old app's names (`switches`, `site`) are read too.
+- **Gap to carry:** the old app's chat files (this shape, with its hidden markers) must import into
+  the new layout without losing a field.
+
+### 2.5 Markdown in replies (Q1, S10, #214)
+
+- Everything is escaped first (S10). Supported today: paragraphs, line breaks, headings (one line),
+  lists (all lines bullets or numbers), quotes, code fences (inside left alone, with a Copy button
+  on the screen), inline code, bold, italic (`*` and `_`), links `[text](https://…)` and bare
+  https links. Tables are missing (#214: they show as raw `|` lines); the remake adds them (a
+  Markdown library behind an adapter is allowed).
+
+### 2.6 Jobs from other apps (UC41)
+
+- A job names a profile (by name, ignoring case, or id; else the active one) and a chat: "current"
+  (the open chat), a saved chat's path, or new (in the job's folder, else the API folder setting,
+  else "api"; empty means top level).
+- It runs like a message from the screen (the queue, the blocks, the page pool), then answers with
+  reply, thinking, raw, sent, the chat's path, the site chat's link and the error; a failure answers
+  its reason. The open chat redraws if it was the one.
+
+## 3. Built-in plugins
+
+### 3.1 Memory (UC43)
+
+- **What it does**: puts your pinned facts and the earlier chat in front of the message, so a fresh
+  site chat has the context. A header/toolbar toggle "Memory" with a ☰ button ("Summary prompts and
+  this chat's summaries").
+- **Settings** (per profile), with their help texts carried over word for word from
+  `memory/plugin.json`: Pinned facts (always sent, one per line, never cut); Send memory every N
+  messages (1; a new site chat always gets it); What to send (Everything / Only what this site chat
+  hasn't seen); Name the AI on each line when the chat used more than one site (on); Recent turns
+  sent in full (6); Max characters of memory (50 000; pinned facts count); Start summarising this
+  many messages before the max (6; 0 = only at the max); Over the max (Summarise older messages in
+  parts / Clip older messages, drop the oldest); Messages per summary part (10, at least 2); Summary
+  request (its default text); Summaries (Your side and the AI's side apart / One summary of both
+  sides); Run the profile's plugins on the summary request (off); Characters kept of each older
+  turn (200, at least 20); and the summary chat's System prompts (same / picked / none, with the
+  picked list).
+- **Lines**: "User: …" and "<site name>: …" (or "AI: …"); the site name is the link's host without
+  www/chat/chatgpt, capitalised, used only when the chat used more than one site and the setting
+  is on. The message being sent is left out. Each message notes the site chat it went to (also
+  read from Sub-chats' note); messages without a note went to the chat's link.
+- **Under the max**: everything in full; note "N messages in full, C chars[, K this site chat already
+  has left out]". Lines the site chat already has (with "Only what this site chat hasn't seen") cost
+  nothing and aren't sent.
+- **Over the max, summaries** (levels of detail): level 1 summarises fixed parts of K messages (1–10,
+  11–20…), level 2 summarises K level-1 parts, and so on; parts only grow at the end, so each is
+  made once. The plan raises level 1 first (oldest first), then level 2 over level 1…, until it
+  fits; the oldest go in at the coarsest level, the recent R stay word for word. A missing summary is
+  made with a side request (at most 2 while the send waits; the rest in the background: "Memory: N
+  more summaries ready" / "Memory: summary failed: <why>"). One summarising job per chat at a time.
+  Note: "messages 1-N as summaries (n at level L, …), M in full; made N summaries now; making the
+  rest in the background" or "; a summary failed (<why>)". Recent lines that don't fit are left out
+  ("(N left out to fit)").
+- **Sides apart**: each part is summarised twice, from only your messages and from only the AI's,
+  each with its own instruction (texts carried over: "Below are only the user's messages…", "Below
+  are only the AI's messages…"), so they can't be mixed up; a level above is made from the level
+  below's same side; parts that could only be summarised together stay together. The AI's reply
+  is cleaned of marker lines and "### User"/"### AI" headings; an empty one fails ("the summary came
+  back empty").
+- **The summary request**: "[System instructions] … [End of system instructions]" (the chosen System
+  prompts), the summary request, the side's instruction, then "[The user's messages] … [End of …]" or
+  "[Summaries of consecutive parts, the user's side, oldest first] … [End of summaries]" (parts
+  separated by "---").
+- **Clip mode** (and when summaries can't be made): the R recent in full, older ones clipped to the
+  set length ("…"), the oldest dropped to fit: "over the max: older messages clipped, N dropped".
+- **Summarising ahead**: after a reply, when the chat is within N average-sized messages (average of
+  the last 10) of the max, the missing summaries are made in the background aiming for that room:
+  note "about N messages from the max; summarising ahead"; "Memory: N summaries ready".
+- **The memory block**: "[Memory: context from earlier in this conversation. Use it, don't repeat it
+  back.]", "Facts to remember:", "Summary of the earlier conversation, oldest first (each part says
+  whose side it tells, the user's or the AI's):", "Earlier messages" / "More recent messages" (+ the
+  left-out note), "[End of memory]". Or as four separate texts a profile can place as blocks: Pinned
+  facts, Your side (summaries), AI side (summaries), Recent messages, each "[Title] … [End of
+  name]" (together-summaries go first under "both sides together"). All these wordings carry over.
+- **When it is sent**: every N messages, always on the first message and to a site chat that has
+  none of this chat; otherwise note "skipped (every N)"; nothing to send: "nothing to send"; " (new
+  site chat)". Depth System prompts go N lines up from the end of the recent lines. One memory per
+  message however many of its blocks the profile has. Not in a profile: in front of the message.
+- **Sub-chats branched from a reply**: memory works on that branch's view of the chat, with its own
+  summaries.
+- **Its sheet** ("Memory"): "This chat's summaries": per level "Level L: N parts (messages 1-M)" with
+  "View" (each part "Messages a-b" and its text), the files' place, "Forget them (made again when
+  needed)"; none: "None yet: summaries are kept once the chat is saved." / "None yet. They're made
+  when this chat's memory gets near the max." "System prompts for the summary chat": The profile's
+  System prompts ("Uses: a → b" / "This profile has no System prompt blocks that are on.") / Picked
+  for summaries (numbered, ↑ ↓ Remove, then the library with "Use", pinned first; "None picked yet.
+  Tap Use below.") / None. The note about the ⚙ and needing 2 pages; "Guide" (memory/GUIDE.md).
+- Summaries are saved per level as Markdown people can edit ("# <chat> · memory level L", "Summaries
+  of N messages each, made by the Memory plugin. You can edit the text; keep the marker lines.",
+  "## Messages a-b", each side marked), committed "memory: level L, messages a-b (<chat>)"; they move
+  and are deleted with the chat.
+- **Question for the model:** the design keeps plugin data as `<plugin>.json` in the chat's hidden
+  folder; the old summaries were Markdown you could edit. Keep them editable (Markdown in that
+  folder), or JSON?
+
+### 3.2 Sub-chats (UC44, N5)
+
+- **What it is**: several site chats inside one chat. A sub-chat is a run of messages that went to
+  one site chat; each message keeps (as its plugin data) its sub-chat number, the site chat's link,
+  the profile the provider came from, the profile picked at the top, and, for a branch, after how
+  many messages it branched. Everything else is worked out from the messages. A message without
+  this data stays in the sub-chat of the one before; a chat from before the plugin is sub-chat 1
+  on the chat's link.
+- A toolbar toggle "Sub-chats" with ☰; a menu entry "Sub-chats" (also in the chat sheet); "New
+  sub-chat here" under every reply and in its ⋯ menu.
+- **The sheet** ("Sub-chats"; no chat: "Open a chat first"): "New sub-chat here" ("Your next message
+  opens a fresh chat on the profile you pick. Memory sends it what came before."), "Branching after
+  message N: what comes later stays out of its memory." with "Use the latest" when started under an
+  older reply, one button per profile ("Next message starts a sub-chat on <profile>[, after message
+  N]"), the pending choice ("Next message: new sub-chat on <profile>[, after message N]" / "Next
+  message: back to sub-chat N") with "Cancel"; "Sub-chats in this chat": "N · <site> · <profile> · M
+  messages[ · now]" with "Open" (the link in the browser) and "Continue there" ("Next message goes to
+  sub-chat N"); none: "None yet: the first message makes sub-chat 1."; "Guide".
+- **Choosing where** (the route hook): a new sub-chat → a fresh site chat on the picked profile's
+  site and model, keeping the blocks of the profile picked at the top; going back → that sub-chat's
+  link and profile; otherwise it stays in the current sub-chat (with its profile) until you pick
+  another profile yourself, then the app's default (same site: same site chat; another site: a
+  fresh one, which becomes a new sub-chat).
+- **After the reply**: the message is filed under its sub-chat (a site chat not seen before is a new
+  one; note "sub-chat N started (<site>)"); the pending choice is cleared.
+- **In the chat**: a divider before each sub-chat's first message when there is more than one
+  ("Sub-chat N · <site> · <profile>[ · after message N]", tap: the sheet); under the last message
+  the pending choice with "Cancel".
+- **Branching**: a sub-chat started under a reply sees the chat up to that reply, then only its own
+  messages; Memory uses that view (and keeps its summaries of it apart). The last reply has nothing
+  after it, so it doesn't branch.
+- **Note for N5 (branching later)**: this is today's branching; the design's turn ids and branches
+  should cover it, so Sub-chats becomes a use of the branch model rather than its own bookkeeping.
+
+### 3.3 Base64 (UC45)
+
+- A toolbar toggle "Base64". Settings: "Encode my message too" (on), "Instruction added to the
+  message" (default "Reply with base64 only: encode your whole answer as UTF-8 base64. No plain
+  text, no code block, no explanation outside the base64."), "Strict (fail on any damage instead of
+  repairing)" (off), "Show the raw reply if decoding fails" (on).
+- **Out**: the instruction, then "My message below is base64 encoded UTF-8; decode it first." and
+  the encoded text (or the plain text when not encoding). Set to picked blocks: each one wrapped
+  "[base64 block] … [end of base64 block]", the instruction once in front of the first, plus "Blocks
+  marked [base64 block] are base64 encoded UTF-8; decode them first."
+- **Back**: thinking tags and code fence marks are ignored; the longest run of base64-looking words
+  is taken, short words (under 12) at its start dropped; under 16 characters: "no base64 found in
+  the reply". Up to 3 trailing words are tried without, keeping the cleanest result ("left out N
+  trailing words"). URL-safe letters accepted; repairs (not strict): removed invalid characters,
+  dropped 1 stray character, bad UTF-8 shown as � ("some bytes were not valid UTF-8 (shown as �)"),
+  a garbled ending in the last 15% dropped back to a word boundary. Refused as garbage: more than
+  max(2, 3%) bad characters or under 60% letters, digits and punctuation ("the reply doesn't decode
+  to readable text (not base64?)"); "the base64 in the reply doesn't decode". Strict errors: "base64
+  has invalid characters", "base64 is cut off (bad length)", "decoded bytes are not valid UTF-8".
+  Notes: "repaired: …", or with the raw reply kept "not decoded: <why>".
+- "Decode base64" under every reply, even with the plugin off (it errors instead of keeping the raw
+  reply).
+
+### 3.4 Page report (UC46, UC4)
+
+- A passive plugin (no toggle, always there): ⋯ → "Copy page report (to fix a site)"; also behind
+  the "Copy page report" action under a site error (UC4).
+- The provider's own report (its content script's probe) wins; otherwise the page is walked: "==
+  around the newest reply ==" (four levels up from it), "== around the message box ==" (five up from
+  it, at most 250 lines) or "== message box: not found with the plugin's input selectors ==", "== open
+  panels and thinking elsewhere ==" (visible dialogs, drawers, panels, modals, popovers, thinking or
+  reasoning elements outside the reply with text, the outermost 4). Each line: indented tag, classes,
+  id/role/aria-label/aria-expanded/data-testid, and at most 50 characters of its own text; at most
+  700 lines, 14 deep; svg, script, style and path skipped.
+- Copied as "Page report for <provider> (<link>)" and the report: "Page report copied. Paste it to
+  whoever fixes the provider plugin." Copying works after waiting for the page (the platform's
+  clipboard, not the browser's).
+- In the remake (S9) the walk is code the app hands to the page through the platform, checked like
+  any plugin; no credential reaches it.
+
+### 3.5 Providers on websites: DeepSeek and Qwen Chat (UC9, UC10, UC1, UC4, UC13)
+
+What a provider tells the page script (as data), carried over in the new format:
+
+- address; message box, send, stop, reply, thinking, your message, links to the site's chats (each a
+  list of selectors tried in order); parts to strip from a reply (citations); model name; model
+  picker (open, items); options (name, selector, optional button text); a wait after typing
+  (`settleMs`); a "Reply selector (tried first)" setting ("CSS selector for one reply, if replies are
+  not detected."). The selectors' dates come from page reports (DeepSeek 2026-11-06 and 2026-11-16).
+- **DeepSeek** (chat.deepseek.com): options DeepThink and Search (the 1st and 2nd toggle buttons); no
+  model list ("Choose on the site"); citations stripped; chats under `/a/chat/s/`. Its content script
+  only reports site errors so the wait ends with the site's words:
+  - Cloudflare's human check over the page: "DeepSeek wants to check that you're human. Tap the site
+    name, finish the check on the page, then Retry."
+  - a refused message (e.g. "Content too long. Shorten and try again.", in the page's language) shows
+    as a line beside your message with no reply: "DeepSeek refused the message: "<text, 200
+    characters>"" (pointing at the element).
+- **Qwen Chat** (chat.qwen.ai): options Thinking and Search (buttons by their text); a model list
+  (the name's first line, without badges); chats under `/c/`; wait 500 ms after typing; its own idle
+  limit "Give up after this many minutes with no activity" (10). Its content script does the send:
+  - closes the Models list Qwen opens by itself ("Qwen opened its model list; closing it…"), before
+    and during a send, keeping the selected model;
+  - closes a thinking drawer left open (it would be read as this reply's thinking);
+  - fills the box natively (or keyboard-style for an editable box), waits, taps Send like a finger
+    (pointer and mouse events), or presses Enter when there is no Send button (never a guessed
+    button);
+  - "went" = the box left, the address changed, the box emptied or Stop showed; checked for 4 s; then
+    once more after closing the model list; then "Send didn't take; trying again…" (types again
+    keyboard-style, taps again, 10 s); then "Qwen didn't send it. <The page shows: "…">. If it's
+    answering anyway, tap Check; if not, ⋯ → Copy page report and send it over";
+  - no box: "Qwen's message box wasn't found (tap the site name to look) <The page shows: "…">" (the
+    text of any dialog, drawer, pop-up or modal on top, 160 characters);
+  - a toast or alert matching permission/denied/limit/too many/try again/error/failed/login stops the
+    wait: "Qwen said: "<first line, 200 characters>"";
+  - live thinking: opens the steps drawer once Qwen starts thinking and passes the steps on as they
+    grow ("thinking… N chars"), or the current step's title in italics; never taps Skip;
+  - finished = the action row under the reply, no Stop, and the text held for 1 s; without that sign,
+    45 s of nothing changing (pauses during long thinking don't end it); "still writing… N chars";
+    Stop ends the wait and keeps the reply so far;
+  - the reply is the answer part only (no thinking card, no Copy/Translate labels); the thinking is
+    read from the reply's card (opened and closed again if needed), as titled steps in Markdown;
+  - its page report: taps the newest thinking card open and lists what appeared (in the message and
+    elsewhere), panels and thinking outside the reply, how many reply versions the newest turn holds
+    and anything that looks like a choice between them (Qwen sometimes waits on that), how many
+    drawers were open, and what the model list shows when its name is tapped (closed again).
+
+### 3.6 Themes: Ember and Paper (UC47)
+
+- A theme is a set of colour values only (the variables of 1.45).
+- **Ember** ("Warm dark theme with an amber accent."): background #120f0d, raised #1c1815 / #251f1b,
+  lines #2e2723, focus #463b34, text #ece4dc, muted #a3968b, faint #85796f, accent #f0a35e (hover
+  #f5b67d, on accent #120f0d), ok #9ccf7a, error #ff8a7a, warning #f0c86e.
+- **Paper** ("Light theme: warm paper, ink text."): background #f6f4ef, raised #ebe8e1 / #e2ded5,
+  lines #d9d4ca, focus #c4beb2, text #1f2024, muted #5f6168, faint #75767d, accent #3f51c9 (hover
+  #3343b0, on accent #fff), ok #2a7f52, error #b83636, warning #7d5a00, toast #1f2024 on #f6f4ef, error
+  toast #b83636, scrim #0004, shadows, light.
+- With a theme on, light or dark can't be chosen (1.1).
