@@ -316,5 +316,6 @@ Every screen state traces to calls and records (above); `chat-empty` was looked 
 
 ## Next
 
-Stage 5: the strategies, redone against these calls (`5-strategies.md`). Counting tags restart in
-each chat by default (UC20, confirmed 2026-11-21).
+Done: stage 5 (`5-strategies.md`), stage 6 (`6-architecture.md`), stage 7 (`7-review.md`, which
+folded eight calls and two events into the ones above). Counting tags restart in each chat by
+default (UC20, confirmed 2026-11-21).

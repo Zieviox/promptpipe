@@ -11,7 +11,7 @@ names, below).
 ### Every language
 
 - **Width 100**, set by each language's formatter, never by hand; one statement per line; blank
-  lines between steps of thought; no packed lines (Q4).
+  lines between parts of a function; no packed lines (Q4).
 - **Names**: the design's terms (`3-terms.md`), `noun_verb` for functions, `snake_case` for functions
   and fields, `Ada_Case` for records, `UPPER_SNAKE` for constants (W3, decided 2026-11-20). Where a
   language's own convention differs (Kotlin's camelCase, JavaScript's camelCase), the decision wins
@@ -45,7 +45,7 @@ names, below).
 
 ### JavaScript (loader, runtime plugins, screen, page script, content scripts)
 
-- Plain scripts in strict mode, no build step for plugins (principles: KISS); no classes in app
+- Plain scripts in strict mode, no build for plugins (principles: KISS); no classes in app
   code; `const` by default.
 - Formatter: Prettier, width 100; linter: ESLint's recommended rules, with the naming rule set to
   `snake_case`.
@@ -63,7 +63,7 @@ names, below).
 
 - JSON: `snake_case` keys, two-space indent, a `version` field in every saved file.
 - Content files (prose: guides, help texts, template texts, decided F): Markdown, one file per
-  piece of content, read by the code; their wording follows the glossary (W1).
+  text, read by the code; their wording follows the glossary (W1).
 
 ## Part 2. The KISS and DRY review
 
