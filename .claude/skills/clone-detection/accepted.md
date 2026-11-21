@@ -16,3 +16,15 @@ Found by a run, read, and kept on purpose. Don't report these again unless the c
 | useFolder / copyOldChats (settings.js) | Same shape, different API calls and messages |
 | Hub.kt `esc`, md.js `esc`, jsonx.odin `quote` | Different languages and outputs (HTML page, Markdown HTML, JSON) |
 | help.js click handler / tour.js tourBlock | Two features that both intercept taps, different rules |
+
+## The remake (rewrite branches), 2026-11-21
+
+- `core/json.odin` `text_get` / `flag_get` / `object_get` / `list_get`: one reader per JSON type, the idiom.
+- `core/files.odin` `file_write` / `file_delete` on the `device` root: different rules on purpose (only a `.nomedia` marker written; only folders named PromptPipe deleted).
+- `core/server.odin`: reading the head and the body are two loops over `recv_tcp` with different ends.
+- `runtime-send/send.js` `queue_run` / `pool_add`: both start sends, for different reasons (a chat's queue, a free page).
+- `runtime-records/records.js` record operations: each finds its record the same way; the operations differ.
+- `runtime-screen/sheets.js`: sheets built from the same rows look alike.
+- `runtime-screen/chat.js` provider pick and `sheets.js` model pick: "the chat's own, else the default", over different records.
+- `deepseek/site.js` `shown`: stricter than `runtime-site`'s `visible` on purpose (DeepSeek hides refusals by opacity).
+

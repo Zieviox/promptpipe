@@ -88,6 +88,7 @@ model, options and toggles, D8),
 | `plugin_write` | plugin, files, catalogue entry → plugin (each file's hash checked against the entry); or `previous` (swap with the copy the last install replaced); `copy: "yours"` writes your copy of a built-in plugin | A | UC29–UC31, S3 |
 | `plugin_remove` | plugin, copy → done | S | UC29 |
 | `log_read` | → the core log | S | UC38 |
+| `chats_folder_get` | → the chats folder in use and the default one (the core owns the default; added in the build's duplicate check) | S | UC36 |
 
 Roots: `app`, `chats`, `built_in` (read-only), `device` (the phone's shared storage: list, read and
 make folders, for picking the chats folder and copying chats in, UC36; and for the old app's folders

@@ -252,7 +252,7 @@ item's fields on their own lines.
 **Checks**:
 - 35 tests pass (`npm test`, the screen's and the page side's in Chromium).
 - 17 core checks pass, plus the catalogue's signature check.
-- The call contract: 73 calls and 7 events, names checked.
+- The call contract: 74 calls (73, plus `chats_folder_get` from the duplicate check) and 7 events, names checked.
 - The terms check is clean (only the vendored libraries' own words).
 
 **Measured** (lines of code, comments and blank lines not counted; Prettier at width 100 for JS):
@@ -314,3 +314,28 @@ key. The official source uses the keys built into the app.
 **Reused from the old code** (reported, X1): the Bionic shim and NDK steps (above), and data rather
 than code: the DeepSeek and Qwen selectors, Ember's and Paper's colours, Memory's and Base64's
 wording (X6), and the old file shapes the import reads.
+
+## The duplicate check and its merges, 2026-11-21
+
+The clone-detection skill on the remake (vendored libraries and tests left out): 8,632 lines, 0.42%
+duplicated (JS 0.29%, Odin 0.51%, Kotlin 1.08%, its import lists). Merged:
+
+- **Opening a site page**: one `page_add` in `runtime-send` (the pool): within "Pages at once",
+  counting pages being opened, tracked. Model and options, the first start and the site view's ＋
+  use it. Fixed: Model and options opened an untracked page past the limit.
+- **Creating a chat**: one `chat_create` in `runtime-chats`, used by the screen, the local API's
+  jobs and site chats. Fixed: chats from other apps had no creation time.
+- **Adding profiles with new ids**: the old app's import goes through the profile import
+  (`record_import`, one clash rule: "Name (2)"), which now also says which new id each profile and
+  block got, so imported chats keep their toggles.
+- **Comparing site chat links** (`url_same`) and **a site's short name** (`site_name_get`):
+  `runtime-chats` owns them; Sub-chats and Memory use them.
+- **Base64 to bytes and back**: `PP.base64_decode` and `PP.base64_encode` in the loader.
+- **Visibility and an element's text in site pages**: `runtime-site` exposes `visible` and
+  `text_get` to providers' scripts (DeepSeek keeps its stricter check on purpose).
+- **The default chats folder**: the core owns it and answers `chats_folder_get`.
+
+Left as they are (in the skill's `accepted.md`): the core's JSON readers, the phone-path write and
+delete rules, the HTTP read loops, the send queue's loops, the record lookups, sheets that look
+alike, Kotlin import lists. 37 tests and the core's checks pass.
+
