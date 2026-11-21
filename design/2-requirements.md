@@ -14,7 +14,8 @@ Requirements win over the screenshots (U 2026-11-21).
      toggles, then the plugins' before-send hooks; the same for web and API providers
      (U 2026-11-20: "Same as site").
   2. The reply streams in live, for web and API providers (U 2026-11-20); then the plugins'
-     after-reply hooks run on it, and the chat is saved.
+     after-reply hooks run on it, and the chat is saved. A message's trace shows what went out and
+     what came back before the plugins changed it (F, seen in `chat-message-menu`).
   3. The model's thinking is read and kept in full, above the reply ("Thought for Ns"), folded
      or open as set in Settings (folded by default, as today) (F, U 2026-11-21).
   4. Several pages answer at once, shared by your chats, plugins' side requests and other apps'
@@ -29,7 +30,8 @@ Requirements win over the screenshots (U 2026-11-21).
 - **UC3 Stop waiting**: gives up on the reply at once; the page is told to stop (F).
 - **UC4 Recover a failed send**: the failed message shows its reason with Check (keep what the
   page shows), Retry, Edit (back into the box) and Dismiss (F).
-- **UC5 Edit and resend** your last message (F).
+- **UC5 Edit and resend** your last message, or send a message again unchanged (F, seen in
+  `chat-message-menu`).
 - **UC6 Reuse text**: swipe a reply right to quote it into the box, left to copy it; copy a code
   block, your message, the thinking; select text by long press, or in a box made for picking a
   part (F).
@@ -41,7 +43,8 @@ Requirements win over the screenshots (U 2026-11-21).
 - **UC9 Choose the provider**: the provider's name in the header (with its state dot) opens the
   provider menu: switch provider, open its site, log in once (F).
 - **UC10 Model and options**: the model list and the provider's options are read from the site
-  and set before each message; "Choose on the site" when the list can't be read (F).
+  ("Read the page again" re-reads them), saved for that provider, and set on the page before each
+  message; "Choose on the site" when the list can't be read (F, seen in `models`).
 - **UC11 Toggles for this chat**: Quick edit next to the message box turns blocks on or off for
   this chat; a plugin's toggle can also sit in the header or the toolbar (F).
 - **UC12 Site view**: tabs, each showing its own page (#236); closing a tab closes its page, any
@@ -67,6 +70,7 @@ Requirements win over the screenshots (U 2026-11-21).
   history), select several by long press; create, rename, delete folders (F).
 - **UC18 Find**: text in every chat, with `#tag`, `in:folder`, `"exact phrase"`, `is:you`,
   `is:ai` (F); fast with thousands of chats, without reading every file in full each time (#212).
+  The same search finds the app's commands and settings (F, seen in the shortcuts list).
 - **UC19 Chat details**: title, chat tags, provider and model, the chat's history (F).
 - **UC20 Tags**: a chat tag goes on every message; a message tag on one; a tag ending in `#`
   counts up (`part#` → `part1`, `part2`) (F); whether the count runs within each chat or across all
@@ -91,21 +95,25 @@ Requirements win over the screenshots (U 2026-11-21).
   sends the library's current text, so one edit changes every profile that links it; a prompt's page
   shows which profiles link it, and can add it to the active profile, pin it, copy its text, export
   it as Markdown, or delete it (F, seen in `prompt-page`).
-- **UC27 Export and import** profiles and the library; on a name clash: ask, keep both or replace,
+- **UC27 Export and import** profiles and the library (a profile also from pasted text); on a name clash: ask, keep both or replace,
   as set in Settings (F).
 
 ### Plugins
 
 - **UC28 See the plugins**: the profile's blocks, and the catalogue with each plugin's type
-  ("Plugin · provider · web", "Plugin · provider · api", "Plugin · theme", …) (U 2026-11-20).
+  ("Plugin · provider · web", "Plugin · provider · api", "Plugin · theme", …), its source, whether
+  the source is the official one, and whether one with the same name is installed; filtered by
+  source and by type (U 2026-11-20; F, seen in `plugins-catalogue`).
 - **UC29 Get and manage**: get a provider or plugin from the catalogue; a plugin's page with
   Update, Roll back, Remove, Copy; your copy replaces the app's, and which copy runs (built-in,
   updated, yours) is visible (F, U).
 - **UC30 Install other ways**: from a link, a zip, or the files of an AI's answer; add a source
-  (a GitHub repository); copy the plugin-writing instructions for an AI (F).
+  (a GitHub repository; it must have a catalogue, checked before it's added); copy the
+  plugin-writing instructions for an AI (F).
 - **UC31 Stay up to date**: Update all; an automatic check, off, daily or weekly as set (default
   daily), that fails quietly (a check you start says what happened); the release bundle as an
-  opt-in fallback (F, U 2026-11-21).
+  opt-in fallback, also downloaded and installed by hand (F, U 2026-11-21; seen in
+  `runtime-plugins`).
 - **UC32 Plugin settings**, per profile, declared by the plugin and drawn by the screen (F).
 - **UC33 Safe mode**: when one of your runtime plugins fails to load, the app starts with the
   app's own plugins only and says which failed; start in safe mode by hand; leave it (F).
@@ -117,16 +125,19 @@ Requirements win over the screenshots (U 2026-11-21).
   folded or open (F).
 - **UC35 Sites**: pages at once (default 5, a warning above 5), waiting limits (F).
 - **UC36 Chats and storage**: the chats folder is a `chats` subfolder of the app folder by default
-  (U 2026-11-21); move the chats folder (with or without copying), back to the
-  default; all-files access; a storage check, step by step with the system's reason; git: remote,
-  token (from credentials), push, pull, auto-push (F, U).
+  (U 2026-11-21); pick another by browsing the phone's folders or typing a path; move the chats
+  folder (with or without copying), back to the
+  default; all-files access; a storage check, step by step with the system's reason, copyable; git:
+  commit on every save (on by default), author name and email, remote, token (a credential), push,
+  pull, push after every commit, the list of all commits (F, U; seen in `settings-git`).
 - **UC37 Local API**: the address, the token (make a new one; kept in credentials), how apps
   use it, the folder for their chats (F, U).
 - **UC38 Advanced**: reset to first launch (chats, profiles, prompts and plugins stay); the app's
   own plugins (copy one, pick which screen runs); safe mode; the core log; stop the background
   service; the version (F).
-- **UC39 Help**: the ? mode explains what you tap; first-time guides for each place (and showing
-  them again); the shortcuts list; the quick start; each plugin's guide and the plugin-writing
+- **UC39 Help**: the ? mode explains what you tap; first-time guides for each place, starting
+  with the welcome guide on the first start (pick a site, log in); each place's guide can be played
+  again (▷), the quick start lists them with "Seen", and all can be shown again; the shortcuts list; the quick start; each plugin's guide and the plugin-writing
   guide open in the app (F).
 - **UC40 Credentials**:
   1. One store for any sensitive data (API keys, tokens, passwords, notes), with free tags
@@ -205,7 +216,8 @@ Requirements win over the screenshots (U 2026-11-21).
   whenever the chat changes, so it is always complete and current. If you edit it with another
   app, the change check (D7) asks before anything is overwritten; keeping your edit reads it back
   into the chat (U 2026-11-21).
-- **D2** Every change to the chats folder is a commit in its repository (F).
+- **D2** Every change to the chats folder is a commit in its repository, unless "Commit on every
+  save" is turned off (F, seen in `settings-git`).
 - **D3** The prompt library is kept with the chats, in the app's hidden folder (D6) (F).
 - **D4** Files are written safely: a cut-off write never leaves a broken file (#211).
 - **D5** Replies are shown in full: tables, images (as links), strike-through, nested lists (#214).
@@ -260,8 +272,10 @@ Requirements win over the screenshots (U 2026-11-21).
 
 - **Q1** The screen matches the screenshots in `design/ux/` (look, layout, gestures, wording),
   except where a requirement changes something (U 2026-11-21).
-- **Q2** Touch first; every action has a button; keyboard shortcuts for a hardware keyboard:
-  Ctrl+Enter, Ctrl+K, Ctrl+B, Ctrl+F, Ctrl+M, Ctrl+E, Ctrl+/, Ctrl+?, Alt+S (F).
+- **Q2** Touch first; every action has a button or a gesture; keyboard shortcuts for a hardware
+  keyboard, as listed in `help-menu-keys` (Ctrl+Enter, Ctrl+K, Ctrl+B, Ctrl+F, Alt+↑/↓, Alt+S,
+  Ctrl+M, F2, Ctrl+T, ↑ in an empty box, Ctrl+E, Ctrl+/, Ctrl+Shift+L, Ctrl+P, Ctrl+Shift+P,
+  Ctrl+Shift+R, Ctrl+comma, Ctrl+= and Ctrl+-, Ctrl+?) (F).
 - **Q3** Accessible: every icon button has a label, alerts have their role, every theme has
   readable contrast.
 - **Q4** About 3,000 lines of clean, comfortable code for the app (core, platform, loader, page

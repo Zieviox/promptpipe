@@ -129,7 +129,7 @@ Every goal a person can reach. Each becomes a driving port later. "→" is the r
 
 ## UX/UI reference
 
-`design/ux/` has a screenshot of every screen and state (63 states, 126 images), light and dark, on a phone-sized screen
+`design/ux/` has a screenshot of every screen and state (66 states, 132 images), light and dark, on a phone-sized screen
 (412 × 915), made by `node scripts/ux/capture.js` from the current app in the stand-in with
 seeded chats, folders, tags, profiles and prompts. File names: `<state>-light.png`,
 `<state>-dark.png`.
@@ -138,17 +138,21 @@ seeded chats, folders, tags, profiles and prompts. File names: `<state>-light.pn
 |---|---|
 | Chat | `chat-empty`, `chat`, `chat-composer-big`, `chat-message-menu`, `chat-select-text`, `chat-info`, `chat-history`, `chat-move`, `chat-failed`, `chat-queued`, `chat-streaming` |
 | Chats | `drawer`, `drawer-select`, `drawer-folder-open`, `drawer-site-chats`, `find` |
-| Provider | `provider-menu`, `provider-sheet`, `models`, `quick-edit`, `site-view` |
+| Provider | `provider-menu` (re-taken), `provider-sheet`, `models`, `quick-edit`, `site-view` |
 | Profiles | `profiles-new`, `profile-editor`, `profile-add-block`, `profile-block-page`, `profile-groups`, `profile-preview`, `profile-import` |
 | Prompt library | `prompt-library`, `prompt-page`, `prompt-editor` |
 | Plugins | `plugins`, `plugins-catalogue`, `plugins-providers`, `plugins-install`, `plugins-add-source`, `plugins-guide`, `plugin-page`, `plugin-settings` |
 | Settings | `settings`, `settings-look`, `settings-look-accent`, `settings-sites`, `settings-waiting`, `settings-storage`, `settings-folder`, `settings-git`, `settings-import-export`, `settings-local-api`, `settings-api-token`, `settings-api-how`, `settings-advanced`, `settings-storage-check`, `settings-core-log`, `settings-help` |
-| Help | `help-menu`, `help-mode`, `quick-start-list`, `tour-setup`, `tour-chat` |
+| Help | `help-menu`, `help-menu-keys`, `help-mode`, `quick-start-list`, `tour-setup` (the welcome), `tour-chat` |
+| App | `runtime-plugins`, `safe-mode` |
 | Feedback | `dialog-confirm`, `dialog-text`, `toast-error` |
 
 The screenshots show today's app with its bugs too (the reply's table shows as raw `|` lines,
 #214). Where a requirement fixes something, the requirement wins over the screenshot (decided
 2026-11-21). There is no separate mockup: the screenshots are the visual reference.
+
+Every state was checked against the design on 2026-11-21 (each element and action traced to a use
+case, a call or a record); what was missing went into the requirements, the model and the calls.
 
 Not in screenshots, kept as written:
 

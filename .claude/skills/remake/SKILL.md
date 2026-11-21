@@ -31,7 +31,10 @@ still open.
 - **Self-review before every hand-off**: everything traces to a use case or requirement; nothing
   is stored twice (no links in both directions, no derived value saved); one mechanism per job;
   every name follows the rules (`python3 .claude/skills/remake/scripts/name-check.py` for the
-  call contract, terms-check for retired words). Fix what it finds before the user sees it.
+  call contract, terms-check for retired words); when a stage touches the use cases, the model or
+  the calls, every screen state in `design/ux/` is gone through and each element and action traced
+  to a use case, a call or a record (missing states are captured with `scripts/ux/capture.js`).
+  Fix what it finds before the user sees it.
 - **No reuse of old code unless stuck**, and then say so in the stage's review (what, from where,
   why). The old code is a read-only reference for behaviour and lessons.
 - **Honest numbers**: estimates come with a range; a target that isn't reachable is said, not

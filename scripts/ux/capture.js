@@ -46,7 +46,7 @@ const SHOTS = [
   ["drawer-select", async (p) => p.evaluate(() => (openDrawer(), (S.selMode = true), (S.sel = new Set()), render()))],
   ["drawer-site-chats", async (p) => p.evaluate(() => openSiteChats())],
   ["find", async (p) => p.evaluate(() => openFind("hello"))],
-  ["provider-menu", async (p) => p.evaluate(() => providerMenu())],
+  ["provider-menu", async (p) => p.evaluate(() => ((S.providerMenu = true), render()))],
   ["provider-sheet", async (p) => p.evaluate(() => openProviderSheet())],
   ["models", async (p) => p.evaluate(() => openModels())],
   ["quick-edit", async (p) => p.evaluate(() => openQuick())],
@@ -97,6 +97,9 @@ const SHOTS = [
   ["chat-failed", async (p) => p.evaluate(() => ((S.chat.failed = [{ you: "and the budget?", error: "DeepSeek refused the message: \"Content too long\"", at: new Date().toISOString(), page: 0 }]), render()))],
   ["chat-queued", async (p) => p.evaluate(() => ((S.chat.queued = [{ you: "also add a museum", at: new Date().toISOString() }, { you: "and a restaurant", at: new Date().toISOString() }]), render()))],
   ["chat-streaming", async (p) => p.evaluate(() => { S.chat.turns.push({ at: new Date().toISOString(), you: "one more idea?", sent: "", raw: "", reply: "", profile: "Default", tags: [], notes: [], data: {}, pending: true, progress: "Writing\u2026", thinking: "Thinking about a third option" }); const t = S.chat.turns[S.chat.turns.length - 1]; t.reply = "A day hike to the lakes, with"; render(); })],
+  ["runtime-plugins", async (p) => { await p.evaluate(() => openSettings()); await p.waitForTimeout(300); await p.evaluate((label) => { const el = [...document.querySelectorAll("button, a, [role=button]")].find((e) => e.textContent.trim().startsWith(label) && e.getClientRects().length); if (!el) throw new Error("no item " + label); el.click(); }, "Advanced"); await p.waitForTimeout(300); await p.evaluate((label) => { const el = [...document.querySelectorAll("button, a, [role=button]")].find((e) => e.textContent.trim().startsWith(label) && e.getClientRects().length); if (!el) throw new Error("no item " + label); el.click(); }, "Core plugins"); await p.waitForTimeout(300); }],
+  ["help-menu-keys", async (p) => { await p.evaluate(() => openHelp()); await p.waitForTimeout(300); await p.evaluate(() => document.querySelectorAll(".sheet, .sheet *").forEach((el) => { if (el.scrollHeight > el.clientHeight + 10) el.scrollTop = el.scrollHeight; })); }],
+  ["safe-mode", async (p) => { await p.goto(p.url().split("?")[0] + "?safe=1"); await p.waitForFunction(() => window.PP && PP.profiles && PP.profiles.library.loaded, null, { timeout: 20000 }); await p.waitForTimeout(800); }],
 ];
 
 let standin = null;
@@ -175,6 +178,7 @@ process.on("unhandledRejection", (e) => {
         await setup(page);
         await page.waitForTimeout(500);
         await page.screenshot({ path: path.join(OUT, `${name}-${scheme}.png`) });
+        if (name === "safe-mode") { await page.goto(base + "/"); await page.waitForFunction(() => window.PP && PP.profiles && PP.profiles.library.loaded, null, { timeout: 20000 }); await page.waitForTimeout(600); }
         if (scheme === "light") console.log("shot " + name);
       } catch (e) {
         failed.push(scheme + " " + name + ": " + String(e.message || e).split("\n")[0].slice(0, 140));

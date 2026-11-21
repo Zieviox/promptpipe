@@ -38,7 +38,8 @@ fields, labels, rules, and where it's stored.
 | `record_copy` | collection, id → record | S, P |
 | `record_delete` | collection, id → done | S, P |
 
-Collections: `chats` (rename, pin, tags, folder, provider, model, profile, site chat link),
+Collections: `chats` (rename, pin, tags, folder, provider, profile, site chat link),
+`provider_choices` (the model and options saved for each provider),
 `folders`, `turns` (message tags), `profiles`, `templates`, `blocks`, `groups`, `prompts`,
 `connections`, `sources`, `sends` (queued messages: move up, edit, remove), `drafts`,
 `settings`, `plugin_settings`, `toggles`.
@@ -58,11 +59,11 @@ Collections: `chats` (rename, pin, tags, folder, provider, model, profile, site 
 | `site_chat_import` | chat, page, which (`all` · `newest`) → turns | S | UC13 |
 | `chat_create` | folder, text → chat | S, A | UC14, UC16 |
 | `chat_open` | chat → chat with its turns | S, P | UC16 |
-| `chat_find` | query → matches | S, P | UC18 |
-| `commit_list` | chat → its history | S | UC19 |
+| `chat_find` | query → matching messages (the screen adds matching commands and settings from its own tables) | S, P | UC18 |
+| `commit_list` | chat, or none for every commit → the history | S | UC19, UC36 |
 | `chat_export` | chat, to (`clipboard` · `share` · `file`) → done | S | UC6, UC21 |
 | `profile_export` | profiles, to → done | S | UC27 |
-| `profile_import` | file → profiles | S | UC27 |
+| `profile_import` | a file or pasted text → profiles | S | UC27 |
 | `prompt_export` | prompts, to → done | S | UC26, UC27 |
 | `prompt_import` | files → prompts | S | UC27 |
 | `catalogue_load` | → offers and available updates, verified | S | UC28, UC31 |
@@ -96,7 +97,8 @@ Collections: `chats` (rename, pin, tags, folder, provider, model, profile, site 
 | `plugin_remove` | plugin, copy → done | S | UC29 |
 | `log_read` | → the core log | S | UC38 |
 
-Roots: `app`, `chats`, `built_in` (read-only). The change check is the expected version on every
+Roots: `app`, `chats`, `built_in` (read-only), `device` (the phone's shared storage: list and
+make folders only, for picking the chats folder, UC36). The change check is the expected version on every
 write, move and delete: one mechanism for every file (D7).
 
 ### Answered by the platform
@@ -172,7 +174,7 @@ The screen needs no events of its own: it draws the `State` after every change.
 | UC7 long text | `record_set` on `drafts`, `picker_open` |
 | UC8 new reply | the screen alone |
 | UC9 provider | `record_set` on `chats`, `page_open`, `view_set`, `url_open` |
-| UC10 model, options | `model_list`, `option_list` → `site_model_list`, `site_option_list`; `record_set` on `chats` |
+| UC10 model, options | `model_list`, `option_list` → `site_model_list`, `site_option_list`; `record_set` on `provider_choices` |
 | UC11 toggles | `record_set` on `toggles` |
 | UC12 site view | `page_open`, `page_close`, `page_navigate`, `view_set`; `page_changed`, `popup_changed` |
 | UC13 site chats | `site_chat_list`, `site_chat_open`, `site_chat_import`, `record_set` on `chats` (link to the page) |
@@ -191,7 +193,7 @@ The screen needs no events of its own: it draws the `State` after every change.
 | UC32 plugin settings | `record_set` on `plugin_settings` |
 | UC33 safe mode | `app_start` |
 | UC34–UC35 look, sites | `record_set` on `settings`, `bars_set` |
-| UC36 storage, git | `chats_folder_move`, `storage_verify`, `storage_access_open`, `repo_push`, `repo_pull` |
+| UC36 storage, git | `file_list` on `device`, `chats_folder_move`, `storage_verify`, `storage_access_open`, `record_set` on `settings`, `repo_push`, `repo_pull`, `commit_list` |
 | UC37 local API | `api_token_create` → `credential_create` |
 | UC38 advanced | `record_delete` on `settings` (reset to defaults), `plugin_copy`, `log_read`, `app_close`, `service_stop`, `app_get` |
 | UC39 help | the screen, `record_set` on `settings` |

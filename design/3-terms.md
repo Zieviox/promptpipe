@@ -58,7 +58,6 @@ readable `.md` built from them. Owner: the runtime's chats module.
 | `title` | string | shown in the list and the header |
 | `created`, `updated` | time | |
 | `provider` | plugin id | the provider this chat uses |
-| `model` | string | the model this chat sends with next (each turn records what it went with) |
 | `profile` | profile id | the profile this chat sends with next |
 | `site_url` | string | the site chat this chat continues (UC13) |
 | `pinned` | boolean | UC17 |
@@ -77,7 +76,8 @@ The folder is part of `file`, not a field of its own (not stored twice). The rea
 | `message` | string | what you typed (the "Your message" block) |
 | `attachments` | list of `Attachment` | UC48 |
 | `sent` | string | what actually went out, after blocks and hooks (UC25, UC41) |
-| `reply` | string | the reply, as Markdown |
+| `received` | string | the reply as it came back, before the plugins' after-reply hooks (the trace, UC1.2) |
+| `reply` | string | the reply as shown, after the hooks, as Markdown |
 | `thinking` | string | the model's thinking, in full (UC1.3) |
 | `thought_s` | number | how long it thought ("Thought for Ns") |
 | `tags` | list of strings | message tags (UC20) |
@@ -106,6 +106,7 @@ it is derived from the profiles (not stored).
 | `provider` | plugin id | for new chats (UC9) |
 | `profiles` | list of `Profile` | yours |
 | `templates` | list of `Profile` | your templates (the app's come with a runtime plugin) |
+| `provider_choices` | map plugin id → `{ model, options }` | the model and options saved for each provider (UC10) |
 | `connections` | list of `Connection` | UC40.6 |
 | `sources` | list of `Source` | UC30 |
 | `settings` | map setting key → value | only values you changed; defaults come from the schema (`Setting_Def`), so they're never stored twice (S3) |
@@ -113,7 +114,7 @@ it is derived from the profiles (not stored).
 
 App settings are keys like `look.mode`, `look.accent`, `look.scale`, `look.thinking` (folded or
 open), `sites.pages` (default 5), `sites.idle_min`, `sites.total_min`, `chats.enter_sends`,
-`git.remote`, `git.auto_push`, `tags.counter_scope` (each chat, all chats), `api.folder`, `updates.check` (off, daily, weekly),
+`git.commit` (on), `git.name`, `git.email`, `git.remote`, `git.auto_push`, `tags.counter_scope` (each chat, all chats), `api.folder`, `updates.check` (off, daily, weekly),
 `updates.bundle`, `import.clash`, `help.button`, `help.seen.<place>`. The full list is the schema,
 written with the function list.
 
