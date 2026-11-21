@@ -2,6 +2,15 @@ plugins {
     id("com.android.application")
 }
 
+// The release key's file and password, kept outside the project (scripts/keys_make.sh writes them);
+// -PreleaseProperties=… for another place.
+val releaseProperties = java.util.Properties().apply {
+    val home = System.getProperty("user.home")
+    val path = (findProperty("releaseProperties") as String?) ?: "$home/.promptpipe/release.properties"
+    val file = File(path)
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+
 // The browser engine's version is pinned (S8); -PgeckoviewVersion=… picks another for a test.
 val geckoviewVersion = (findProperty("geckoviewVersion") as String?) ?: "144.0.20251020130000"
 
@@ -20,8 +29,16 @@ android {
         ndk { abiFilters += listOf("arm64-v8a") }
     }
     signingConfigs {
-        // A release key of its own from the first remade release (S8); until then a fixed
-        // debug.keystore next to the project keeps the signature the same between builds.
+        // The release key (S8), from the first remade release on.
+        create("release") {
+            if (!releaseProperties.isEmpty) {
+                storeFile = File(releaseProperties.getProperty("storeFile"))
+                storePassword = releaseProperties.getProperty("storePassword")
+                keyAlias = releaseProperties.getProperty("keyAlias")
+                keyPassword = releaseProperties.getProperty("keyPassword")
+            }
+        }
+        // A fixed debug.keystore next to the project keeps test builds' signature the same.
         getByName("debug") {
             val fixed = rootProject.file("debug.keystore")
             if (fixed.exists()) {
@@ -34,6 +51,10 @@ android {
     }
     buildTypes {
         getByName("debug") { signingConfig = signingConfigs.getByName("debug") }
+        getByName("release") {
+            isMinifyEnabled = false
+            if (!releaseProperties.isEmpty) signingConfig = signingConfigs.getByName("release")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

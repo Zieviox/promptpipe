@@ -69,6 +69,24 @@ try:
     check("the list says which copy runs", ids == {"base64": "built_in", "rot13": "updated"})
     check("the plugin's files are served from the copy that runs", http("/plugins/rot13/main.js")[1] == "x")
     check("an unsigned catalogue is refused", call("catalogue_verify", {"data": "{}", "signature": "A" * 86 + "=="})["error"]["code"] == "permission_denied")
+    try:  # another source's catalogue, checked against the key accepted for it
+        import base64
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+        source_key = Ed25519PrivateKey.generate()
+        raw = serialization.Encoding.Raw
+        public = source_key.public_key().public_bytes(raw, serialization.PublicFormat.Raw).hex()
+        data = '{"version":1,"entries":[]}'
+        signature = base64.b64encode(source_key.sign(data.encode())).decode()
+        r = call("catalogue_verify", {"data": data, "signature": signature, "key": public})
+        check("a source's catalogue signed with its accepted key is taken", "error" not in r)
+        other = Ed25519PrivateKey.generate().public_key().public_bytes(raw, serialization.PublicFormat.Raw).hex()
+        r = call("catalogue_verify", {"data": data, "signature": signature, "key": other})
+        check("the same catalogue under another key is refused", r["error"]["code"] == "permission_denied")
+        r = call("catalogue_verify", {"data": data, "signature": signature})
+        check("a source's key doesn't count for the official catalogue", r["error"]["code"] == "permission_denied")
+    except ImportError:
+        print("skip the sources' keys (no cryptography module)")
 
     token = "secret-token"
     cfg = json.dumps({"settings": {}, "api_token_hash": hashlib.sha256(token.encode()).hexdigest()})

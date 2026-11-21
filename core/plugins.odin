@@ -52,7 +52,12 @@ catalogue_verify :: proc(d: Object) -> (string, Error) {
 	if err != nil || len(signature) != ed25519.SIGNATURE_SIZE {
 		return "", {"invalid_argument", "the catalogue's signature is unreadable"}
 	}
-	for key_hex in PUBLIC_KEYS {
+	// Another source's catalogue is checked against the key you accepted when you added it; the
+	// official one against the keys built into the app.
+	own := text_get(d, "key")
+	official := PUBLIC_KEYS
+	keys := own != "" ? []string{own} : official[:]
+	for key_hex in keys {
 		key_bytes, _ := hex.decode(transmute([]byte)key_hex)
 		key: ed25519.Public_Key
 		if !ed25519.public_key_set_bytes(&key, key_bytes) do continue
@@ -61,6 +66,7 @@ catalogue_verify :: proc(d: Object) -> (string, Error) {
 			return data, {}
 		}
 	}
+	if own != "" do return "", {"permission_denied", "the catalogue's signature doesn't match the key you accepted for this source"}
 	return "", {"permission_denied", "the catalogue's signature isn't the official one"}
 }
 
