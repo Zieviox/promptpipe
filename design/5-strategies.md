@@ -72,7 +72,7 @@ value, else the profile's, else the provider's choice, else the default.
 - Checked: `Config.settings` holds only values you changed; the linked-or-own table in the model;
   `record_set` with a field set to none goes back to linked.
 - Replaces: defaults in the loader, Settings code, per-place fallbacks (today's provider, profile,
-  model and toggle lookups are four separate pieces of code).
+  model and toggle lookups are four separate lookups).
 
 ### Strategy 4. One port each way, one envelope, one call table
 
@@ -123,7 +123,7 @@ script replaces single stages only (DeepSeek's error stage, Qwen's send and thin
 
 ### Strategy 8. One send sequence for every send
 
-Standard idea: a **pipeline** (pipes and filters), each stage's output feeding the next.
+Standard idea: the **filters** pattern (a fixed sequence of filters, each stage's output feeding the next).
 
 A send runs: blocks → `send_before` hooks → the provider (`site_model_set` and `site_send`, or
 `http_fetch` for an API) → `reply_after` hooks → save. Your messages, side requests, Memory's
@@ -247,7 +247,7 @@ says so instead of hiding it.
 - Naked objects: [Wikipedia](https://en.wikipedia.org/wiki/Naked_objects), [Apache Causeway, background](https://causeway.apache.org/userguide/3.1.0/background-context-and-theory.html); Repository: [Fowler, P of EAA](https://martinfowler.com/eaaCatalog/repository.html)
 - Command registry: [VS Code commands](https://code.visualstudio.com/api/extension-guides/command)
 - JSON-RPC 2.0: [specification](https://www.jsonrpc.org/specification)
-- Pipes and filters: [Microsoft architecture patterns](https://learn.microsoft.com/azure/architecture/patterns/pipes-and-filters)
+- Filters pattern: [Microsoft architecture patterns](https://learn.microsoft.com/azure/architecture/patterns/pipes-and-filters)
 - Libraries: [idiomorph](https://github.com/bigskysoftware/idiomorph), [markdown-it](https://github.com/markdown-it/markdown-it), [Turndown](https://github.com/mixmark-io/turndown), [SortableJS](https://github.com/SortableJS/Sortable), [fflate](https://github.com/101arrowz/fflate), [JGit](https://www.eclipse.org/jgit/)
 - Platform features: [`<dialog>`](https://developer.mozilla.org/docs/Web/HTML/Element/dialog), [Compression Streams](https://developer.mozilla.org/docs/Web/API/Compression_Streams_API)
 - Design tokens: [W3C Design Tokens Community Group](https://www.designtokens.org/)
