@@ -69,7 +69,8 @@ Requirements win over the screenshots (U 2026-11-21).
   `is:ai` (F); fast with thousands of chats, without reading every file in full each time (#212).
 - **UC19 Chat details**: title, chat tags, provider and model, the chat's history (F).
 - **UC20 Tags**: a chat tag goes on every message; a message tag on one; a tag ending in `#`
-  counts up (`part#` → `part1`, `part2`) (F).
+  counts up (`part#` → `part1`, `part2`) (F); whether the count runs within each chat or across all
+  chats is your choice in Settings (default: within each chat) (U 2026-11-21).
 - **UC21 Copy or share a chat** (F).
 
 ### Profiles and prompts
@@ -198,12 +199,19 @@ Requirements win over the screenshots (U 2026-11-21).
 
 - **D1** Every chat has one readable Markdown file in the chats folder (a `chats` subfolder of the
   app folder by default), readable with any app. It is built from the chat's data and rebuilt
-  whenever the chat changes, so it is always complete and current; it is a view, so edits made to
-  it outside the app are overwritten (U 2026-11-21).
+  whenever the chat changes, so it is always complete and current. If you edit it with another
+  app, the change check (D7) asks before anything is overwritten; keeping your edit reads it back
+  into the chat (U 2026-11-21).
 - **D2** Every change to the chats folder is a commit in its repository (F).
 - **D3** The prompt library is kept with the chats, in the app's hidden folder (D6) (F).
 - **D4** Files are written safely: a cut-off write never leaves a broken file (#211).
 - **D5** Replies are shown in full: tables, images (as links), strike-through, nested lists (#214).
+- **D7** **The change check**: one system, reused for every file the app writes on shared storage
+  (readable chats, chat data, the prompt library, settings, your plugin copies). The app records a
+  hash of what it wrote; before it overwrites or trusts a file again it compares, and if the file
+  changed outside the app it asks once, in one dialog used everywhere: keep the outside change,
+  keep the app's, or keep both (a copy). Standard name: optimistic concurrency control with content
+  hashes as versions (as HTTP's ETag and If-Match) (U 2026-11-21).
 - **D6** The chats folder shows only the readable chat files. Each chat's data (its turns,
   thinking, plugins' data such as Memory's summaries, attachments) is in its own hidden folder, and
   everything else the app keeps there (the history repository, the prompt library) is hidden too,
@@ -218,8 +226,8 @@ Requirements win over the screenshots (U 2026-11-21).
 - **S3** Every plugin download is checked against the catalogue's hash (#201); the catalogue is
   signed and the signature checked (#202). The checks are not updatable by plugins.
 - **S4** Plugins and settings stay on shared storage (your copies editable with a file manager);
-  the app records each file's hash, shows anything changed outside the app, and asks before
-  running an app plugin that changed (#204; decided 2026-11-21).
+  the change check (D7) shows anything changed outside the app, and an app plugin that changed
+  doesn't run until you choose (#204; decided 2026-11-21).
 - **S5** Plain HTTP only to 127.0.0.1 (#215).
 - **S6** Zips are checked before unpacking: broken offsets refused, and an unpacked size far beyond
   any real plugin (500 MB) refused as a zip bomb (#213). Downloads go straight to a file, with no

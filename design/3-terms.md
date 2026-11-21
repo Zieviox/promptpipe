@@ -4,9 +4,9 @@ Designed from `0-intent.md`, `2-requirements.md` and `design/ux/` only. Part 1 i
 record the application keeps or passes around, its fields, its one owner (the only part that
 writes it), where it is stored and how long it lives. Part 2 is the words used for it.
 
-Field names are `snake_case`; record names are `Ada_Case` (proposed: one name in every layer;
-single-word names look the same either way). Every library sits behind an adapter, Odin's
-included, so no library's style decides ours; stage 7 checks the choice against the standards.
+Field names are `snake_case`; record names are `Ada_Case` (one name in every layer; single-word
+names look the same either way). Every library sits behind an adapter, Odin's included; inside an
+adapter, the library (the adaptee) is used as it is, with its own names (U 2026-11-21).
 Shapes are plain JSON-like data: strings, numbers, booleans, lists, maps; records refer to each
 other by id, never by holding each other.
 
@@ -29,17 +29,19 @@ other by id, never by holding each other.
         attachments/               UC48
         <plugin id>.json           a plugin's data for this chat (Memory's summaries, ...)
       prompts.json                 the prompt library
+      tags.json                    counter tags' last numbers (when they count across all chats)
       repo/                        the history repository (its working tree is the chats folder)
-<app-private storage>              updated plugins, the hash record (S4), where the chats folder is,
+<app-private storage>              updated plugins, the version record (D7), where the chats folder is,
                                    the core's key, the core log
 <the platform's credential store>  credentials, encrypted with the key store (S7)
 <the APK>                          the built-in plugins, the loader, the page script (read-only)
 <memory>                           the screen's State, lost on restart by design
 ```
 
-- **The chat's data is the source; the readable `.md` is built from it** (D1, D6). The app never
-  reads a `.md` back, so there is no Markdown parsing of chats: the readable file can stay pretty,
-  and the data can hold what doesn't belong in it (plugins' data, attachments' details).
+- **The chat's data is the source; the readable `.md` is built from it** (D1, D6), so the readable
+  file can stay clean and the data can hold what doesn't belong in it (plugins' data, attachments'
+  details). The app reads a `.md` back only when you edited it outside the app and chose to keep
+  your edit (the change check, D7).
 - `meta.json` holds the path of its readable file; a readable file's first lines carry the chat's
   id, so a file moved or renamed with a file manager is found again.
 - The repository commits both the data and the readable files, so a pushed remote is readable too.
@@ -109,7 +111,7 @@ it is derived from the profiles (not stored).
 
 App settings are keys like `look.mode`, `look.accent`, `look.scale`, `look.thinking` (folded or
 open), `sites.pages` (default 5), `sites.idle_min`, `sites.total_min`, `chats.enter_sends`,
-`git.remote`, `git.auto_push`, `api.folder`, `updates.check` (off, daily, weekly),
+`git.remote`, `git.auto_push`, `tags.counter_scope` (each chat, all chats), `api.folder`, `updates.check` (off, daily, weekly),
 `updates.bundle`, `import.clash`, `help.button`, `help.seen.<place>`. The full list is the schema,
 written with the function list.
 
@@ -237,10 +239,15 @@ function (the only writer).
 
 ### Records that cross a boundary
 
+- **`Version`** (D7): what the core recorded when the app last wrote a file: `path`, `hash`
+  (SHA-256), `at`. Every write says which version it expects; a mismatch is an `Outside_Change`.
+- **`Outside_Change`**: `path`, `what` (`"chat"` · `"chat_data"` · `"prompts"` · `"config"` ·
+  `"plugin"`), `ours` and `theirs` (their versions); answered once in the shared dialog: keep
+  theirs, keep ours, keep both.
 - **`Envelope`**: every message between the screen, the core, the platform and a page:
   `type` (`"call"` · `"reply"` · `"event"`), `name`, `data`, `id`, `error`.
 - **`Error`**: `code`, `message` (what happened and what to do).
-- Each side's own small state stays private to it: the core's (its key, its folders, the hash
+- Each side's own small state stays private to it: the core's (its key, its folders, the version
   record, the local API's open requests), the platform's (its views, pop-ups, the credential
   store, the core process), a page script's (its provider description, the send it is watching).
 
@@ -255,7 +262,8 @@ function (the only writer).
 | `Credential` | platform | its credential store |
 | your plugin copies | runtime (copy) and you (edit) | `.promptpipe/plugins/` |
 | updated plugins | core (install, after verifying) | app-private `updates/` |
-| the hash record | core | app-private `hashes.json` |
+| the version record (D7) | core | app-private `versions.json` |
+| counter tags' numbers | runtime, chats module | `.promptpipe/tags.json` |
 | history commits | platform (the repository adapter), on the runtime's call | `.promptpipe/repo/` |
 | `State` | runtime, the apply function | memory |
 
@@ -338,7 +346,7 @@ and its parts (`sheet`, `drawer`, `menu`, `toast`, `dialog`, `item`), `theme`, `
 `app_started`, `plugins_loaded`, `config_changed`, `chat_opened`, `chat_saved`, `turn_added`,
 `reply_changed`, `reply_finished`, `reply_failed`, `page_loaded`, `page_navigated`, `page_closed`,
 `pages_changed`, `job_received`, `plugin_installed`, `plugin_failed`, `bundle_installed`,
-`credential_changed`, `error_raised`.
+`credential_changed`, `file_changed_outside`, `error_raised`.
 
 ### Words that differ from the screenshots
 
