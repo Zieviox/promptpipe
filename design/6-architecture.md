@@ -1,6 +1,6 @@
 # 5. Architecture and line budget (pass 2)
 
-Built on the decisions so far: all eleven strategies of `4-strategies.md`, libraries allowed
+Built on the decisions so far: all eleven strategies of `5-strategies.md`, libraries allowed
 behind adapters (pinned, not counted), the 3k covering the app with the optional plugins
 ideally inside it too, a full remake where only the intent and the UX/UI survive.
 
