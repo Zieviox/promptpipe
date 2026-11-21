@@ -1,0 +1,13 @@
+{
+  "manifest_version": 2,
+  "name": "promptpipe port",
+  "version": "1.0",
+  "description": "Carries promptpipe's calls between the app, its screen and the AI sites' pages.",
+  "browser_specific_settings": { "gecko": { "id": "promptpipe@zieviox.dev" } },
+  "permissions": ["nativeMessaging", "nativeMessagingFromContent", "geckoViewAddons"],
+  "content_scripts": [
+    { "matches": ["http://127.0.0.1/*"], "js": ["relay.js"], "run_at": "document_start" },
+    { "matches": ["https://*/*"], "js": ["page.js"], "run_at": "document_idle" }
+  ],
+  "content_security_policy": "script-src 'self' 'unsafe-eval'; object-src 'self'"
+}

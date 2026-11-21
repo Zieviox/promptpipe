@@ -165,8 +165,9 @@
       for (const [name, handler] of Object.entries(def.events || {})) event_on(name, handler);
       hooks[plugin.id] = { ...(hooks[plugin.id] || {}), ...(def.hooks || {}) };
     };
+    const page_files = [].concat(plugin.manifest.content_script || []);
     for (const file of plugin.manifest.files || []) {
-      if (file === plugin.manifest.content_script) continue;
+      if (page_files.includes(file)) continue;
       if (file.endsWith(".css")) {
         const link = Object.assign(document.createElement("link"), { rel: "stylesheet", href: `/plugins/${plugin.id}/${file}` });
         document.head.append(link);
@@ -174,9 +175,8 @@
         new Function("PP", `${await file_fetch(plugin.id, file)}\n//# sourceURL=${plugin.id}/${file}`)(own);
       } else content[`${plugin.id}/${file}`] = await file_fetch(plugin.id, file);
     }
-    if (plugin.manifest.content_script) {
-      content[`${plugin.id}/${plugin.manifest.content_script}`] = await file_fetch(plugin.id, plugin.manifest.content_script);
-    }
+    // The content script's files run in site pages, never here: kept as content to hand over.
+    for (const file of page_files) content[`${plugin.id}/${file}`] = await file_fetch(plugin.id, file);
   };
 
   // The app's own plugins first, in their order, then the others. A failing plugin of yours among
