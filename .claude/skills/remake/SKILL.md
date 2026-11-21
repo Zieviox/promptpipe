@@ -20,6 +20,8 @@ still open.
   until the user approves; if the user interrupts with a new instruction, write it into the
   design first (principles or requirements, with the date and their words), then continue.
 - **Record every decision** where it belongs, with the date: `Decided (YYYY-MM-DD): …`.
+- **Keep existing features**: a new instruction changes only what it names; it never removes a
+  feature by implication. When it seems to conflict with one, ask before changing it.
 - **Standard terms only**: the glossary in PLUGINS.md and standard programming terms; no invented
   words. `scripts/terms-check.py` stays at 0 (a retired word it flags is reworded, not exempted).
 - **Design from the requirements, not from the code**: the design stages use only `design/`
