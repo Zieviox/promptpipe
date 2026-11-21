@@ -407,13 +407,20 @@ and a module over its line returns here.
 
 ## Measured in the build (stage 9)
 
-| Module | Budget | Measured | Note |
-|---|---|---|---|
-| runtime · settings and records | 90 | 207 | the generic operations, validation, the linked-or-own getters and saving with the change check; flat records (2026-11-21) took 20 lines off |
-| runtime · chats | 160 | 306 | the text form both ways ~95, Find's filters, folder moves with your order and pins, site chats, attachments, the chats folder (copying moved into `file_move`) |
+The application layer (the runtime plugins), measured with `sloc.py` after Prettier at width 100:
 
-The budgets were optimistic (decided 2026-11-21: keep building, measure every module, re-estimate
-the total from real numbers; no packed lines, no cut features).
+| Module | Budget | Measured | What took the room |
+|---|---|---|---|
+| runtime · settings and records | 90 | 238 | the generic operations over every collection, validation, the linked-or-own getters, saving with the change check, applying and committing in one place (`record_apply`) |
+| runtime · chats | 160 | 323 | the text form both ways, counting tags, Find's query and filters, folder moves with your order and pins, site chats, attachments, the chats folder, loading a chat's turns |
+| runtime · profiles | 110 | 168 | `message_build` with every scope and the depth prompts, the preview, templates and profiles made from them |
+| runtime · send | 170 | 313 | the queue and the page pool (with the pages being opened counted), the sequence for web and API providers, saving the turn, cut-off replies, failures, side requests, jobs |
+| runtime · plugins | 100 | 180 | catalogues, installing from four kinds of source, zips with the S6 check, updates, copies |
+| runtime · change, credentials, storage | 70 | 118 | the shared dialog's three answers, the API token, connections, the storage check, the start |
+| **runtime** | **700** | **1,340** | 26 tests, all passing, without a phone |
+
+The budgets were about half of what clean code needs (decided 2026-11-21: keep building, measure
+every module, re-estimate the total from real numbers; no packed lines, no cut features).
 
 ## Next
 

@@ -51,7 +51,7 @@ model, options and toggles, D8),
 
 | Call | In → out | Callers | Use cases |
 |---|---|---|---|
-| `message_send` | a `Send` draft (`chat`, `message`, `attachments`, and when needed `profile`, `replaces`; no `chat` for a side request) → `Send` | S, P, A | UC1, UC2, UC5, UC15, UC42.3, UC43, UC44 |
+| `message_send` | a `Send` draft (`chat`, `message`, `attachments`, and when needed `profile`, `replaces`; no `chat` for a side request) → `Send` (a side request: its answer) | S, P, A | UC1, UC2, UC5, UC15, UC42.3, UC43, UC44 |
 | `message_build` | profile, chat → the text that would be sent | S, P, A | UC1, UC25 |
 | `send_stop` | send → done | S, P | UC3 |
 | `failure_resolve` | send, choice (`retry` · `check` · `edit` · `dismiss`) → done | S | UC4 |
@@ -85,7 +85,7 @@ model, options and toggles, D8),
 | `file_find` | root, query → matching files and lines | A | UC18 |
 | `catalogue_verify` | data, signature → `Catalogue`, or an error | A | S3 |
 | `plugin_list` | → installed copies, versions, changed-outside status | S, A | UC28, UC29, S4 |
-| `plugin_write` | plugin, files, catalogue entry → plugin (each file's hash checked against the entry) | A | UC29–UC31, S3 |
+| `plugin_write` | plugin, files, catalogue entry → plugin (each file's hash checked against the entry); or `previous` (swap with the copy the last install replaced); `copy: "yours"` writes your copy of a built-in plugin | A | UC29–UC31, S3 |
 | `plugin_remove` | plugin, copy → done | S | UC29 |
 | `log_read` | → the core log | S | UC38 |
 

@@ -34,7 +34,7 @@ build: it removed the nested-list code).
         <plugin id>.json           a plugin's data for this chat (Memory's summaries, ...)
       prompts.json                 the prompt library
       folders.json                 Folder records: your order in each folder, and of the pinned chats
-      tags.json                    counter tags' last numbers (when they count across all chats)
+      counters.json                counter tags' last numbers (State `counters`)
       repo/                        the history repository (its working tree is the chats folder)
 <app-private storage>              updated plugins, the revision record (D7), where the chats folder is,
                                    the core's key, the core log
@@ -139,7 +139,7 @@ is computed (`value_get`, a pure function), never stored.
 | `api_token_hash` | string | how the core checks the local API token (the token itself is a credential, UC37); the core trusts it only while the file's revision is the one it wrote (D7) |
 | `settings` | map setting key → value | only values you changed; the rest are linked to the schema's defaults (`Setting_Def`, D8), so nothing is stored twice |
 
-App settings are keys like `chats.provider` (for new chats, UC9), `chats.profile` (the active one, UC22), `look.mode`, `look.accent`, `look.scale`, `sites.pages` (default 5), `sites.idle_min`, `sites.total_min`, `look.enter_sends`, `look.stay_at_bottom` (on),
+App settings are keys like `storage.chats_folder` (where the chats folder is, UC36), `chats.provider` (for new chats, UC9), `chats.profile` (the active one, UC22), `look.mode`, `look.accent`, `look.scale`, `sites.pages` (default 5), `sites.idle_min`, `sites.total_min`, `look.enter_sends`, `look.stay_at_bottom` (on),
 `git.commit` (on), `git.name`, `git.email`, `git.remote`, `git.auto_push`, `tags.counter_scope` (each chat, all chats), `api.folder`, `updates.check` (off, daily, weekly),
 `updates.bundle`, `import.clash`, `help.button`, `help.seen.<place>`. The full list is the schema,
 written with the function list.
@@ -247,7 +247,7 @@ function (the only writer).
 | `chat_data` | list of `{ id, chat, plugin, data }` |
 | `drafts` | map chat id → `{ text, attachments }` (saved on the device, UC7) |
 | `sends` | list of `Send` (queued, on their way and failed alike) |
-| `pages` | list of `Page` |
+| `pages` | list of `Page` (and `opening`: how many are being opened) |
 | `jobs` | list of `Job` |
 | `ui` | `Ui` |
 
@@ -304,7 +304,7 @@ function (the only writer).
 | your plugin copies | runtime (copy) and you (edit) | `.promptpipe/plugins/` |
 | updated plugins | core (install, after verifying) | app-private `updates/` |
 | the revision record (D7) | core | app-private `revisions.json` |
-| counter tags' numbers | runtime, chats module | `.promptpipe/tags.json` |
+| counter tags' numbers | runtime, send module (as a turn is saved) | `.promptpipe/counters.json` |
 | `Folder` | runtime, chats module | `.promptpipe/folders.json` |
 | drafts | runtime, chats module | the app folder's `.promptpipe/drafts.json` |
 | the old app's backup | runtime (zipped with the same zip adapter that reads plugin zips) | the app folder's `.promptpipe/backups/` |
