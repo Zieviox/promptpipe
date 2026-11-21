@@ -18,6 +18,10 @@ SDK="${ANDROID_HOME:-$(sed -n 's/^sdk.dir=//p' local.properties 2>/dev/null)}"
 [ -f local.properties ] || echo "sdk.dir=$SDK" > local.properties
 NDK="${ANDROID_NDK_HOME:-$(ls -d "$SDK"/ndk/* | sort | tail -1)}"
 TOOLS=$(ls -d "$NDK"/toolchains/llvm/prebuilt/* | head -1)
+GRADLE=$(command -v gradle || ls -d /root/gradle-*/bin/gradle 2>/dev/null | sort | tail -1)
+[ -x "$GRADLE" ] || { echo "Gradle not found."; exit 1; }
+command -v ld.lld >/dev/null || { echo "lld is missing (Arch: pacman -S lld)."; exit 1; }
+[ -f debug.keystore ] || echo "Note: no debug.keystore here, so a test build won't install over the old app."
 
 echo "== 1/4 built-in plugins"
 python3 scripts/plugins_copy.py
@@ -36,7 +40,7 @@ case "$(llvm-readelf -lW "$OUT" | grep TLS)" in *0x40|*0x80|*0x100) ;; *) echo "
 
 echo "== 4/4 the APK"
 TASK=$([ "$TYPE" = release ] && echo assembleRelease || echo assembleDebug)
-gradle "$TASK" --console=verbose -PversionName="$NAME" -PversionCode="$CODE"
+"$GRADLE" "$TASK" --console=verbose -PversionName="$NAME" -PversionCode="$CODE"
 cp "app/build/outputs/apk/$TYPE/app-$TYPE.apk" "build/promptpipe-$NAME.apk"
 [ -d /sdcard/Download ] && cp "build/promptpipe-$NAME.apk" /sdcard/Download/promptpipe.apk
 echo "done: build/promptpipe-$NAME.apk"
