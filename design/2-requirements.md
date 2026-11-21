@@ -350,7 +350,7 @@ Requirements win over the screenshots (U 2026-11-21).
 - **Q4** About 3,000 lines of clean, comfortable code for the app (core, platform, loader, page
   script, runtime plugins with the screen); the optional plugins ideally inside it too; no packed
   lines, no cut features; libraries behind adapters are not counted (U 2026-11-20). The budget is
-  3,620, every feature kept, since 3,000 isn't reachable without cuts (decided 2026-11-21,
+  3,540 (3,620, less what Preact does for the screen), every feature kept, since 3,000 isn't reachable without cuts (decided 2026-11-21,
   `6-architecture.md` G and I); prose in content files isn't counted (decided F).
 - **Q5** Everything is folded by default unless it's active (U 2026-11-21): thinking, a message's
   trace, "Sent with", long messages, folders in the chats list, sections of a sheet. Active means

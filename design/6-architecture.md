@@ -62,11 +62,12 @@ the library used as it is. Library features no call needs are not wrapped.
 | platform | `clipboard_*`, `content_export`, `share_received`, `picker_open`, `url_open`, `vibration_start`, `bars_set`, `storage_access_open` | Android's services and intents |
 | platform | `app_get`, `app_start`, `app_close`, `service_stop` | the activity and a foreground service |
 | page script | `site_*` | the site's DOM, through the content scripts the app hands it; Turndown with its GFM plugin for the reply as Markdown |
-| screen | drawing | the DOM, idiomorph for redraws, markdown-it for replies, SortableJS for reordering |
+| screen | drawing | the DOM through Preact with htm (components are plain functions with no state of their own; the `State` is the only state), markdown-it for replies, SortableJS for reordering (after a drop the move is put back and applied to the `State`, so Preact stays the only one changing the page) |
 | runtime | zips (plugin zips, the old app's backup) | fflate |
 | screen | per-device conveniences (folds, Find's recent picks) | the browser's local storage |
 
-**Pinned versions** (decided D, checked 2026-11-21): idiomorph 0.8.0, markdown-it 15.0.3,
+**Pinned versions** (decided D, checked 2026-11-21; re-checked at the build): preact 11.1.1 (the 11
+line; 11.2.0 is two weeks old), htm 3.1.1, markdown-it 15.0.3,
 turndown 7.2.5, turndown-plugin-gfm 1.0.2, sortablejs 1.15.7, fflate 0.8.3, JGit
 5.13.3.202401111512-r (the last line that runs on Android's Java), GeckoView 144.0.20251020130000.
 They sit in `vendor/` and aren't counted (decided B).
@@ -152,21 +153,22 @@ the low end of stage 5's estimate (decided G).
 | loader | 130 (state and apply 30, plugin loader and safe mode 60, hooks and events 40) | 50 (bus client, call table) | 0 | **180** |
 | page side | 0 | 40 (the page script: the port, running handed code) | 160 (the default routine's stages 130, the report 30) | **200** |
 | runtime | 700 (send 170, chats and the text form 160, profiles 110, plugins 100, settings and the generic store 90, change 25, jobs 25, credentials and connections 20) | 0 (uses the loader's) | 0 | **700** |
-| screen | 120 (Find's ranking and query, the new-reply and scroll rules, guide progress) | 300 (schemas 190, command table 80, guide stages 30) | 1,020 (viewer 260, chat view 230, composer 70, header, provider menu and site view bar 90, Find 50, dialogs and toasts 30, command engine 130, CSS 160) | **1,440** |
-| **App** | **950** | **560** | **2,110** | **3,620** |
+| screen | 120 (Find's ranking and query, the new-reply and scroll rules, guide progress) | 300 (schemas 190, command table 80, guide stages 30) | 940 (viewer 230, chat view 210, composer 65, header, provider menu and site view bar 80, Find 50, dialogs and toasts 25, command engine 120, CSS 160) | **1,360** |
+| **App** | **950** | **560** | **2,030** | **3,540** |
 | Optional | | | Memory 220, Sub-chats 80, Base64 40, Page report 10, OpenAI provider 60, DeepSeek 30, Qwen 90, themes 20 | **550** |
 | Removable | | | the old-content import (strategy 13) | **130** |
-| **Everything** | | | | **4,300** |
+| **Everything** | | | | **4,220** |
 
 Honest reading:
 
-- The app's budget is **3,620**, the low end of the estimate; the expected range stays 3,620–4,280.
+- The app's budget is **3,540**: the low end of the estimate (3,620), less about 80 screen lines that
+  Preact does instead of our own element builder (2026-11-21); the expected range is 3,540–4,200.
   The risks: the screen (matching the screenshots' look exactly with a generic viewer), the
   platform (GeckoView's boilerplate), and the core's HTTP server (Odin has none to reuse).
 - **3,000 isn't reached by structure alone.** The search for the rest found only small moves (the
   site view bar and the provider menu as viewer lists, about 40; a reply's actions as commands,
   about 30); the remaining ~550 would need cutting features or packing lines, which is ruled out
-  (decided G). The honest target is 3,620.
+  (decided G). The honest target is 3,540.
 - A layer over its budget comes back here as a design problem, never as packed lines.
 - `scripts/sloc.py` (in the remake skill) reports each layer against this table at every build
   stage.
@@ -181,7 +183,7 @@ script and the screen stay as they are.
 
 - **H.** The channels: the screen talks to the platform over the extension's port and to the core
   over HTTP; the core never relays.
-- **I.** The budget: 3,620 for the app, every feature kept, is the budget for the function list
+- **I.** The budget: 3,620 for the app (3,540 since Preact, 2026-11-21), every feature kept, is the budget for the function list
   (stage 8); 3,000 isn't reachable without cuts (decided G).
 
 ## Sources

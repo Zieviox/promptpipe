@@ -50,6 +50,10 @@ names, below).
 - Formatter: Prettier, width 100; linter: ESLint's recommended rules, with the naming rule set to
   `snake_case`.
 - Each plugin runs in its own scope and reaches others only through `PP` (UC42.6).
+- The screen is drawn with Preact and htm through the screen's adapter (plugins through `PP`):
+  components are plain functions of their inputs; no hooks that hold state (`useState`,
+  `useReducer`, refs used as state), no class components; the `State` is the only state. Lists
+  keyed by record id.
 - Tests: Node's built-in test runner (`node:test`) for the application's pure functions and its
   sequences with stand-in calls; the screen's checks with Playwright and the screenshots (B5, Q1).
 
@@ -80,7 +84,7 @@ decided it is named.
 | 6 | `app_resumed` | gone: the platform reopens dead pages itself (R3) and reports them with `page_changed` | Nothing in the application listened for anything the platform didn't already report (YAGNI) |
 | 7 | `Send.saved` | derived: a send with no `chat` is a side request | Nothing stored twice (DOD) |
 | 8 | `Config.provider`, `Config.active_profile` (fields of their own) | the settings `chats.provider`, `chats.profile` | The coverage already set them with `record_set` on `settings`; one mechanism for app values (strategy 3) |
-| 9 | Q4 "about 3,000" | Q4 records the decided budget, 3,620 | The requirement and the decision said different things (DRY) |
+| 9 | Q4 "about 3,000" | Q4 records the decided budget (3,620; 3,540 since Preact) | The requirement and the decision said different things (DRY) |
 
 Kept after a look (they do different jobs): `chat_find` (parses the query) over `file_find` (scans
 text); `model_list` (picks the chat's page) over `site_model_list`; `plugin_install` and
@@ -94,7 +98,7 @@ page); `api_token_create` (makes the token and its hash) over `credential_create
 
 - The contract: 73 calls (9 record operations for 16 collections, 21 more in the application, 11
   in the core, 25 in the platform, 7 in the page script) and 7 events, from 81 and 9.
-- The budget stays 3,620 (fewer calls are fewer lines, kept as margin for the risks named in
+- The budget is 3,540 since Preact (fewer calls are fewer lines, kept as margin for the risks named in
   stage 6).
 
 ## Next

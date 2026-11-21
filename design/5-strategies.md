@@ -148,7 +148,7 @@ showed:
 
 | Problem | Library | Replaces |
 |---|---|---|
-| Redraws that keep typing, focus, scroll (R4) | idiomorph | today's 202-line morph.js |
+| Drawing the screen from the `State`, keeping typing, focus and scroll (R4), keyed lists, events that stay right across redraws | Preact with htm (templates without a build), behind the screen's adapter; components are plain functions with no state of their own (decided 2026-11-21) | today's 202-line morph.js and our own element builder |
 | Markdown in replies, with tables (D5, #214) | a GitHub-flavoured Markdown library (markdown-it or marked) | today's Markdown code, and adds tables |
 | A reply's HTML as Markdown, in the page | Turndown with its GFM plugin | the page script's ~110-line converter |
 | Drag to reorder, with grips, auto-scroll at the edges, dropping into folders (UC17) | SortableJS | the chats list's and the editors' drag code |
@@ -234,7 +234,9 @@ says so instead of hiding it.
 
 ## Decided (2026-11-21)
 
-- **D.** The libraries in strategy 10: idiomorph, a GitHub-flavoured Markdown library, Turndown with
+- **D.** The libraries in strategy 10: Preact with htm (chosen over lit-html and idiomorph on
+  2026-11-21: the model most developers and AI assistants know, which helps plugins written with an
+  AI), a GitHub-flavoured Markdown library, Turndown with
   its GFM plugin, SortableJS, fflate, JGit; versions picked and pinned in stage 6.
 - **E.** Strategy 13: the old-content import is a removable runtime plugin.
 - **F.** Strategy 14: prose lives in content files and isn't counted as code.
@@ -247,6 +249,6 @@ says so instead of hiding it.
 - Command registry: [VS Code commands](https://code.visualstudio.com/api/extension-guides/command)
 - JSON-RPC 2.0: [specification](https://www.jsonrpc.org/specification)
 - Filters pattern: [Microsoft architecture patterns](https://learn.microsoft.com/azure/architecture/patterns/pipes-and-filters)
-- Libraries: [idiomorph](https://github.com/bigskysoftware/idiomorph), [markdown-it](https://github.com/markdown-it/markdown-it), [Turndown](https://github.com/mixmark-io/turndown), [SortableJS](https://github.com/SortableJS/Sortable), [fflate](https://github.com/101arrowz/fflate), [JGit](https://www.eclipse.org/jgit/)
+- Libraries: [Preact](https://preactjs.com/), [htm](https://github.com/developit/htm), [markdown-it](https://github.com/markdown-it/markdown-it), [Turndown](https://github.com/mixmark-io/turndown), [SortableJS](https://github.com/SortableJS/Sortable), [fflate](https://github.com/101arrowz/fflate), [JGit](https://www.eclipse.org/jgit/)
 - Platform features: [`<dialog>`](https://developer.mozilla.org/docs/Web/HTML/Element/dialog), [Compression Streams](https://developer.mozilla.org/docs/Web/API/Compression_Streams_API)
 - Design tokens: [W3C Design Tokens Community Group](https://www.designtokens.org/)

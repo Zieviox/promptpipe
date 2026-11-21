@@ -89,6 +89,11 @@ The standard shape is **Ports and Adapters** (hexagonal architecture, Alistair C
 - **Every library goes through an adapter**, the languages' own libraries included (U 2026-11-21):
   Odin's `core:*` packages, the browser's APIs, Android's. Application code never calls a library
   directly, so no library's conventions or types leak into it.
+- **The app isn't object-oriented; a library may be** (U 2026-11-21: "Inside the app is what
+  shouldn't be OOP, but libraries can be whatever as long as we can have a proper wrapper"): the
+  app's own code is plain functions over plain data, with no classes, methods or hidden state; a
+  library can be written in any style (classes, components, its own state) as long as its adapter
+  turns it into plain calls and plain data. Inside the adapter the library is used as it is.
 - **Adapters** connect a port to a technology: the core (Odin) adapts files and the local API's
   HTTP; the platform (Kotlin) adapts GeckoView, JGit, the key store and the phone's services; the
   screen adapts the DOM; the page script adapts a site's page.
@@ -125,9 +130,10 @@ shell"):
   view; the core's own small record; the platform's; each page script's). Plain records and
   arrays, keyed by id, never object graphs with methods.
 - **State changes in one place**: an apply function takes the state and a change record and
-  returns the next state. The screen is drawn from the state (`view = f(state)`), with a DOM
-  morphing library keeping the redraw cheap and keeping what the person is doing (typing,
-  selection, scroll).
+  returns the next state. The screen is drawn from the state (`view = f(state)`), with a view
+  library (Preact, decided 2026-11-21) keeping the redraw cheap and keeping what the person is doing
+  (typing, selection, scroll); its components are plain functions of their inputs, with no state of
+  their own (no hooks holding state): the `State` is the only state.
 - **Data-oriented design**: design the data first (its shape, its one owner, how it flows), then
   the functions that transform it. Derived values are computed, not stored twice.
 

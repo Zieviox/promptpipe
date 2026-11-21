@@ -447,6 +447,6 @@ the screenshots only where the design has no word; one meaning per term):
 | `file` | the core's files under named folders (Odin `core:os` inside) |
 | the local API's HTTP | Odin `core:net` (core) |
 | `json`, `hash`, `signature`, `zip` | Odin `core:encoding/json`, `core:crypto/sha2`, `core:crypto/ed25519`, `core:compress/deflate` (core) |
-| `render`, `morph` | the browser's DOM and a morphing library (screen) |
+| `render` | the browser's DOM through Preact, with htm for templates (screen; plugins draw with the same, through `PP`) |
 | page building blocks | the site's DOM (page script) |
 | `local_storage` | the browser's local storage (screen; per-device conveniences only: folds, Find's recent picks) |
