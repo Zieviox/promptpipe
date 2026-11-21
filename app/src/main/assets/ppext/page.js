@@ -1,5 +1,5 @@
 "use strict";
-// In each AI site's page: join the platform's port, run only the content scripts the app hands
+// In each site's page: join the platform's port, run only the content scripts the app hands
 // this page (S9: never code from the website), and answer the `site_*` calls with their stages.
 // It reports the page's address as it changes, and whether the chat box shows (ready).
 (() => {
