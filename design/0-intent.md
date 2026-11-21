@@ -118,6 +118,13 @@ Every goal a person can reach. Each becomes a driving port later. "→" is the r
   (web or API), a theme, a side request to the provider, an own sheet, a header toggle, menu
   entries; or replace one of the app's own parts.
 
+### Built-in plugins (added in stage 2)
+- **UC43** Long chats keep their context (Memory): older turns summarised before the limit.
+- **UC44** A long chat continues in a new site chat (Sub-chats); the file stays one.
+- **UC45** Encode the message and decode the reply (Base64).
+- **UC46** Report a site's page to fix a provider (Page report).
+- **UC47** Themes: Ember and Paper.
+
 ## UX/UI reference
 
 `design/ux/` has a screenshot of every screen and state (63 states, 126 images), light and dark, on a phone-sized screen
