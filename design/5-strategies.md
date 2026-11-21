@@ -232,15 +232,14 @@ says so instead of hiding it.
 - **C.** The 3k covers the app (core, platform, loader, page script, runtime plugins with the
   screen, its data and CSS); ideally the optional plugins fit in it too.
 
-## Open (stage 5)
+## Decided (2026-11-21)
 
-1. **The libraries in strategy 10** (idiomorph, a Markdown library, Turndown, SortableJS, fflate,
-   JGit): approve? Recommended: yes; versions are picked and pinned in stage 6.
-2. **Strategy 13**, the old-content import as a removable runtime plugin: recommended yes.
-3. **Strategy 14**, prose in content files, not counted: recommended yes.
-4. **The target**: the estimate is 3,600–4,300 for the app. Recommended: stage 6 budgets for the low
-   end and hunts the rest structurally; if it can't reach 3,000 without packing or cutting, accept
-   the honest number rather than cut.
+- **D.** The libraries in strategy 10: idiomorph, a GitHub-flavoured Markdown library, Turndown with
+  its GFM plugin, SortableJS, fflate, JGit; versions picked and pinned in stage 6.
+- **E.** Strategy 13: the old-content import is a removable runtime plugin.
+- **F.** Strategy 14: prose lives in content files and isn't counted as code.
+- **G.** The target: stage 6 budgets for the low end and looks for the rest in the structure; if
+  3,000 can't be reached without packing lines or cutting features, the honest number is accepted.
 
 ## Sources
 
