@@ -169,7 +169,7 @@ The screen needs no events of its own: it draws the `State` after every change.
 | UC1 send | `message_send` → `message_build`, `site_send` or `http_fetch`, `file_write`, `repo_commit` |
 | UC2 queue | `record_move`, `record_set`, `record_delete` on `sends` |
 | UC3 stop | `send_stop` → `site_stop` |
-| UC4 failed | `failure_resolve` → `site_read`; for site errors also `view_set` (Open the site) and `site_report_build`, `clipboard_write` (Copy page report) |
+| UC4 failed | `failure_resolve` → `site_read`; for site errors also `view_set` (Show the page) and `site_report_build`, `clipboard_write` (Copy page report) |
 | UC5 resend | `message_send` with `replace_last` |
 | UC6 reuse text | `chat_export`, `clipboard_write` |
 | UC7 long text | `record_set` on `drafts`, `picker_open` |

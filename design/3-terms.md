@@ -259,7 +259,7 @@ function (the only writer).
 - **`Envelope`**: every message between the screen, the core, the platform and a page:
   `type` (`"call"` · `"reply"` · `"event"`), `name`, `data`, `id`, `error`.
 - **`Error`**: `code` (which error: `site_refused`, `human_check`, `page_failed`, `page_unexpected`,
-  `no_connection`, `not_supported`, …; the screen offers Open the site and Copy page report for the
+  `no_connection`, `not_supported`, …; the screen offers Show the page and Copy page report for the
   site ones, UC4), `message` (what happened and what to do), `page` (when a page was involved).
 - Each side's own small state stays private to it: the core's (its key, its folders, the version
   record, the local API's open requests), the platform's (its views, pop-ups, the credential
