@@ -276,7 +276,7 @@ file_delete :: proc(d: Object) -> (string, Error) {
 	return `{"done":true}`, {}
 }
 
-// A folder's entries, hidden ones left out.
+// A folder's entries, hidden ones left out unless asked for (`hidden`, for a whole backup).
 file_list :: proc(d: Object) -> (string, Error) {
 	full, perr := path_verify(text_get(d, "root"), text_get(d, "folder"))
 	if perr.code != "" do return "", perr
@@ -288,7 +288,8 @@ file_list :: proc(d: Object) -> (string, Error) {
 	b := strings.builder_make()
 	strings.write_byte(&b, '[')
 	n := 0
-	for e in entries do if !strings.has_prefix(e.name, ".") {
+	hidden := flag_get(d, "hidden")
+	for e in entries do if hidden || !strings.has_prefix(e.name, ".") {
 		fmt.sbprintf(
 			&b,
 			`%s{{"name":%s,"folder":%v,"size":%d,"time":%d}}`,
