@@ -31,8 +31,8 @@ Requirements win over the screenshots (U 2026-11-21).
 - **UC4 Recover a failed send**: the failed message shows its reason with Check (keep what the
   page shows), Retry, Edit (back into the box) and Dismiss (F). When the error involves a site (a
   refusal, a human check, a page that didn't load, the page not behaving as the provider expects),
-  two more actions sit under the message: **Show the page** (shows that page in the site view, to
-  deal with it there) and **Copy page report**, the names the provider sheet already uses
+  two more actions sit under the message: **Show the page** (shows that page in the AI page, to
+  deal with it there) and **Copy page report**, the names the Profile and provider sheet already uses
   (U 2026-11-21).
 - **UC5 Edit and resend** your last message, or send a message again unchanged (F, seen in
   `chat-message-menu`).
@@ -51,13 +51,13 @@ Requirements win over the screenshots (U 2026-11-21).
   message; "Choose on the site" when the list can't be read (F, seen in `models`).
 - **UC11 Toggles for this chat**: Quick edit next to the message box turns blocks on or off for
   this chat (each toggle linked to the profile's default, or the chat's own, D8); a plugin's toggle can also sit in the header or the toolbar (F).
-- **UC12 Site view**: tabs, each showing its own page (#236); closing a tab closes its page, any
+- **UC12 The AI page**: tabs, each showing its own page (#236); closing a tab closes its page, any
   tab can be closed and a page opens again when one is needed (#242); pages opened for side
   requests show as tabs marked as side requests and close when the request is done (#242); a new
   page;
   the address bar can be typed in and isn't overwritten while you type (#240, #251); reload; back
   inside the site (#243); sign-in pop-ups get their own view and are closed when done (#244);
-  Back closes the site view when nothing is on top of it (#239).
+  Back closes the AI page when nothing is on top of it (#239).
 - **UC13 The site's own chats**: list the site's sidebar chats, open one and continue it here,
   paste a chat link, link this chat to the open page, import a site chat's earlier messages, add
   the page's newest reply to this chat (F).
@@ -69,13 +69,13 @@ Requirements win over the screenshots (U 2026-11-21).
 
 ### Chats
 
-- **UC16 New chat, the chats list**: pinned first, then by day, then folders (F).
+- **UC16 New chat, Chats**: pinned first, then by day, then folders (F).
 - **UC17 Organise**: pin, move (drag, or "Move to"), rename, delete (the chat stays in the
   history), select several by long press; create, rename, delete folders (F).
 - **UC18 Find**: text in every chat, with `#tag`, `in:folder`, `"exact phrase"`, `is:you`,
   `is:ai` (F); fast with thousands of chats, without reading every file in full each time (#212).
   The same search finds the app's commands and settings (F, seen in the shortcuts list).
-- **UC19 Chat details**: title, chat tags, provider and model, the chat's history (F).
+- **UC19 The Chat sheet**: title, chat tags, provider and model, the chat's history (F).
 - **UC20 Tags**: a chat tag goes on every message; a message tag on one; a tag ending in `#`
   counts up (`part#` → `part1`, `part2`) (F); whether the count runs within each chat or across all
   chats is your choice in Settings (default: within each chat) (U 2026-11-21).

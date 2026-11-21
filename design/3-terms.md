@@ -24,7 +24,7 @@ other by id, never by holding each other.
     food/Recipe notes.md           folders hold readable chats
     .promptpipe/                   hidden, .nomedia; moves with the chats
       chats/<chat id>/
-        meta.json                  Chat (everything but the turns): small, read for the chats list
+        meta.json                  Chat (everything but the turns): small, read for Chats
         turns.json                 the turns
         attachments/               UC48
         <plugin id>.json           a plugin's data for this chat (Memory's summaries, ...)
@@ -359,7 +359,7 @@ The module nouns are the record names in lower case plus these: `app`, `file`, `
 `option`, `model`, `http`, `version`, `bundle` (the release's zip of built-in plugins), `screen`
 and its parts (`sheet`, `drawer`, `menu`, `toast`, `dialog`, `item`), `theme`, `log`, `schema`
 (the list of `Setting_Def`), `failure` (a failed send), `change` (an outside change, D7),
-`commit`, `view` (the site view), `content` (what's exported), `picker` (the system's file
+`commit`, `view` (where the AI page shows a page), `content` (what's exported), `picker` (the system's file
 picker), `clipboard`, `url`, `vibration`, `bars` (the system bars), `storage`, `storage_access`,
 `service` (the background service), `api_token`, `chats_folder`, `chat_data`, `catalogue`,
 `record` (any record of a collection), `collection`, `popup` (a sign-in window a site opens),

@@ -38,6 +38,11 @@ file, saying which one decided it:
 - **KISS**: a reuse that needs more special cases than a small new addition would is counterproductive.
 - **YAGNI**: when nothing existing fits, the new addition covers today's use cases only.
 
+**Names are reused too**: before naming anything (an on-screen label, a term, a field, a call), the
+existing name comes first: the screenshots' labels for anything on screen (`design/ux/`), the
+glossary for terms, the standard for code. A new name only when none fits, and it goes into the
+glossary.
+
 Examples already in the design: one set of record operations for every collection; one port each
 way; one change check for every file; one `Send` record for queued, sending and failed messages; one "linked or own" rule for every
 choice a chat, a profile or the app can override (D8);
