@@ -279,9 +279,14 @@ over. No features were cut and nothing was packed (decided G).
 1. **Build it**: `python3 scripts/plugins_copy.py` (it reads the plugins repo's catalogue), then
    the Gradle build. The Kotlin platform has never been compiled; expect a round of compile
    errors.
-2. **Make the catalogue key** (above), put the public key in `core/plugins.odin`, sign, and commit
-   `catalogue.json.sig`. Until then no catalogue is accepted. The built-in plugins and installing
-   from a link, zip or AI answer work anyway.
+2. **Make the keys, once**: `sh scripts/keys_make.sh` (on the phone or computer you build on). It
+   makes the APK's release key, which by default is your `debug.keystore`'s key under a new
+   password, so the new app installs over the old one with nothing uninstalled. It also makes the
+   catalogue's keys 1 (everyday) and 2 (backup), puts both public keys into `core/plugins.odin`
+   and key 1's into the plugins repo's `catalogue.pub`, and prints what goes into your password
+   manager. Then commit both, sign with `scripts/catalogue_sign.py`, and build with
+   `sh scripts/build.sh <name> <code> release`. Until the keys are made no catalogue is
+   accepted; the built-in plugins and installing from a link, zip or AI answer work anyway.
 3. **Stage 10, parity**: walk the old app's behaviour (2b) on the phone. Also try DeepSeek and Qwen
    on the real sites (their selectors are from November's page reports) and the old app's import
    on your real data. The import only reads the old folders, apart from the marker.
@@ -300,6 +305,11 @@ over. No features were cut and nothing was packed (decided G).
 - The old app's folder order and pins aren't imported (its order file wasn't found in the old
   code).
 - Icons are text glyphs for now, not drawn to match the screenshots.
+
+**Other sources** (added after the note above): another repository's catalogue is checked against
+its own key, which it publishes as `catalogue.pub`. You see the key and accept it once when you
+add the source in Plugins › Catalogue › Sources; from then on that source must be signed with that
+key. The official source uses the keys built into the app.
 
 **Reused from the old code** (reported, X1): the Bionic shim and NDK steps (above), and data rather
 than code: the DeepSeek and Qwen selectors, Ember's and Paper's colours, Memory's and Base64's
