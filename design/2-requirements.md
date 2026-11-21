@@ -15,9 +15,11 @@ Requirements win over the screenshots (U 2026-11-21).
      (U 2026-11-20: "Same as site").
   2. The reply streams in live, for web and API providers (U 2026-11-20); then the plugins'
      after-reply hooks run on it, and the chat is saved.
-  3. The model's thinking is read and kept, folded above the reply ("Thought for Ns") (F).
-  4. Up to 5 pages answer at once (10 if allowed in Settings), shared by your chats, plugins' side
-     requests and other apps' requests (F).
+  3. The model's thinking is read and kept in full, above the reply ("Thought for Ns"), folded
+     or open as set in Settings (folded by default, as today) (F, U 2026-11-21).
+  4. Several pages answer at once, shared by your chats, plugins' side requests and other apps'
+     requests; how many is a setting (default 5), with a warning above 5 (each page uses memory,
+     and many at once can look like a bot to the site); no hard maximum (F, U 2026-11-21).
   5. A refusal, a human check or an error from the site ends the send at once, with the reason in
      plain words (F, #245, #247); no connection, a wrong address or a refused certificate is said
      at once, not after a wait (#241).
@@ -32,7 +34,7 @@ Requirements win over the screenshots (U 2026-11-21).
   block, your message, the thinking; select text by long press, or in a box made for picking a
   part (F).
 - **UC7 Write long text**: a big message box; Enter sends when set (Shift+Enter a new line); text
-  files go into the box (F).
+  files go into the box, with no size limit and a warning on very large ones (F, U 2026-11-21).
 - **UC8 Read without losing your place**: replies never scroll the chat for you; "↓ 1 new" jumps
   to the start of the new reply; "Stay at the bottom while a reply comes in" applies only if you
   were already at the bottom (F).
@@ -42,8 +44,10 @@ Requirements win over the screenshots (U 2026-11-21).
   and set before each message; "Choose on the site" when the list can't be read (F).
 - **UC11 Toggles for this chat**: Quick edit next to the message box turns blocks on or off for
   this chat; a plugin's toggle can also sit in the header or the toolbar (F).
-- **UC12 Site view**: tabs, each showing its own page (#236); closing a tab closes its page, the
-  last one stays (#242); pages opened for side requests don't pile up as tabs (#242); a new page;
+- **UC12 Site view**: tabs, each showing its own page (#236); closing a tab closes its page, any
+  tab can be closed and a page opens again when one is needed (#242); pages opened for side
+  requests show as tabs marked as side requests and close when the request is done (#242); a new
+  page;
   the address bar can be typed in and isn't overwritten while you type (#240, #251); reload; back
   inside the site (#243); sign-in pop-ups get their own view and are closed when done (#244);
   Back closes the site view when nothing is on top of it (#239).
@@ -93,8 +97,9 @@ Requirements win over the screenshots (U 2026-11-21).
   updated, yours) is visible (F, U).
 - **UC30 Install other ways**: from a link, a zip, or the files of an AI's answer; add a source
   (a GitHub repository); copy the plugin-writing instructions for an AI (F).
-- **UC31 Stay up to date**: Update all; a daily check that fails quietly (a check you start says
-  what happened); the release bundle as an opt-in fallback (F).
+- **UC31 Stay up to date**: Update all; an automatic check, off, daily or weekly as set (default
+  daily), that fails quietly (a check you start says what happened); the release bundle as an
+  opt-in fallback (F, U 2026-11-21).
 - **UC32 Plugin settings**, per profile, declared by the plugin and drawn by the screen (F).
 - **UC33 Safe mode**: when one of your runtime plugins fails to load, the app starts with the
   app's own plugins only and says which failed; start in safe mode by hand; leave it (F).
@@ -102,8 +107,9 @@ Requirements win over the screenshots (U 2026-11-21).
 ### Settings and help
 
 - **UC34 Look**: light or dark (or the system's), accent, UI scale, text size, themes (plugins),
-  quick actions under replies, stay at the bottom while a reply comes in, Enter sends (F).
-- **UC35 Sites**: pages at once (5, up to 10), waiting limits (F).
+  quick actions under replies, stay at the bottom while a reply comes in, Enter sends, thinking
+  folded or open (F).
+- **UC35 Sites**: pages at once (default 5, a warning above 5), waiting limits (F).
 - **UC36 Chats and storage**: move the chats folder (with or without copying), back to the
   default; all-files access; a storage check, step by step with the system's reason; git: remote,
   token (from secure storage), push, pull, auto-push (F, U).
@@ -151,6 +157,12 @@ Requirements win over the screenshots (U 2026-11-21).
   7. Web providers are mostly selectors, plus an optional content script for the site's quirks;
      the page offers ready building blocks so a content script stays small (F).
 
+- **UC48 Attach files** (added in stage 2, U 2026-11-21): attach files or images to a message
+  (an attach button, sharing files in, pasting an image); they're kept in the app's hidden folder
+  (D6) and linked from the chat file; each provider says which types and how many it accepts, and
+  the screen says when the active one doesn't; other apps' requests can carry image and file parts
+  (UC41). The app supports it end to end; teaching each provider plugin to upload comes later.
+
 ### Built-in plugins (use cases added in stage 2)
 
 - **UC43 Long chats keep their context** (Memory): older turns are summarised in a side request
@@ -181,9 +193,13 @@ Requirements win over the screenshots (U 2026-11-21).
 - **D1** Every chat is a Markdown file with a header, in the chats folder on shared storage,
   readable with any app (F, intent).
 - **D2** Every change to the chats folder is a commit in its repository (F).
-- **D3** The prompt library is kept with the chats (F).
+- **D3** The prompt library is kept with the chats, in the app's hidden folder (D6) (F).
 - **D4** Files are written safely: a cut-off write never leaves a broken file (#211).
 - **D5** Replies are shown in full: tables, images (as links), strike-through, nested lists (#214).
+- **D6** The chats folder shows only the chat files. Everything else the app keeps there (the
+  history repository, the prompt library, attachments, indexes, backups) is in one hidden folder
+  (`.promptpipe/`, with a `.nomedia` marker), so the system's media index and file managers'
+  "Recent" lists skip it; checked on the phone (U 2026-11-21).
 
 ### S. Security
 
@@ -192,15 +208,20 @@ Requirements win over the screenshots (U 2026-11-21).
   says so when another app holds the port (#203).
 - **S3** Every plugin download is checked against the catalogue's hash (#201); the catalogue is
   signed and the signature checked (#202). The checks are not updatable by plugins.
-- **S4** Plugins and settings on shared storage that changed outside the app are shown, and the
-  app's own plugins wait for a tap before they run (#204; open, decision 2).
+- **S4** Plugins and settings stay on shared storage (your copies editable with a file manager);
+  the app records each file's hash, shows anything changed outside the app, and asks before
+  running an app plugin that changed (#204; decided 2026-11-21).
 - **S5** Plain HTTP only to 127.0.0.1 (#215).
-- **S6** Zips are checked before unpacking, with size and count limits (#213); downloads over
-  45 MB are refused with a clear reason (#216).
+- **S6** Zips are checked before unpacking: broken offsets refused, and an unpacked size far beyond
+  any real plugin (500 MB) refused as a zip bomb (#213). Downloads go straight to a file, with no
+  size limit (#216 was an artifact of the old core) (U 2026-11-21).
 - **S7** Secrets are encrypted with the platform's key store, excluded from backups, and never in
   exports, settings, the repository or logs (U, best practice).
-- **S8** Releases are release builds with their own signing key; the browser engine's version is
-  pinned (#207, #208; open, decision 3).
+- **S8** Releases are release builds with their own signing key, starting with the first release
+  of the remade app (one reinstall for everyone, once); the browser engine's version is pinned
+  (#207, #208; decided 2026-11-21). The catalogue's signing key is made on the phone and kept
+  there, with a copy in a password manager; the APK holds two public keys (main and backup)
+  (#202; decided 2026-11-21).
 
 ### R. Reliability
 
@@ -252,14 +273,15 @@ Requirements win over the screenshots (U 2026-11-21).
   every plugin.
 - **X4** The old app stays usable until the new one passes every requirement; then the old code is
   removed in one change.
-- **X5** Your content from the old app (chats, prompt library, profiles): open, decision 1.
+- **X5** Your content from the old app (chats, prompt library, profiles) is imported once on the
+  new app's first start (decided 2026-11-21).
 
 ### N. Not now (YAGNI)
 
 - **N1** A desktop or iOS platform (only the ports are kept ready).
 - **N2** A fingerprint lock and spending hints for keys (U 2026-11-20).
 - **N3** Shared groups across profiles (#255) and the Memory reminder for API chats.
-- **N4** Sync other than git; several users; cloud services.
+- **N4** Sync other than git; several users; cloud services (kept as not now, 2026-11-21).
 
 ## Where the earlier ids went
 
@@ -268,14 +290,15 @@ UC39, UC42, S3; E1–E9 → UC14, UC16–UC21, UC36, D1–D5; F1–F5 → UC43�
 → UC40, S7, N2; I1–I8 → UC6, UC8, UC34, UC39, Q2, Q3, R4, R5; J1–J7 → S1–S8; K1–K6 → R1–R3,
 R6, UC31, X5; L1–L4 → B1–B5; M1–M3 → W1–W3; O1–O6 → X1–X5, Q1, B3; N1–N4 → N1–N4.
 
-## Open decisions
+## Decided in stage 2 (2026-11-21)
 
-1. **Your content from the old app** (chats, prompt library, profiles): (a) imported once on the
-   first start of the new app (recommended); (b) start clean.
-2. **Plugins and settings on shared storage (S4, #204)**: (a) move them to the app's private
-   storage; (b) keep them on shared storage, record each file's hash, and ask before running an
-   app plugin changed outside the app (recommended: your copies stay editable with a file manager).
-3. **Release builds (S8, #207)**: the switch to a release signing key means one uninstall and
-   reinstall for everyone; (a) with the first release of the remade app (recommended: one
-   disruption instead of two); (b) before it. Where the catalogue's signing key (S3, #202) is
-   kept is part of the same decision.
+The limits review: thinking folded or open as a setting; pages at once a setting with a warning,
+no hard maximum; the automatic update check a setting; no size limit on text files or downloads;
+zips only guarded against zip bombs; any tab can be closed; side-request pages show as marked tabs.
+Your old content imported once; plugins and settings stay on shared storage with a hash check;
+release builds with the first remade release, the catalogue key on the phone with a backup;
+the app's own files in a hidden folder (D6); attachments supported (UC48).
+
+## Open
+
+1. The name for "secure storage" and "secret" (see the stage 2 review).

@@ -60,6 +60,8 @@ Every goal a person can reach. Each becomes a driving port later. "→" is the r
 - **UC14** Share text from another app (or select text → "Send to promptpipe") → a new chat with it.
 - **UC15** Chat through an AI API with your key (OpenAI first) → the same chat, profile and history
   as a website.
+- **UC48** Attach files or images to a message (added in stage 2) → kept with the chat, sent to
+  providers that accept them.
 
 ### Chats
 - **UC16** Start a new chat; open your chats: pinned first, then by day, then folders.
