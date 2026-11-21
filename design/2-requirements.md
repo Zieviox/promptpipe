@@ -42,10 +42,12 @@ Requirements win over the screenshots (U 2026-11-21).
   part (F).
 - **UC7 Write long text**: a big message box; Enter sends when set (Shift+Enter a new line); text
   files go into the box, with no size limit and a warning on very large ones (F, U 2026-11-21).
-- **UC8 Read without losing your place**: the app never moves your scroll position: not for new
-  or growing replies, redraws, opening or closing sheets, or coming back to a chat (each place
-  comes back where you left it). New replies show a notice ("↓ 1 new") with a quick scroll to
-  the start of the reply (U 2026-11-21; the old "Stay at the bottom" setting is gone).
+- **UC8 Read without losing your place**: the app never moves your scroll position by itself: not
+  for redraws, opening or closing sheets, or coming back to a chat (each place comes back where you
+  left it). New replies show a notice ("↓ 1 new") with a quick scroll to the start of the reply.
+  The one exception is yours to choose: "Stay at the bottom while a reply comes in" (on by
+  default) keeps the view at the bottom as a reply grows, only if you were already at the bottom
+  (F, U 2026-11-21).
 - **UC9 Choose the provider**: the provider's name in the header (with its state dot) opens the
   provider menu: switch provider, open its site, log in once (F).
   The header shows the provider, its model (marked as wanted until the page shows it), a state dot (replying, ready, idle) and a dot when the provider's plugin has an update; getting a provider shows the advice to use a separate account on the site (F, from the old app's code).
@@ -139,7 +141,7 @@ Requirements win over the screenshots (U 2026-11-21).
 ### Settings and help
 
 - **UC34 Look**: light or dark (or the system's), accent, UI scale, text size, themes (plugins),
-  quick actions under replies, Enter sends (F).
+  quick actions under replies, stay at the bottom while a reply comes in (UC8), Enter sends (F).
   Quick actions under replies: on the newest reply only (default), on every reply, or off; a tap shows or hides them on one reply. UI scale: Ctrl+= and Ctrl+- make it bigger or smaller, Ctrl+0 back to 100% (F, from the old app's code).
 - **UC35 Sites**: pages at once (default 5, a warning above 5), waiting limits (F).
 - **UC36 Chats and storage**: the chats folder is a `chats` subfolder of the app folder by default

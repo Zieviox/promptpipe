@@ -124,7 +124,7 @@ is computed (`value_get`, a pure function), never stored.
 | `settings` | map setting key → value | only values you changed; the rest are linked to the schema's defaults (`Setting_Def`, D8), so nothing is stored twice (S3) |
 | `api_token_hash` | string | to check the local API token (the token itself is a credential, UC37) |
 
-App settings are keys like `look.mode`, `look.accent`, `look.scale`, `sites.pages` (default 5), `sites.idle_min`, `sites.total_min`, `look.enter_sends`,
+App settings are keys like `look.mode`, `look.accent`, `look.scale`, `sites.pages` (default 5), `sites.idle_min`, `sites.total_min`, `look.enter_sends`, `look.stay_at_bottom` (on),
 `git.commit` (on), `git.name`, `git.email`, `git.remote`, `git.auto_push`, `tags.counter_scope` (each chat, all chats), `api.folder`, `updates.check` (off, daily, weekly),
 `updates.bundle`, `import.clash`, `help.button`, `help.seen.<place>`. The full list is the schema,
 written with the function list.
