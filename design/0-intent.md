@@ -54,7 +54,7 @@ Every goal a person can reach. Each becomes a driving port later. "→" is the r
   message; "Choose on the site" when the list can't be read.
 - **UC11** Turn blocks on or off for this chat (Quick edit; plugin toggles in the header or
   toolbar).
-- **UC12** See the site's pages (the AI page): tabs, a new page, the address bar, reload, back.
+- **UC12** See the site's pages (site view): tabs, a new page, the address bar, reload, back.
 - **UC13** Bring the site's own chats in: list them, open one and continue it here, paste a chat
   link, import a site chat's earlier messages, add the page's newest reply to this chat.
 - **UC14** Share text from another app (or select text → "Send to promptpipe") → a new chat with it.

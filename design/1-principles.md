@@ -38,10 +38,11 @@ file, saying which one decided it:
 - **KISS**: a reuse that needs more special cases than a small new addition would is counterproductive.
 - **YAGNI**: when nothing existing fits, the new addition covers today's use cases only.
 
-**Names are reused too**: before naming anything (an on-screen label, a term, a field, a call), the
-existing name comes first: the screenshots' labels for anything on screen (`design/ux/`), the
-glossary for terms, the standard for code. A new name only when none fits, and it goes into the
-glossary.
+**Names are reused too**: before naming anything (a term, an on-screen label, a field, a call), the
+existing name comes first, in this order: the design's terms and our decisions (`3-terms.md`, the
+glossary, the decisions recorded in these files), then the standard term. The screenshots are the
+reference for look and behaviour, not for words: their labels are used only where the design has
+no term (U 2026-11-21). A new name only when none fits, and it goes into the terms.
 
 Examples already in the design: one set of record operations for every collection; one port each
 way; one change check for every file; one `Send` record for queued, sending and failed messages; one "linked or own" rule for every

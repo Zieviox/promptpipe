@@ -109,7 +109,7 @@ write, move and delete: one mechanism for every file (D7).
 | `page_open` | address → `Page` | S, A | UC9, UC12, UC13 |
 | `page_close` | page → done | S, A | UC12 |
 | `page_navigate` | page, to (an address · `back` · `reload`) → done | S | UC12 |
-| `view_set` | page, or none → done (the AI page's region) | S | UC4, UC9, UC12 |
+| `view_set` | page, or none → done (the site view's region) | S | UC4, UC9, UC12 |
 | `http_fetch` | request (address, method, headers, body, credential name, streaming, file to save to) → response; parts as `http_received` events | A, P | UC15, UC29–UC31 |
 | `credential_create` | fields, value → credential | S | UC40 |
 | `credential_list` | → credentials (no values) | S, A | UC40 |
@@ -169,7 +169,7 @@ The screen needs no events of its own: it draws the `State` after every change.
 | UC1 send | `message_send` → `message_build`, `site_send` or `http_fetch`, `file_write`, `repo_commit` |
 | UC2 queue | `record_move`, `record_set`, `record_delete` on `sends` |
 | UC3 stop | `send_stop` → `site_stop` |
-| UC4 failed | `failure_resolve` → `site_read`; for site errors also `view_set` (Show the page) and `site_report_build`, `clipboard_write` (Copy page report) |
+| UC4 failed | `failure_resolve` → `site_read`; for site errors also `view_set` (Open the site) and `site_report_build`, `clipboard_write` (Copy page report) |
 | UC5 resend | `message_send` with `replace_last` |
 | UC6 reuse text | `chat_export`, `clipboard_write` |
 | UC7 long text | `record_set` on `drafts`, `picker_open` |
@@ -177,7 +177,7 @@ The screen needs no events of its own: it draws the `State` after every change.
 | UC9 provider | `record_set` on `chats` (own) or `settings` (the default), `page_open`, `view_set`, `url_open` |
 | UC10 model, options | `model_list`, `option_list` → `site_model_list`, `site_option_list`; `record_set` on `provider_choices` (linked) or `chats` (own) |
 | UC11 toggles | `record_set` on `chats` (own) or `blocks` (the profile's default) |
-| UC12 the AI page | `page_open`, `page_close`, `page_navigate`, `view_set`; `page_changed`, `popup_changed` |
+| UC12 site view | `page_open`, `page_close`, `page_navigate`, `view_set`; `page_changed`, `popup_changed` |
 | UC13 site chats | `site_chat_list`, `site_chat_open`, `site_chat_import`, `record_set` on `chats` (link to the page) |
 | UC14 share in | `share_received` → `chat_create` |
 | UC15 API | `message_send` → `http_fetch` with a credential |

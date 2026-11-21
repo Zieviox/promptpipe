@@ -28,11 +28,12 @@ still open.
 - **Reuse first**: before adding a record, field, call, event, type, file, mechanism or setting,
   look for what already exists and use it; add only when using it would be counterproductive,
   decided by the standards in `design/1-principles.md` ("Reuse first"), and say which one decided.
-  Names too: an on-screen label reuses the screenshots' label, a term the glossary's, code the
-  standard's; a new name only when none fits.
+  Names too, in this order: the design's terms and recorded decisions, then the standard term; the
+  screenshots' labels only where the design has no term (they are the reference for look and
+  behaviour, not for words); a new name only when none fits.
 - **Self-review before every hand-off**: everything traces to a use case or requirement; nothing
   is stored twice (no links in both directions, no derived value saved); one mechanism per job;
-  every on-screen name matches the screenshots' labels (or is new and in the glossary);
+  every name is the design's term (or the standard's, or new and added to the terms);
   every name follows the rules (`python3 .claude/skills/remake/scripts/name-check.py` for the
   call contract, terms-check for retired words); when a stage touches the use cases, the model or
   the calls, every screen state in `design/ux/` is gone through and each element and action traced
