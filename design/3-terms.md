@@ -31,7 +31,7 @@ other by id, never by holding each other.
       prompts.json                 the prompt library
       tags.json                    counter tags' last numbers (when they count across all chats)
       repo/                        the history repository (its working tree is the chats folder)
-<app-private storage>              updated plugins, the version record (D7), where the chats folder is,
+<app-private storage>              updated plugins, the revision record (D7), where the chats folder is,
                                    the core's key, the core log
 <the platform's credential store>  credentials, encrypted with the key store (S7)
 <the APK>                          the built-in plugins, the loader, the page script (read-only)
@@ -55,7 +55,7 @@ readable `.md` built from them. Owner: the runtime's chats module.
 |---|---|---|
 | `id` | string | stable id; names the chat's data folder, and heads its readable file |
 | `file` | path | its readable `.md`, relative to the chats folder (the folder is part of it) |
-| `title` | string | shown in the list and the header |
+| `name` | string | shown in the list and the header |
 | `created`, `updated` | time | |
 | `own` | map | the values this chat sets as its own (D8): `provider`, `profile`, `model`, `options` (map option → on), `toggles` (map block id → on). A value that isn't here is linked |
 | `site_url` | string | the site chat this chat continues (UC13) |
@@ -78,16 +78,16 @@ The folder is part of `file`, not a field of its own (not stored twice). The rea
 | `received` | string | the reply as it came back, before the plugins' after-reply hooks (the trace, UC1.2) |
 | `reply` | string | the reply as shown, after the hooks, as Markdown |
 | `thinking` | string | the model's thinking, in full (UC1.3) |
-| `thought_s` | number | how long it thought ("Thought for Ns") |
+| `thought_ms` | number | how long it thought ("Thought for Ns") |
 | `tags` | list of strings | message tags (UC20) |
 | `profile`, `model`, `page_url` | strings | what it went with |
-| `error` | string | why it ended badly, if it did (UC4) |
+| `error` | `Error` | why it ended badly, if it did (UC4) |
 | `blocks` | list of strings | the names of the blocks that went out ("Sent with 4", UC25) |
 
 A plugin's data for a chat is in the chat's data folder, `<plugin id>.json`, keyed by turn when it
 needs to be: one place, not a field on every turn.
 
-**`Attachment`**: `id`, `name`, `type` (MIME type), `size`, `path` (inside the chat's data folder,
+**`Attachment`**: `id`, `name`, `mime_type`, `size`, `path` (inside the chat's data folder,
 `attachments/`). Part of a `Turn` or a draft.
 
 **`Prompt`**: a System prompt in the library (UC26). Fields: `id`, `name`, `text`, `pinned`,
@@ -124,7 +124,7 @@ is computed (`value_get`, a pure function), never stored.
 | `api_token_hash` | string | to check the local API token (the token itself is a credential, UC37) |
 
 App settings are keys like `look.mode`, `look.accent`, `look.scale`, `look.thinking` (folded or
-open), `sites.pages` (default 5), `sites.idle_min`, `sites.total_min`, `chats.enter_sends`,
+open), `sites.pages` (default 5), `sites.idle_min`, `sites.total_min`, `look.enter_sends`,
 `git.commit` (on), `git.name`, `git.email`, `git.remote`, `git.auto_push`, `tags.counter_scope` (each chat, all chats), `api.folder`, `updates.check` (off, daily, weekly),
 `updates.bundle`, `import.clash`, `help.button`, `help.seen.<place>`. The full list is the schema,
 written with the function list.
@@ -146,7 +146,7 @@ sets; the rest are linked to the plugin's defaults, D8). UC22–UC25.
 | `scope` | `"above"` · `"message"` · `"picked"` | what a plugin works on |
 | `picked` | list of block ids | for `"picked"` |
 | `send` | `"every"` · `"first"` · `"every_n"` · `"depth"` · `"off"` | when a System prompt is sent |
-| `n` | number | for `"every_n"` and `"depth"` |
+| `number` | number | for `"every_n"` and `"depth"` |
 | `on` | boolean | the profile's default toggle |
 | `group` | group id or `""` | |
 
@@ -197,7 +197,7 @@ number }`, UC48); for web: `url`, `chat_urls` (patterns of a site chat's address
 api: `protocol` (`"openai"` first), `base_url` (the default).
 
 **`Setting_Def`**: one setting, for the app and for plugins alike (S3, DRY): `key`, `type`
-(`"toggle"` · `"choice"` · `"text"` · `"number"` · `"credential"` · `"list"`), `label`, `sub`,
+(`"toggle"` · `"choice"` · `"text"` · `"number"` · `"credential"` · `"list"`), `label`, `description`,
 `default`, `choices` (list of `{ value, label }`), `min`, `max`, `section`, `old_keys` (for the
 one-time import, X5).
 
@@ -233,36 +233,40 @@ function (the only writer).
 | `ui` | `Ui` |
 
 - **`Send`**: one message from the moment you send it until it's saved or dismissed: `id`, `chat`
-  (none for side requests and jobs), `turn` (the turn it fills), `text`, `attachments`, `status` (`"queued"` · `"waiting"`
+  (none for side requests and jobs), `turn` (the turn it fills), `message`, `attachments`, `replaces` (the turn it replaces, UC5),
+  `status` (`"queued"` · `"waiting"`
   (for a free page) · `"sending"` · `"failed"`), `error` (an `Error`), `provider`, `page` (none for api
   providers), `saved` (false for side requests), `job`, `at`, `progress`. The queue and the failed
   list are views of `sends` by status, not lists of their own (UC1–UC4, UC41, UC42.3).
-- **`Page`**: one open site page: `id`, `provider`, `url`, `title`, `state` (`"loading"` ·
+- **`Page`**: one open site page: `id`, `provider`, `url`, `title`, `status` (`"loading"` ·
   `"ready"` · `"busy"` · `"failed"`), `error`. Which send uses a page, and so whether it is a
   side request's page (the send's `saved` is false, UC12), is on the `Send`, not here.
 - **`Job`**: a request from another app: `id`, `profile`, `chat` (to continue, or none),
   `messages`, `stream`, `status` (UC41). (Its send points to it, not the other way.)
 - **`Ui`**: `sheets` (a stack of `{ collection, id }`: a collection, or one record of it; a plugin's
   own sheet by its name; Back takes the top one, R5), `drawer`,
-  `site_view` (`{ open, page }`), `select` (`{ on, ids }`), `find` (the query), `help` (the ?
+  `site_view` (`{ open, page }`), `selection` (`{ on, ids }`), `query` (Find's), `help` (the ?
   mode), `tour` (`{ place, stop }`), `composer` (`{ expanded }`), `toasts` (list of
   `{ id, text, error }`: `error` is the `Error` when the toast reports one).
 - **`Command`**: one action the person can take (screen data): `id`, `label`, `icon`, `key`,
-  `when`, `run`. The one table menus, keys, help and the tour read.
+  `when`, `handler`. The one table menus, keys, help and the tour read.
 
 ### Records that cross a boundary
 
-- **`Version`** (D7): what the core recorded when the app last wrote a file: `path`, `hash`
-  (SHA-256), `at`. Every write says which version it expects; a mismatch is an `Outside_Change`.
-- **`Outside_Change`**: `path`, `ours` and `theirs` (their versions; what type of file it is follows
+- **`Revision`** (D7): what the core recorded when the app last wrote a file: `path`, `hash`
+  (SHA-256), `at`. Every write says which revision it expects; a mismatch is an `Outside_Change`.
+- **`Outside_Change`**: `path`, `ours` and `theirs` (their revisions; what type of file it is follows
   from the path); answered once in the shared dialog: keep
   theirs, keep ours, keep both.
 - **`Envelope`**: every message between the screen, the core, the platform and a page:
   `type` (`"call"` · `"reply"` · `"event"`), `name`, `data`, `id`, `error`.
-- **`Error`**: `code` (which error: `site_refused`, `human_check`, `page_failed`, `page_unexpected`,
-  `no_connection`, `not_supported`, …; the screen offers Open the site and Copy page report for the
-  site ones, UC4), `message` (what happened and what to do), `page` (when a page was involved).
-- Each side's own small state stays private to it: the core's (its key, its folders, the version
+- **`Error`**: `code` (the standard gRPC status codes in `snake_case`: `permission_denied` (the site
+  refused), `failed_precondition` (a human check, a login), `unavailable` (no connection, the page
+  didn't load), `not_found` (the page isn't as the provider expects), `deadline_exceeded` (a waiting
+  limit), `cancelled` (stopped), `unimplemented` (not supported on this platform), `internal`),
+  `message` (what happened and what to do), `page` (the page involved, if any: then the screen
+  offers Open the site and Copy page report, UC4).
+- Each side's own small state stays private to it: the core's (its key, its folders, the revision
   record, the local API's open requests), the platform's (its views, pop-ups, the credential
   store, the core process), a page script's (its provider description, the send it is watching).
 
@@ -277,7 +281,7 @@ function (the only writer).
 | `Credential` | platform | its credential store |
 | your plugin copies | runtime (copy) and you (edit) | `.promptpipe/plugins/` |
 | updated plugins | core (install, after verifying) | app-private `updates/` |
-| the version record (D7) | core | app-private `versions.json` |
+| the revision record (D7) | core | app-private `revisions.json` |
 | counter tags' numbers | runtime, chats module | `.promptpipe/tags.json` |
 | history commits | platform (the repository adapter), on the runtime's call | `.promptpipe/repo/` |
 | `State` | runtime, the apply function | memory |
@@ -300,16 +304,16 @@ function (the only writer).
 
 ### Naming rules
 
-- **Functions**: `noun_verb` or `noun_noun_verb` (`chat_save`, `plugin_files_list`). The noun is
+- **Functions**: `noun_verb` or `noun_noun_verb` (`chat_create`, `site_chat_list`). The noun is
   the module; the verb comes from the closed list.
 - **Casing** (decided 2026-11-20): `snake_case` for functions and data fields in every language
   and in JSON files. Records `Ada_Case`. Constants `UPPER_SNAKE` (`PAGES_DEFAULT`).
 - **The port**: one each way; the calls are named by the rules above, and their noun says what
   they're about (`file_write`, `site_send`). No per-topic ports, no port names to learn (stage 4).
-- **Events**: past tense (`chat_saved`, `page_loaded`) or `_changed` (`reply_changed`).
+- **Events**: past tense (`job_received`, `back_pressed`) or `_changed` (`reply_changed`).
 - **Hooks**: named by their place in a sequence, noun first: `send_before`, `reply_after`,
   `block_text`, `chat_route`, `turn_render`, `toggle_render`, `menu_items`.
-- **`PP`**: every function plugins may use is on `PP` under its full name (`PP.chat_save`); no
+- **`PP`**: every function plugins may use is on `PP` under its full name (`PP.message_send`); no
   bare names shared between plugins.
 - **One name per call across layers**: a call keeps its name from the application through its port
   to its adapter and on the bus.
@@ -318,34 +322,34 @@ function (the only writer).
 
 | Verb | Meaning | Example |
 |---|---|---|
-| `get` | a value from data, no effects | `profile_get(state, id)` |
-| `set` | data with one value changed, or the one place that writes it | `toggle_set` |
-| `list` | every record of one type | `plugin_list` |
+| `get` | a value from data, no effects | `record_get` |
+| `set` | data with one value changed, or the one place that writes it | `record_set`, `view_set` |
+| `list` | every record of one type | `plugin_list`, `commit_list` |
 | `find` | the records that match a query | `chat_find(query)` |
 | `read` / `write` | raw text or bytes at a location | `file_read`, `file_write` |
-| `load` / `save` | read and parse / format and write a record | `config_load`, `chat_save` |
-| `create` / `delete` | a standalone record and its storage | `chat_create`, `profile_delete` |
-| `add` / `remove` | into or out of a container | `block_add`, `tag_remove`, `plugin_remove` |
-| `move` / `rename` / `copy` | place, name, duplicate (`copy` only means duplicate; the clipboard is `clipboard_write`) | `chat_move`, `plugin_copy` |
-| `parse` / `format` | text to data / data to text, pure | `chat_parse`, `chat_format` |
+| `load` / `save` | read and parse / format and write a record | (inside the application, through `file_read` and `file_write`) |
+| `create` / `delete` | a standalone record and its storage | `chat_create`, `record_delete` |
+| `add` / `remove` | into or out of a container | `attachment_add`, `plugin_remove` |
+| `move` / `rename` / `copy` | place, name, duplicate (`copy` only means duplicate; the clipboard is `clipboard_write`) | `record_move`, `plugin_copy` |
+| `parse` / `format` | text to data / data to text, pure | (pure functions, e.g. a chat into its readable file) |
 | `build` | assemble from parts, pure | `message_build` |
-| `validate` | the problems in data, pure | `manifest_validate` |
-| `verify` | integrity or authenticity | `plugin_verify` |
+| `validate` | the problems in data, pure | (the boundary check of every call) |
+| `verify` | integrity or authenticity | `catalogue_verify`, `storage_verify` |
 | `compare` | order two values | `version_compare` |
-| `apply` | a change record to state | `state_apply` |
-| `migrate` | old saved data to the current format | `config_migrate` |
-| `open` / `close` | something shown or held open | `page_open`, `sheet_close` |
-| `start` / `stop` | a process, stream, job or service | `job_start`, `reply_stop` |
-| `send` | hand a message to a provider, page or the platform | `page_send` |
+| `apply` | a change record to state | (the application's apply function) |
+| `migrate` | old saved data to the current format | (the one-time import of old content, X5) |
+| `open` / `close` | something shown or held open | `page_open`, `page_close`, `picker_open` |
+| `start` / `stop` | a process, stream, job or service | `app_start`, `send_stop`, `vibration_start` |
+| `send` | hand a message to a provider, page or the platform | `message_send`, `site_send` |
 | `fetch` | an HTTP request through the platform (any method) | `http_fetch` |
-| `run` | execute hooks, a job or a command | `hooks_run` |
-| `emit` / `on` / `off` | events | `event_on` |
+| `run` | execute hooks, a job or a command | `job_run` |
+| `on` | listen to an event | `event_on` |
 | `import` / `export` | bring content in from a file or another place / send it out to one | `profile_import`, `chat_export` |
-| `navigate` | move a page to an address, back, or reload | `page_navigate` |
+| `navigate` | move a page to a URL, back, or reload | `page_navigate` |
 | `resolve` | answer a pending choice | `failure_resolve`, `change_resolve` |
 | `commit` / `push` / `pull` | the repository's own terms (git) | `repo_commit`, `repo_push` |
-| `install` / `update` | software: put in / replace with a newer version | `plugin_install` |
-| `encode` / `decode` | change a representation | `base64_encode` |
+| `install` / `update` | software: put in / replace with a newer version | `plugin_install`, `plugin_update` |
+| `encode` / `decode` | change a representation | (Base64's own functions) |
 | `encrypt` / `decrypt` | only inside the credential store's adapter | |
 | `render` | data to screen elements, pure | `turn_render` |
 
@@ -355,7 +359,7 @@ check (validate or verify), make, do, handle, process, manage, util, helper.
 ### Nouns
 
 The module nouns are the record names in lower case plus these: `app`, `file`, `folder`, `event`,
-`hook`, `message` (the text built from the blocks), `reply`, `thinking`, `tag`, `toggle`, `repo`
+`hook`, `message` (what you typed; what goes out after the blocks and hooks is `sent`), `reply`, `thinking`, `tag`, `toggle`, `repo`
 (the chats' history repository; git is its adapter), `site` (the website a web provider drives),
 `option`, `model`, `http`, `version`, `bundle` (the release's zip of built-in plugins), `screen`
 and its parts (`sheet`, `drawer`, `menu`, `toast`, `dialog`, `item`), `theme`, `log`, `schema`
@@ -371,8 +375,34 @@ choice's effective value, linked or own, D8).
 
 The nine in `4-ports.md`, each coming from the call contract: `page_changed`, `popup_changed`,
 `reply_changed`, `http_received`, `share_received`, `back_pressed`, `app_resumed`,
-`job_received`, `job_changed`. A record's changes are one `_changed` event with a state field,
-not one event per state. The screen needs no events: it draws the `State` after every change.
+`job_received`, `job_changed`. A record's changes are one `_changed` event with a status field,
+not one event per status. The screen needs no events: it draws the `State` after every change.
+
+### Name pass (2026-11-21)
+
+Every name in the design resolved by the rule (the design's terms and decisions, then the standard,
+the screenshots only where the design has no word; one meaning per term):
+
+| Was | Now | Why |
+|---|---|---|
+| `Version` (D7), "expected version", `versions.json` | `Revision`, "expected revision", `revisions.json` | `version` already means a software version (SemVer) |
+| `state` on pages and replies | `status` | sends, jobs and plugins already use `status`; `State` is the process's record |
+| `message` = the text built from the blocks | `message` = what you typed; `sent` = what went out | the turn fields decided 2026-11-20 |
+| `message_send`'s options, `replace_last` | a `Send` draft; `Send.replaces` (a turn id) | `options` already means a provider's options; reuse the `Send` record |
+| `Send.text` | `Send.message` | the same thing as `Turn.message` |
+| "address" in call parameters | `url` | the records already say `url` |
+| `Chat.title` | `Chat.name` | every other record's display name is `name` |
+| `Turn.error` (a string) | `Turn.error` (an `Error`) | one shape for errors |
+| `thought_s` | `thought_ms` | `settle_ms`, `stuck_ms` |
+| `Setting_Def.sub` | `Setting_Def.description` | the manifest's word |
+| `Command.run` | `Command.handler` | `event_on`'s word |
+| `Attachment.type` | `Attachment.mime_type` | the standard name; `type` means which variant a record is |
+| invented error codes | gRPC status codes | the standard |
+| `store_local` | `local_storage` | the Web API's name |
+| `Block.n` | `Block.number` | a word, not a letter |
+| `Ui.select`, `Ui.find` | `Ui.selection`, `Ui.query` | fields are nouns |
+| `chats.enter_sends` | `look.enter_sends` | the design puts it under Look (UC34) |
+| examples that weren't real calls | the contract's calls | one set of names |
 
 ### Words that differ from the screenshots
 
@@ -395,4 +425,4 @@ not one event per state. The screen needs no events: it draws the `State` after 
 | `json`, `hash`, `signature`, `zip` | Odin `core:encoding/json`, `core:crypto/sha2`, `core:crypto/ed25519`, `core:compress/deflate` (core) |
 | `render`, `morph` | the browser's DOM and a morphing library (screen) |
 | page building blocks | the site's DOM (page script) |
-| `store_local` | the browser's local storage (screen; per-device conveniences only) |
+| `local_storage` | the browser's local storage (screen; per-device conveniences only) |

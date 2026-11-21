@@ -237,7 +237,7 @@ Requirements win over the screenshots (U 2026-11-21).
   hash of what it wrote; before it overwrites or trusts a file again it compares, and if the file
   changed outside the app it asks once, in one dialog used everywhere: keep the outside change,
   keep the app's, or keep both (a copy). Standard name: optimistic concurrency control with content
-  hashes as versions (as HTTP's ETag and If-Match) (U 2026-11-21).
+  hashes as revisions (as HTTP's ETag and If-Match) (U 2026-11-21).
 - **D6** The chats folder shows only the readable chat files. Each chat's data (its turns,
   thinking, plugins' data such as Memory's summaries, attachments) is in its own hidden folder, and
   everything else the app keeps there (the history repository, the prompt library) is hidden too,

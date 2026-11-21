@@ -49,14 +49,14 @@ model, options and toggles, D8),
 
 | Call | In → out | Callers | Use cases |
 |---|---|---|---|
-| `message_send` | chat, text, attachments, options (`saved`, `replace_last`, `profile`) → `Send` | S, P, A | UC1, UC2, UC5, UC15, UC42.3, UC43, UC44 |
+| `message_send` | a `Send` draft (`chat`, `message`, `attachments`, and when needed `profile`, `saved`, `replaces`) → `Send` | S, P, A | UC1, UC2, UC5, UC15, UC42.3, UC43, UC44 |
 | `message_build` | profile, chat → the text that would be sent | S, P, A | UC1, UC25 |
 | `send_stop` | send → done | S, P | UC3 |
 | `failure_resolve` | send, choice (`retry` · `check` · `edit` · `dismiss`) → done | S | UC4 |
 | `attachment_add` | chat, files → the draft's attachments | S | UC48 |
 | `model_list` | chat → models | S | UC10 |
 | `option_list` | chat → options | S | UC10 |
-| `site_chat_open` | provider, address → chat | S | UC13 |
+| `site_chat_open` | provider, url → chat | S | UC13 |
 | `site_chat_import` | chat, page, which (`all` · `newest`) → turns | S | UC13 |
 | `chat_create` | folder, text → chat | S, A | UC14, UC16 |
 | `chat_open` | chat → chat with its turns | S, P | UC16 |
@@ -86,10 +86,10 @@ model, options and toggles, D8),
 
 | Call | In → out | Callers | Use cases |
 |---|---|---|---|
-| `file_read` | root, path or pattern → files, each with its version and whether it changed outside the app | A | UC16 and every saved record |
-| `file_write` | root, path, data, expected version → the new version, or an `Outside_Change` | A | D4, D7 |
-| `file_move` | root, from, to, expected version → the new version, or an `Outside_Change` | A | UC17, UC36 |
-| `file_delete` | root, path, expected version → done, or an `Outside_Change` | A | UC17 |
+| `file_read` | root, path or pattern → files, each with its revision and whether it changed outside the app | A | UC16 and every saved record |
+| `file_write` | root, path, data, expected revision → the new revision, or an `Outside_Change` | A | D4, D7 |
+| `file_move` | root, from, to, expected revision → the new revision, or an `Outside_Change` | A | UC17, UC36 |
+| `file_delete` | root, path, expected revision → done, or an `Outside_Change` | A | UC17 |
 | `file_list` | root, folder → names, whether each is a folder, sizes, times | A | UC16, UC36 |
 | `file_find` | root, query → matching files and lines | A | UC18 |
 | `catalogue_verify` | data, signature → `Catalogue`, or an error | A | S3 |
@@ -99,18 +99,18 @@ model, options and toggles, D8),
 | `log_read` | → the core log | S | UC38 |
 
 Roots: `app`, `chats`, `built_in` (read-only), `device` (the phone's shared storage: list and
-make folders only, for picking the chats folder, UC36). The change check is the expected version on every
+make folders only, for picking the chats folder, UC36). The change check is the expected revision on every
 write, move and delete: one mechanism for every file (D7).
 
 ### Answered by the platform
 
 | Call | In → out | Callers | Use cases |
 |---|---|---|---|
-| `page_open` | address → `Page` | S, A | UC9, UC12, UC13 |
+| `page_open` | url → `Page` | S, A | UC9, UC12, UC13 |
 | `page_close` | page → done | S, A | UC12 |
-| `page_navigate` | page, to (an address · `back` · `reload`) → done | S | UC12 |
+| `page_navigate` | page, to (a url · `back` · `reload`) → done | S | UC12 |
 | `view_set` | page, or none → done (the site view's region) | S | UC4, UC9, UC12 |
-| `http_fetch` | request (address, method, headers, body, credential name, streaming, file to save to) → response; parts as `http_received` events | A, P | UC15, UC29–UC31 |
+| `http_fetch` | request (url, method, headers, body, credential name, streaming, file to save to) → response; parts as `http_received` events | A, P | UC15, UC29–UC31 |
 | `credential_create` | fields, value → credential | S | UC40 |
 | `credential_list` | → credentials (no values) | S, A | UC40 |
 | `credential_delete` | name → done | S | UC40 |
@@ -122,7 +122,7 @@ write, move and delete: one mechanism for every file (D7).
 | `clipboard_read` | → text or an image | S | UC6, UC48 |
 | `content_export` | content (text or file), to (`share` · `file`) → done | A | UC21, UC26, UC27 |
 | `picker_open` | types, many → files | S | UC7, UC27, UC30, UC48 |
-| `url_open` | address → done | S | UC9, UC39 |
+| `url_open` | url → done | S | UC9, UC39 |
 | `vibration_start` | → done | S | I1 |
 | `bars_set` | colours → done | S | UC34 |
 | `storage_access_open` | → done (the system's file access screen) | S | UC36 |
@@ -150,15 +150,15 @@ single stages of it (UC42.7).
 
 | Event | From | Data | Listened to by |
 |---|---|---|---|
-| `page_changed` | platform | page, state (`loading` · `ready` · `busy` · `failed`), address, title, reason (no connection, address not found, certificate refused) | application (UC12, #241) |
+| `page_changed` | platform | page, status (`loading` · `ready` · `busy` · `failed`), url, title, error (an `Error`: no connection, address not found, certificate refused) | application (UC12, #241) |
 | `popup_changed` | platform | page, open or closed | application (UC12, #244) |
-| `reply_changed` | page script | page, text and thinking so far, state (`streaming` · `finished` · `failed`), reason | application (UC1, UC1.5) |
+| `reply_changed` | page script | page, text and thinking so far, status (`streaming` · `finished` · `failed`), error (an `Error`) | application (UC1, UC1.5) |
 | `http_received` | platform | request, the part received | application, plugins (UC15) |
 | `share_received` | platform | text or files | application (UC14, UC48) |
 | `back_pressed` | platform | — (answered: handled or not) | screen (R5) |
 | `app_resumed` | platform | — | application (R3) |
 | `job_received` | core | `Job` | application (UC41) |
-| `job_changed` | application | job, a part of the answer, state | core (UC41) |
+| `job_changed` | application | job, a part of the answer, status | core (UC41) |
 
 The screen needs no events of its own: it draws the `State` after every change.
 
@@ -170,7 +170,7 @@ The screen needs no events of its own: it draws the `State` after every change.
 | UC2 queue | `record_move`, `record_set`, `record_delete` on `sends` |
 | UC3 stop | `send_stop` → `site_stop` |
 | UC4 failed | `failure_resolve` → `site_read`; for site errors also `view_set` (Open the site) and `site_report_build`, `clipboard_write` (Copy page report) |
-| UC5 resend | `message_send` with `replace_last` |
+| UC5 resend | `message_send` with `replaces` (or unchanged, as a new send) |
 | UC6 reuse text | `chat_export`, `clipboard_write` |
 | UC7 long text | `record_set` on `drafts`, `picker_open` |
 | UC8 new reply | the screen alone |
@@ -203,7 +203,7 @@ The screen needs no events of its own: it draws the `State` after every change.
 | UC42 plugin authors | `plugin_set`, `sheet_open`, `event_on`, and the calls marked P |
 | UC43–UC47 built-in plugins | `message_send` (unsaved), `chat_data_read`, `chat_data_write`, `site_report_build`, hooks |
 | UC48 attachments | `attachment_add`, `picker_open`, `clipboard_read`, `share_received`, `site_send` |
-| D7 change check | `change_resolve`; the expected version on `file_write`, `file_move`, `file_delete` |
+| D7 change check | `change_resolve`; the expected revision on `file_write`, `file_move`, `file_delete` |
 
 ## What this leaves out on purpose
 
