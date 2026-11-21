@@ -19,7 +19,7 @@ ideally inside it too, a full remake where only the intent and the UX/UI survive
 └─────────┬───────────────────────────────────────────────────────┘
           │  extension port: the bus envelope
 ┌─────────┴──────────────── platform (Kotlin) ────────────────────┐
-│ views and pages · repository · secure storage and keyed fetch   │
+│ views and pages · repository · credentials and keyed fetch   │
 │ clipboard · share · vibration · keep-alive · start the core     │
 └─────────┬───────────────────────────────────────────────────────┘
           │  extension port: the same envelope
@@ -39,10 +39,10 @@ ideally inside it too, a full remake where only the intent and the UX/UI survive
 | | Change | Why it's smaller | Saves |
 |---|---|---|---|
 | P1 | **The screen talks to the platform directly**, through the same extension port the page scripts use (the extension's match list gets the app's own address). | The core no longer relays: its queue, its `/shell` routes and the platform's polling loop go. One bridge for the screen and the pages. | ≈ 300 |
-| P2 | **Downloads and zip reading in the runtime**: downloads go through the platform's `http_fetch` (the same call as the keyed fetch, without a secret); zips are read with the engine's `DecompressionStream`. The core only verifies and writes. | No zip code and no download relay in Odin; the trust stays in the core (it checks every file's hash against the signed catalogue). | ≈ 100 |
+| P2 | **Downloads and zip reading in the runtime**: downloads go through the platform's `http_fetch` (the same call as the keyed fetch, without a credential); zips are read with the engine's `DecompressionStream`. The core only verifies and writes. | No zip code and no download relay in Odin; the trust stays in the core (it checks every file's hash against the signed catalogue). | ≈ 100 |
 | P3 | **Record definitions are the schemas** (naked objects in full): one definition per record type gives its defaults, validation, old names for import, its file form and its viewer; a record type's operations are its commands. | No separate defaults, validation or form code. | ≈ 150 |
 | P4 | **The site view in a fixed region**: the platform lays the page out under a fixed-height bar; the screen only says which page and whether it shows. | No geometry kept in sync on every keyboard and layout change (the cause of #240). | ≈ 40 |
-| P5 | **No secret store in the core**: tokens live in the platform's secure storage; the local API token is checked against its hash in the config. | One secret store, not two. | ≈ 40 |
+| P5 | **No credential store in the core**: tokens live in the platform's credential store; the local API token is checked against its hash in the config. | One credential store, not two. | ≈ 40 |
 | P6 | **Generic file calls** with `file_heads` (the first bytes of every file in a root, for the chats list) and `file_find` (text search in a root, #212). | The chats list and search need no special routes. | (in S5) |
 | P7 | **The screen keeps its look with its own CSS on design tokens**, written from the reference screenshots; no CSS library, since a library would change the look. | Tokens and a few component classes for one consistent design. | (in S11) |
 
@@ -59,7 +59,7 @@ one function that writes it.
 | Chats' history | commits | the chats root's repository | platform `repo_commit` |
 | Plugins | `Manifest` + files | built-in (APK), updates (private), your copies (shared) | core `plugin_install` / `plugin_remove` |
 | Catalogue | `Catalogue_Entry` | in memory, fetched | runtime `catalogue_load` |
-| Secrets | `Secret` (listing only) | the platform's secure storage | platform `secret_add` / `secret_remove` |
+| Credentials | `Credential` (listing only) | the platform's credential store | platform `credential_add` / `credential_remove` |
 | Pages | `Page` | the platform's views; mirrored in the state by events | platform `page_*` |
 | Queue, jobs, drafts, open sheet | `Queue_Item`, `Job`, screen state | the screen's state (memory) | runtime `state_apply` |
 | Per-device conveniences | — | the screen's local storage | screen `store_local` |
@@ -75,7 +75,7 @@ Each one becomes one readable chain of calls in the function list (pass 4). Even
    toggles) → `send_before` hooks → `chat_route` → provider:
    - web: `page_acquire` (pool, queue) → page script: set options, type, send, read → ⚡`reply_changed`
      while it streams → `reply_finished`;
-   - api: platform `http_fetch` with the connection's secret, streamed → ⚡`reply_changed` →
+   - api: platform `http_fetch` with the connection's credential, streamed → ⚡`reply_changed` →
      `reply_finished`;
 
    → `reply_after` hooks → `chat_format` → `chat_save` → `repo_commit` → ⚡`chat_saved`.
@@ -88,8 +88,8 @@ Each one becomes one readable chain of calls in the function list (pass 4). Even
    ⚡`plugin_installed` → reload.
 6. **History**: `chat_save` → `repo_commit`; `repo_push` / `repo_pull` with the token from secure
    storage (the platform reads it itself; it never reaches the runtime).
-7. **Secure storage**: `secret_add` (form) → `secret_list` (name, tags, host, last 4) →
-   `http_fetch(…, secret)` → `secret_remove`.
+7. **Credentials**: `credential_add` (form) → `credential_list` (name, tags, host, last 4) →
+   `http_fetch(…, credential)` → `credential_remove`.
 
 ## The calls each side offers (first list, final names in pass 4)
 
@@ -97,8 +97,8 @@ Each one becomes one readable chain of calls in the function list (pass 4). Even
   `file_delete`, `plugin_list`, `plugin_install`, `plugin_remove`, `job_reply`, `log_read`,
   `app_info`, the event stream.
 - **platform**: `page_open`, `page_close`, `page_show`, `page_list`, `page_run` (a command in a
-  page), `repo_commit`, `repo_log`, `repo_push`, `repo_pull`, `secret_add`, `secret_list`,
-  `secret_remove`, `http_fetch`, `clipboard_copy`, `clipboard_paste`, `share_text`, `url_open`,
+  page), `repo_commit`, `repo_log`, `repo_push`, `repo_pull`, `credential_add`, `credential_list`,
+  `credential_remove`, `http_fetch`, `clipboard_copy`, `clipboard_paste`, `share_text`, `url_open`,
   `vibration_play`, `files_grant`, `theme_set`, `app_background`, `service_stop`.
 - **page script**: `page_send`, `page_read`, `page_stop`, `page_options`, `page_models`,
   `page_chats`, `page_report`, plus the primitives a content script uses.
@@ -124,7 +124,7 @@ each layer against its budget (pass 3 settles the check).
 | | extension ports and the bus | 50 |
 | | keep-alive service | 30 |
 | | repository (JGit) | 50 |
-| | secure storage and `http_fetch` | 90 |
+| | credentials and `http_fetch` | 90 |
 | | clipboard, share, vibration, theme, files access | 30 |
 | | **platform total** | **520** |
 | Loader | state and `state_apply`, bus client, plugin loader and safe mode, hooks and events, `PP` | **200** |

@@ -48,7 +48,7 @@ The standard shape is **Ports and Adapters** (hexagonal architecture, Alistair C
 - **Driving ports** are how the outside starts something: one per use case in `0-intent.md`
   (you through the screen, other apps through the local API, plugin authors through `PP`).
 - **Driven ports** are what the application needs from the outside, named by that need (a
-  **role**): for keeping files, for driving site pages, for the repository, for secrets, for
+  **role**): for keeping files, for driving site pages, for the repository, for credentials, for
   HTTP, for the phone's services. Cockburn names them the same way (`ForGettingTaxRates`).
 - **Adapters** connect a port to a technology: the core (Odin) adapts files and the local API's
   HTTP; the platform (Kotlin) adapts GeckoView, JGit, the key store and the phone's services; the
@@ -129,7 +129,7 @@ shell"):
 
 - The application lives in **runtime plugins** (JS, updatable from the catalogue without a new
   APK). The adapters that must be native or trusted live in the **core** (Odin: files, the local
-  API's HTTP, plugin verification) and the **platform** (Kotlin: pages, the repository, secrets,
+  API's HTTP, plugin verification) and the **platform** (Kotlin: pages, the repository, credentials,
   the phone's services). The **loader** starts the runtime.
 - `PP` is the driving port for plugin authors: named, versioned, documented. No plugin depends on
   another plugin's internal names.

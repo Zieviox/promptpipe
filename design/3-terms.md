@@ -93,7 +93,7 @@ check (use validate or verify), make, do, handle, process, manage, util/helper.
 | `state` | a process's state record | one per process |
 | `event` / `hook` | as in the naming rules | |
 | `file` / `folder` | raw storage | adapters |
-| `secret` | an entry in secure storage | write-only or read-write |
+| `credential` | an API key, token or password in the app's encrypted store (Settings › Credentials) | write-only or read-write; decided 2026-11-21 |
 | `chat` | one conversation, one Markdown file | |
 | `turn` | your message and its reply | fields below |
 | `message` | the text built from the blocks and sent | |
@@ -110,7 +110,7 @@ check (use validate or verify), make, do, handle, process, manage, util/helper.
 | `site` | the website a web provider drives | |
 | `page` | one open page of the site | the pool is `page_*` |
 | `option` / `model` | a provider's settings / its model | |
-| `connection` | an API endpoint: name, base URL, model, which secret | for api providers |
+| `connection` | an API endpoint: name, base URL, model, which credential | for api providers |
 | `queue` | messages waiting for a page | |
 | `job` | a request from another app (local API) | |
 | `http` | requests through the platform | |
@@ -131,7 +131,7 @@ message" block), `turn.sent` what was sent after blocks and hooks, `turn.reply`,
 `app_started`, `plugins_loaded`, `config_changed`, `chat_opened`, `chat_saved`, `turn_added`,
 `reply_changed` (streaming), `reply_finished`, `reply_failed`, `page_loaded`, `page_navigated`,
 `page_closed`, `pages_changed`, `job_received`, `plugin_installed`, `plugin_failed`,
-`bundle_installed`, `secret_changed`, `error_raised`. The function list settles the full set.
+`bundle_installed`, `credential_changed`, `error_raised`. The function list settles the full set.
 
 ## 6. Screen words that change
 
@@ -147,7 +147,7 @@ message" block), `turn.sent` what was sent after blocks and hooks, `turn.reply`,
 |---|---|---|
 | browser views and pages (platform) | `page`, `view` | GeckoView |
 | repository | `repo` | JGit |
-| secure storage | `secret` | Android Keystore |
+| credentials | `credential` | Android Keystore |
 | HTTP out | `http` | HttpURLConnection |
 | OS services | `clipboard`, `vibration`, `share`, `notification` | Android APIs |
 | core HTTP server | (routes) | Odin `core:net` |

@@ -112,8 +112,8 @@ Requirements win over the screenshots (U 2026-11-21).
 - **UC35 Sites**: pages at once (default 5, a warning above 5), waiting limits (F).
 - **UC36 Chats and storage**: move the chats folder (with or without copying), back to the
   default; all-files access; a storage check, step by step with the system's reason; git: remote,
-  token (from secure storage), push, pull, auto-push (F, U).
-- **UC37 Local API**: the address, the token (make a new one; kept in secure storage), how apps
+  token (from credentials), push, pull, auto-push (F, U).
+- **UC37 Local API**: the address, the token (make a new one; kept in credentials), how apps
   use it, the folder for their chats (F, U).
 - **UC38 Advanced**: reset to first launch (chats, profiles, prompts and plugins stay); the app's
   own plugins (copy one, pick which screen runs); safe mode; the core log; stop the background
@@ -121,17 +121,17 @@ Requirements win over the screenshots (U 2026-11-21).
 - **UC39 Help**: the ? mode explains what you tap; first-time guides for each place (and showing
   them again); the shortcuts list; the quick start; each plugin's guide and the plugin-writing
   guide open in the app (F).
-- **UC40 Secure storage**:
+- **UC40 Credentials**:
   1. One store for any sensitive data (API keys, tokens, passwords, notes), with free tags
      (U 2026-11-20).
-  2. Each secret is write-only (plugins can use it, never read it back) or read-write (plugins can
+  2. Each credential is write-only (plugins can use it, never read it back) or read-write (plugins can
      read it); write-only is the default (U).
-  3. A write-only secret is bound to exact hosts, a header name and a prefix; it is added only to
+  3. A write-only credential is bound to exact hosts, a header name and a prefix; it is added only to
      requests to those hosts (U, best practice).
-  4. You add, replace and remove secrets; the list shows name, tags, type, host and the last 4
+  4. You add, replace and remove credentials; the list shows name, tags, type, host and the last 4
      characters (U).
   5. The git token and the local API token live here (U).
-  6. Connections for API providers: a name, a base URL, a model, which secret (U).
+  6. Connections for API providers: a name, a base URL, a model, which credential (U).
 
 ### Other apps
 
@@ -215,7 +215,7 @@ Requirements win over the screenshots (U 2026-11-21).
 - **S6** Zips are checked before unpacking: broken offsets refused, and an unpacked size far beyond
   any real plugin (500 MB) refused as a zip bomb (#213). Downloads go straight to a file, with no
   size limit (#216 was an artifact of the old core) (U 2026-11-21).
-- **S7** Secrets are encrypted with the platform's key store, excluded from backups, and never in
+- **S7** Credentials are encrypted with the platform's key store, excluded from backups, and never in
   exports, settings, the repository or logs (U, best practice).
 - **S8** Releases are release builds with their own signing key, starting with the first release
   of the remade app (one reinstall for everyone, once); the browser engine's version is pinned
@@ -301,4 +301,5 @@ the app's own files in a hidden folder (D6); attachments supported (UC48).
 
 ## Open
 
-1. The name for "secure storage" and "secret" (see the stage 2 review).
+Nothing open. The encrypted store is **Credentials** (one entry: a credential), decided
+2026-11-21, renamed everywhere in the design.

@@ -29,11 +29,11 @@ Standard name: model-driven UI, the **naked objects** pattern (Pawson, 2002–20
 Causeway): the screen is generated from the data's description instead of written per screen.
 
 Nearly everything the user manages is a **collection of records**: chats, folders, profiles,
-blocks, groups, prompts, plugins, catalogue entries, sources, secrets, connections, queued
+blocks, groups, prompts, plugins, catalogue entries, sources, credentials, connections, queued
 messages, settings. Each collection gets a short schema (its fields with types and labels, its
 actions, how it's ordered or grouped). One generic viewer draws any collection as a list (keyed
 items, sections, select mode, reorder by drag or Move up/down) and any record as a form (toggle,
-choice, text, number, secret, link, list).
+choice, text, number, credential, link, list).
 
 - Replaces: the chats list, the profile editor, Quick edit, the prompt library, the Plugins and
   Catalogue screens, the plugin page, Settings, the chat info sheet, Model and options, secure
@@ -104,7 +104,7 @@ exporting) becomes runtime code built from the file and repo calls.
 ### S6. A thin platform
 
 The platform registers its capabilities in one table (S4): pages and views (GeckoView), the
-repository (JGit), secure storage with the keyed request, clipboard, vibration, share,
+repository (JGit), credentials with the keyed request, clipboard, vibration, share,
 notifications, file access. Each handler is a few lines around the library.
 
 - Replaces: the separate action, module and page-message code paths in today's 993 lines.

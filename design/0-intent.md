@@ -108,7 +108,7 @@ Every goal a person can reach. Each becomes a driving port later. "→" is the r
   safe mode, the core log, stop the background service, the version.
 - **UC39** Help: the ? mode that explains what you tap, the first-time guides (and showing them
   again), the shortcuts, the quick start, the plugin guide.
-- **UC40** Keep secrets (API keys, tokens, passwords) in secure storage: add, see the list (name,
+- **UC40** Keep credentials (API keys, tokens, passwords) in the app's encrypted store: add, see the list (name,
   tags, host, last 4), remove; connections for API providers.
 
 ### Other apps
@@ -157,7 +157,7 @@ Not in screenshots, kept as written:
 - **Keys**: Ctrl+Enter send · Ctrl+K commands · Ctrl+B chats · Ctrl+F search · Ctrl+M model ·
   Ctrl+E big box · Ctrl+/ thinking · Ctrl+? all shortcuts · Alt+S site page.
 - **Wording**: the texts on these screens are the reference copy; changes go through the glossary.
-- **New screens** (secure storage, connections, the catalogue's "provider · web/api" types) are
+- **New screens** (credentials, connections, the catalogue's "provider · web/api" types) are
   designed in the style of these screenshots.
 
 ## The stages, rebuilt inside-out
