@@ -44,6 +44,8 @@ Requirements win over the screenshots (U 2026-11-21).
   part (F).
 - **UC7 Write long text**: a big message box; Enter sends when set (Shift+Enter a new line); text
   files go into the box, with no size limit and a warning on very large ones (F, U 2026-11-21).
+  Each chat keeps its own draft (text and attachments), saved on this device so it survives a
+  restart, never in the chat's files or the history (F; per chat, U 2026-11-21).
 - **UC8 Read without losing your place**: the app never moves your scroll position by itself: not
   for redraws, opening or closing sheets, or coming back to a chat (each place comes back where you
   left it). New replies show a notice ("↓ 1 new") with a quick scroll to the start of the reply.
@@ -86,6 +88,9 @@ Requirements win over the screenshots (U 2026-11-21).
   history), select several by long press; create, rename, delete folders (F).
   Dragging a chat's grip moves it into a folder, onto Pinned (pins it) or to another place in the order; dragging one selected chat moves all the selected ones; a folder is renamed with its pencil and shows how many chats it holds (F, from the old app's code).
   An empty folder is kept, in the history too (F, from the old app's code).
+  The list keeps your own order (each level: folders and chats) and the pinned chats keep theirs;
+  both are saved with the chats, by chat id; what you never placed keeps the default order (folders
+  by name, then chats newest first) (F, from the old app's code).
 - **UC18 Find**: text in every chat, with `#tag`, `in:folder`, `"exact phrase"`, `is:you`,
   `is:ai` (F); fast with thousands of chats, without reading every file in full each time (#212).
   The same search finds the app's commands and settings (F, seen in the shortcuts list).
@@ -157,7 +162,9 @@ Requirements win over the screenshots (U 2026-11-21).
   pull, push after every commit, the list of all commits (F, U; seen in `settings-git`).
   Chats kept in an earlier folder can be copied into the one in use (existing chats are never overwritten) (F, from the old app's code).
 - **UC37 Local API**: the address, the token (make a new one; kept in credentials), how apps
-  use it, the folder for their chats (F, U).
+  use it, the folder for their chats (F, U). The token is the one credential the app issues to give
+  away: it is shown masked (last 4 characters) with Copy and Show; never in exports, settings, the
+  history or logs (U 2026-11-21).
 - **UC38 Advanced**: reset to first launch (chats, profiles, prompts and plugins stay); the app's
   own plugins (copy one, pick which screen runs); safe mode; the core log; stop the background
   service; the version (F).
@@ -217,6 +224,9 @@ Requirements win over the screenshots (U 2026-11-21).
 - **UC43 Long chats keep their context** (Memory): older turns are summarised in a side request
   before the limit, and the summaries are sent with new messages (F).
   Pinned facts are always sent first, never summarised; memory can be sent every N messages; below a maximum size everything goes in full; above it, the recent messages stay word for word and older ones go in as summaries at coarser levels the older they are, each summary made once; your side and the AI's side are summarised separately, or together if set; the summary request carries the profile's System prompts, prompts picked for summaries, or none; "only what this site chat hasn't seen" leaves out what a site chat already has; each line names the AI when the chat used more than one site; text the AI wrote can never pose as the summaries' structure (F, from the old app's code).
+  The summaries are the plugin's data (JSON, D6) and show in the readable chat file as a folded
+  "Memory" section at the end; editing them there and keeping the edit (D7) changes the summaries
+  (U 2026-11-21: you can still correct a summary by hand, as in the old app).
 - **UC44 A long chat continues in a new site chat** (Sub-chats); the chat file stays one (F).
   Before a message goes out it picks the site chat: the current one, a new one, or an earlier one; another profile can lend only its site and model while the chat's own plugins keep running; dividers between sub-chats and a note on where the next message goes; "New sub-chat here" under a reply starts a sub-chat that sees the chat up to that reply, then only its own messages (a first form of branching, N5) (F, from the old app's code).
 - **UC45 Encode and decode** (Base64): the message is encoded, the reply decoded (F).
@@ -247,7 +257,9 @@ Requirements win over the screenshots (U 2026-11-21).
   app folder by default), readable with any app. It is built from the chat's data and rebuilt
   whenever the chat changes, so it is always complete and current. If you edit it with another
   app, the change check (D7) asks before anything is overwritten; keeping your edit reads it back
-  into the chat (U 2026-11-21).
+  into the chat (U 2026-11-21). It stays plain Markdown. A plugin may add a folded section of its
+  data at the end (Memory's summaries); keeping an edit there gives the plugin its section back to
+  read (U 2026-11-21).
 - **D2** Every change to the chats folder is a commit in its repository, unless "Commit on every
   save" is turned off (F, seen in `settings-git`).
 - **D3** The prompt library is kept with the chats, in the app's hidden folder (D6) (F).
@@ -272,6 +284,14 @@ Requirements win over the screenshots (U 2026-11-21).
   everything else the app keeps there (the history repository, the prompt library) is hidden too,
   under `.promptpipe/` with a `.nomedia` marker, so the system's media index and file managers'
   "Recent" lists show only the readable chats; checked on the phone (U 2026-11-21).
+  A plugin's data for a chat is one JSON file in that chat's hidden folder (U 2026-11-21).
+- **D9** **The old app's data**: on the first start of the remade app, the old app's folders
+  (`/sdcard/PromptPipe` and the app's own old folder) get a `.nomedia` marker, are zipped whole (git
+  history included) into `.promptpipe/backups/old-app-<date>.zip`, then imported: chats (every old
+  chats folder, every field of the old chat file), profiles (every earlier shape), the prompt library,
+  settings, plugin settings and Memory's summaries. The app never changes or deletes the old folders;
+  Settings › Chats and storage shows them with their backup and lets you delete them. An import that
+  stops part way loses nothing (U 2026-11-21).
 
 ### S. Security
 
@@ -436,6 +456,14 @@ zips only guarded against zip bombs; any tab can be closed; side-request pages s
 Your old content imported once; plugins and settings stay on shared storage with a hash check;
 release builds with the first remade release, the catalogue key on the phone with a backup;
 the app's own files in a hidden folder (D6); attachments supported (UC48).
+
+## Decided after the behaviour inventory (2026-11-21)
+
+`design/2b-behaviour.md` lists everything the old app does. From it: a draft per chat, kept on the
+device (UC7); the chats list's order and pinned order saved by chat id (UC16); the API token shown
+masked with Copy and Show (UC37); Memory's summaries as JSON shown and edited in a folded section of
+the readable file (UC43, D1, D6); the old app's folders marked, backed up and imported (D9); the
+templates' and plugins' texts carried over word for word (X6).
 
 ## Open
 

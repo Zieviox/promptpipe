@@ -19,6 +19,7 @@ other by id, never by holding each other.
   .promptpipe/                     hidden, .nomedia
     config.json                    Config
     plugins/<id>/                  your copies of plugins
+    backups/old-app-<date>.zip     the old app's folders, backed up before the import (D9)
   chats/                           the chats folder (default; can be moved, UC36)
     Trip ideas.md                  the readable chat: built from its data, the only files in "Recent"
     food/Recipe notes.md           folders hold readable chats
@@ -29,10 +30,11 @@ other by id, never by holding each other.
         attachments/               UC48
         <plugin id>.json           a plugin's data for this chat (Memory's summaries, ...)
       prompts.json                 the prompt library
+      chat_list.json               Chat_List: your order of the list and of the pinned chats
       tags.json                    counter tags' last numbers (when they count across all chats)
       repo/                        the history repository (its working tree is the chats folder)
 <app-private storage>              updated plugins, the revision record (D7), where the chats folder is,
-                                   the core's key, the core log
+                                   the core's key, the core log, the drafts (one per chat, UC7)
 <the platform's credential store>  credentials, encrypted with the key store (S7)
 <the APK>                          the built-in plugins, the loader, the page script (read-only)
 <memory>                           the screen's State, lost on restart by design
@@ -59,12 +61,17 @@ readable `.md` built from them. Owner: the runtime's chats module.
 | `created`, `updated` | time | |
 | `own` | map | the values this chat sets as its own (D8): `provider`, `profile`, `model`, `options` (map option → on), `toggles` (map block id → on). A value that isn't here is linked |
 | `site_url` | string | the site chat this chat continues (UC13) |
-| `pinned` | boolean | UC17 |
 | `tags` | list of strings | chat tags, put on every new message (UC20) |
 | `turns` | list of `Turn` | in order |
 
-The folder is part of `file`, not a field of its own (not stored twice). The readable file's form
+The folder is part of `file`, not a field of its own (not stored twice). Whether a chat is pinned is
+its place in `Chat_List.pinned` (not stored twice). The readable file's form
 (a short header, then one section per turn) is settled in the function list.
+
+**`Chat_List`**: your order of the chats list (UC16, UC17), in `chat_list.json`. Owner: the
+runtime's chats module. Fields: `pinned` (list of chat ids, in order), `order` (map folder path
+("" for the top level) → list of entries in order: a chat id, or a folder's name). What isn't listed
+keeps the default order; renaming or moving a folder updates its keys.
 
 **`Turn`**: your message and its reply; part of a `Chat`.
 
@@ -174,6 +181,9 @@ sees the listing; a write-only value never leaves the platform.
 | `header`, `prefix` | strings | how it's sent (`Authorization`, `Bearer`) |
 | `last4` | string | the last 4 characters, for the list |
 
+The local API token is the one credential the app issues to give away: the screen shows it masked
+and may show or copy it (UC37).
+
 ### Plugins
 
 **`Manifest`**: a plugin's description (`plugin.json`). Owner: the plugin's author.
@@ -228,7 +238,7 @@ function (the only writer).
 | `credentials` | list of `Credential` (the listing) |
 | `chats` | list of `Chat` without their turns (what `meta.json` holds) |
 | `chat` | the open `Chat` |
-| `drafts` | map chat id → `{ text, attachments }` |
+| `drafts` | map chat id → `{ text, attachments }` (saved on the device, UC7) |
 | `sends` | list of `Send` (queued, on their way and failed alike) |
 | `pages` | list of `Page` |
 | `jobs` | list of `Job` |

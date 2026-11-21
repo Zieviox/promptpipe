@@ -38,12 +38,12 @@ fields, labels, rules, and where it's stored.
 | `record_copy` | collection, id → record | S, P |
 | `record_delete` | collection, id → done | S, P |
 
-Collections: `chats` (rename, pin, tags, folder, site chat link, and its own provider, profile,
+Collections: `chats` (rename, tags, folder, site chat link, and its own provider, profile,
 model, options and toggles, D8),
 `provider_choices` (the model and options saved for each provider),
 `folders`, `turns` (message tags), `profiles`, `templates`, `blocks`, `groups`, `prompts`,
 `connections`, `sources`, `sends` (queued messages: move up, edit, remove), `drafts`,
-`settings`, `plugin_settings`.
+`settings`, `plugin_settings`, `chat_list` (your order of the list and the pinned chats, UC16, UC17).
 
 **Everything with its own behaviour**
 
@@ -73,10 +73,11 @@ model, options and toggles, D8),
 | `plugin_copy` | plugin → your copy | S | UC29, UC38 |
 | `chats_folder_move` | folder, copy → done | S | UC36 |
 | `storage_verify` | → each test with the system's answer | S | UC36 |
-| `api_token_create` | → the new token (shown once) | S | UC37 |
+| `api_token_create` | → the new token | S | UC37 |
+| `content_import` | → what was imported from the old app, and the backup's path | S | D9 |
 | `change_resolve` | change, choice (`theirs` · `ours` · `both`) → done | S | D7 |
 | `job_run` | job → the job's results, as `job_changed` events | C | UC41 |
-| `plugin_set` | the plugin's definition (its hooks and commands) | P | UC42.2 |
+| `plugin_set` | the plugin's definition (its hooks and commands, and its section of the readable chat file with how to read it back, D1) | P | UC42.2 |
 | `chat_data_read` | chat → the plugin's data for it | P | UC43, UC44 |
 | `chat_data_write` | chat, data → done | P | UC43, UC44 |
 | `sheet_open` | the sheet's definition → done | P | UC42.4 |
@@ -97,6 +98,7 @@ model, options and toggles, D8),
 | `plugin_write` | plugin, files, catalogue entry → plugin (each file's hash checked against the entry) | A | UC29–UC31, S3 |
 | `plugin_remove` | plugin, copy → done | S | UC29 |
 | `log_read` | → the core log | S | UC38 |
+| `folder_export` | root, folder, zip path → done (the folder as one zip, its git history included) | A | D9 |
 
 Roots: `app`, `chats`, `built_in` (read-only), `device` (the phone's shared storage: list and
 make folders only, for picking the chats folder, UC36). The change check is the expected revision on every
@@ -114,6 +116,7 @@ write, move and delete: one mechanism for every file (D7).
 | `credential_create` | fields, value → credential | S | UC40 |
 | `credential_list` | → credentials (no values) | S, A | UC40 |
 | `credential_delete` | name → done | S | UC40 |
+| `credential_read` | name → value (read-write credentials only; the local API token for the screen's Show and Copy) | S, P | UC37, UC40.2 |
 | `repo_commit` | paths, message → commit | A | D2 |
 | `repo_push` | → done (the token comes from the credential named in settings) | S, A | UC36 |
 | `repo_pull` | → done | S | UC36 |
@@ -195,7 +198,7 @@ The screen needs no events of its own: it draws the `State` after every change.
 | UC33 safe mode | `app_start` |
 | UC34–UC35 look, sites | `record_set` on `settings`, `bars_set` |
 | UC36 storage, git | `file_list` on `device`, `chats_folder_move`, `storage_verify`, `storage_access_open`, `record_set` on `settings`, `repo_push`, `repo_pull`, `commit_list` |
-| UC37 local API | `api_token_create` → `credential_create` |
+| UC37 local API | `api_token_create` → `credential_create`; `credential_read` (Show, Copy) |
 | UC38 advanced | `record_delete` on `settings` (reset to defaults), `plugin_copy`, `log_read`, `app_close`, `service_stop`, `app_get` |
 | UC39 help | the screen, `record_set` on `settings` |
 | UC40 credentials | `credential_create`, `credential_list`, `credential_delete`, `record_*` on `connections` |
@@ -203,6 +206,7 @@ The screen needs no events of its own: it draws the `State` after every change.
 | UC42 plugin authors | `plugin_set`, `sheet_open`, `event_on`, and the calls marked P |
 | UC43–UC47 built-in plugins | `message_send` (unsaved), `chat_data_read`, `chat_data_write`, `site_report_build`, hooks |
 | UC48 attachments | `attachment_add`, `picker_open`, `clipboard_read`, `share_received`, `site_send` |
+| D9 the old app's data | `content_import` → `folder_export`, `file_list` and `file_read` on `device`, `file_write` |
 | D7 change check | `change_resolve`; the expected revision on `file_write`, `file_move`, `file_delete` |
 
 ## What this leaves out on purpose
@@ -218,7 +222,7 @@ The screen needs no events of its own: it draws the `State` after every change.
 ## In numbers
 
 - One port each way, one envelope.
-- 7 record operations for 15 collections; 32 more calls answered by the application (5 of them
+- 7 record operations for 16 collections; 33 more calls answered by the application (5 of them
   only for plugins).
-- 11 calls answered by the core, 24 by the platform, 7 by the page script.
+- 12 calls answered by the core, 25 by the platform, 7 by the page script.
 - 9 events.
