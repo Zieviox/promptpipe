@@ -838,7 +838,7 @@ Numbers, texts and limits are kept exactly; texts in quotes are the screen's wor
   #1d1b19, muted #6b645d, accent #c4521a, ok #1d7348, error #b8322a, warning #8a6100. Accents (dark /
   light): blue #8fa8ff / #3557c9, green #7fd1a3 / #1d7348, rose #f28bab / #b1365f, violet #b69cff /
   #6a45c9; each passes AA on its background.
-- Rows: raised cards, radius 12, padding 11×12, a muted second line; switches 38×22; round icon
+- Sheet items: raised cards, radius 12, padding 11×12, a muted second line; on/off toggles 38×22; round icon
   buttons 34 px; the send button a 30 px accent circle (stop: text-coloured); the message box a
   raised bar with radius 22; your messages raised bubbles (radius 16, at most 80% wide, long ones
   folded to 6 lines with a fade); replies without a bubble.
@@ -883,7 +883,7 @@ Numbers, texts and limits are kept exactly; texts in quotes are the screen's wor
 - **The turn while sending**: shown at once with its progress; the page is navigated to the target
   unless already there; the toggles used are the chat's as they are when it goes (a message that
   waited uses the latest). "First message" is true for the chat's first turn or a fresh site chat.
-  The message is built through the blocks (the trace keeps each step: "You", each block, "Raw
+  The message is built through the blocks (the trace keeps each entry: "You", each block, "Raw
   reply", "Error"). Progress: "Sending to <provider> (page N)…" or "Reading the reply on …".
 - **Waiting limits**: no activity for N minutes, N minutes in total (0 = none); the app waits as
   long as the page may (a week without a limit).
@@ -920,12 +920,12 @@ Numbers, texts and limits are kept exactly; texts in quotes are the screen's wor
   message; N ≥ 0); Off. An empty one is never sent. Its name: its own, the library prompt's (or "(no
   longer in the library)"), else its first line (40 characters), else "(empty system prompt)".
 - **Building the message** (pure apart from the plugins it calls), top to bottom:
-  - a System prompt adds its text (and a trace step "System prompt · <name>");
+  - a System prompt adds its text (and a trace entry "System prompt · <name>");
   - "Your message" marks where your message goes;
   - a plugin with text (or a named text) adds its text there (given the message);
   - a plugin that changes text changes, by its block's scope: everything above it (joined into one),
     only your message, or only the picked blocks above it plus maybe your message (each on its own,
-    told "block i of n", so it can mark them and say so once); a trace step "<plugin> · before";
+    told "block i of n", so it can mark them and say so once); a trace entry "<plugin> · before";
     its notes go to the turn as "<plugin>: <note>";
   - depth prompts go where the earlier-chat plugin puts them, else just before your message;
   - the parts are joined with a blank line, empty ones dropped; the turn's notes get "<profile>:
@@ -1240,3 +1240,322 @@ What a provider tells the page script (as data), carried over in the new format:
   #3343b0, on accent #fff), ok #2a7f52, error #b83636, warning #7d5a00, toast #1f2024 on #f6f4ef, error
   toast #b83636, scrim #0004, shadows, light.
 - With a theme on, light or dark can't be chosen (1.1).
+
+## 4. The loader (`ui/core.js`)
+
+- **Starting**: a spinner "Starting…"; loads the app's own plugins (tag core, in their order, then by
+  id; one screen: the chosen one, else chat-ui, else the first), then the app's facts, the pages,
+  the settings (defaults filled in, the old app's setting names moved over once), the plugin folder,
+  every plugin, then "start" and "ready" (an error there stops the start). Failing: "Could not start:
+  <why>" with "Retry" and "Open in safe mode". No screen loaded: "No app UI is loaded. Safe mode loads
+  the built-in one." with "Open in safe mode" (or "Retry" in safe mode).
+- **Safe mode**: only built-in plugins load; a plugin of yours among the app's own that fails to load
+  restarts the app in safe mode naming it: "Safe mode: your plugin “<id>: <why>” didn't load, so only
+  built-in plugins are on."
+- **Loading plugins**: each plugin's code runs in its own scope (reloading, or two plugins with the
+  same names, don't clash); its error is kept on it (with the line), and one that never registers
+  says "main.js did not call PP.plugin({...})"; a content script that can't be read: "<file> not
+  found". Reloading drops the plugins' event listeners (the app's own stay). After loading, the
+  default provider for new chats must be an installed one (else the first provider).
+- **What a plugin is**, by its tags: provider, theme, core (+ ui = the screen), driver (default page
+  commands for every provider; a provider's own content script still wins; to be replaced by the
+  runtime's default routine), passive (menu entries only). Anything else is a block plugin.
+- **Settings**: a plugin's are per profile; a provider's are one set per provider, whatever the
+  profile (with the model and options picked); unset keys take the plugin's defaults. A provider's
+  "Reply selector" setting is tried before its own reply selectors.
+- **A chat's provider**: its own, else the one whose name the file gives (older chats), else the
+  default for new chats; picking one for a chat makes it the default for new chats too.
+- **Hooks**: the plugins with a block on, in profile order; route: the first that answers wins
+  (profile and/or link); before send / after reply: each in turn, its output feeding the next, each
+  entry in the trace ("<plugin> · before/after") with its notes ("<plugin>: <note>"). A hook gets the
+  plugin's settings, `note`, and its own data on the message (read and set, saved in the chat).
+- **Events**: listeners by type; a listener's error is shown "<plugin|App> (<type>): <why>" and doesn't
+  stop the others. From the app: a page's progress (to the message being answered there; empty
+  values don't wipe what a content script already showed) or its state (connected, link, title); the
+  site view showing another page (commands like Check then act on it); a plugin installed from
+  outside (reload, turn it on, "Installed <id>"); errors (a toast); anything else passed on. Old
+  events from before the screen loaded are skipped. If the event stream fails it retries every 3 s.
+- **Plugin updates (release bundle, the fallback)**: checked at most every 20 hours when turned on,
+  quietly (the result shows as "Last check: …"); "Checking for plugin updates…", "Plugins updated to
+  <v> (N). Restart the app to use them.", "Plugins are up to date (<v>)", "Plugin update failed: <why>.
+  Settings › Core plugins has the zip to install by hand."; a bundle installed from a file: "Plugin
+  bundle <v> installed. Restart the app to use it." Your own plugins always win; safe mode ignores
+  updates.
+- **What plugins get** (the plugin surface; the remake designs its own, these jobs must stay):
+  register hooks; draw elements; call the app; copy (the platform's clipboard, which works after any
+  wait; the browser's as a fallback; "Couldn't copy: <why>"); save a file to the export folder
+  ("Saved <path>" / "Couldn't save the file: <why>"); pick text files (at most 5 MB each: "A file is
+  over 5 MB"); the import clash setting; toasts (3.5 s, errors 8 s); events (listen and send); ask and
+  ask for text; change its own setting; whether in safe mode; Markdown to HTML; the open chat; the
+  active profile; a page command; a side request (`ask`); its own sheet and redraw; add a System
+  prompt block to the active profile ("Added to <profile>"); read another plugin's settings; the
+  open chat's provider.
+- **Settings are saved** 400 ms after the last change ("Settings not saved: <why>").
+- **Defaults**: one profile "Default"; git on with auto-push off; API folder "api"; scale 100%, text
+  16; Enter doesn't send; no waiting limits; 5 replies at once.
+
+## 5. The page script (`ppext/content.js`, runs in each site page)
+
+- Runs once per top page (not in frames). Connects to the platform's port, says hello (link, title),
+  retries with growing waits (0.5 s… 5 s, 40 tries: pages that aren't the app's give up), reconnects
+  when cut. Reports a changed address every 1.5 s (single-page sites) with the title. Each command
+  answers ok with its result or the error's text; an unknown one: "unknown command <cmd>".
+- **Commands** (every answer also carries the page's link, title, model and whether the chat box
+  shows): `send`, `follow` (the reply now on the page, waiting until it is finished; with your last
+  message), `last` (newest reply and its thinking), `list` (the site's chats: each link once, its
+  first line, 120 characters), `history` (the open chat's messages in page order as {you, reply,
+  thinking}; none: "no messages found on the page (the provider plugin may need 'user' selectors; try
+  Copy page report)"), `models` (open the picker, read, close; with the options' states), `setModel`
+  (exact name, else "contains", ignoring case; "model "<m>" is not in the site's list"; the list is
+  closed if it stays open), `setOption` (clicks only when the state differs; "option "<name>" not found
+  on the page"), `info`, `probe` (a content script's own report), `run` (a plugin's code with the
+  helpers; S9: only as handed over by the app through the platform), `cancel` (Stop).
+- **A content script** (the provider's, and the default routine) returns the commands it replaces;
+  the rest use the selector-based defaults. It gets the helpers: cancelled, all, first, visible,
+  sleep, textOf, typeInto, waitReply, snapshot, lastReply, lastReplyEl, lastThinking, answerText,
+  toMarkdown, list, info, status. Its own send gets the default send to call. Before a content
+  script's send, the box is waited for once (15 s) for every provider.
+- **Elements**: a selector list is tried in order, the first visible match wins; a broken selector
+  matches nothing.
+- **Typing**: waits up to 15 s for the box ("chat input box not found on the page after 15s (tap the
+  site name to look[; it shows a Log in button])"; logged out = a visible Log in / Sign in button in
+  common languages: English, Portuguese, Spanish, German, French, Italian, Chinese, Japanese). Types
+  through the editor command (the same events as a keyboard), else the native setter with input and
+  change events. Waits for an enabled Send (1.5 s), else the last enabled button after the box in its
+  area (up to 6 levels; a disabled one means wait, never press a toggle; 2.5 s), else Enter.
+- **Sent** = a new reply or a new message of yours appeared, the box left or emptied or was replaced
+  by an empty one, the address changed, or Stop showed; 5 s, then one more press (only while the text
+  is still in the same box), 10 s, then "couldn't tell whether the site sent it. If the site is
+  answering, tap Check; if not, ⋯ → Copy page report and send it to whoever maintains the provider
+  plugin".
+- **Site errors**: a content script may report a refusal (text, or text and the element showing it).
+  An error already showing before the send belongs to an earlier message; one with no element (a
+  human check over the page) stops the send at once. During typing and waiting, a new one ends the
+  wait with its text.
+- **Waiting for the reply**: every 250 ms. Activity = new reply text, new thinking text, or Stop
+  showing. A new reply is one beyond the count before the send or with different text. Finished =
+  unchanged, no Stop, for the provider's settle time (2 s default). Stop showing while the reply
+  hasn't changed for the stuck time (45 s default) is taken as stuck: "the site still shows it is
+  writing, but the reply has not changed for 45 s: using it". Progress: "thinking… N chars" (with the
+  thinking) before the reply starts, "writing… N chars" (with both). Stop keeps what came in; with
+  nothing yet: "stopped waiting before any reply came (if the site answers anyway, ⋯ → Add the page's
+  newest reply)". Limits: "no finished reply after N min (your limit in Settings)" / "no activity on
+  the page for N min (your limit in Settings; or check the provider plugin's reply selectors)", each
+  with ". Waited: …".
+- **The wait log** (privacy-safe diagnostics): numbers only — Stop on/off, reply length, thinking
+  length, replies shown, the page's view size and hidden — the last 10 changes with seconds, given
+  with the reply for waits over 30 s (the turn's "waited: …" note) and with timeout errors.
+- **The reply** is converted from the page's HTML to Markdown: headings, paragraphs, line breaks,
+  bold, italic, strikethrough, inline code, code blocks with their language (without copy buttons
+  and line numbers; a wrapper with a language label is just the code), lists with nesting and start
+  numbers, tables (pipes escaped), quotes, rules, links (not javascript:), images; hidden parts,
+  buttons, forms and navigation skipped; plain text when the conversion fails. Thinking and "strip"
+  parts (citations) inside the reply are removed. Thinking: a new thinking element since the send,
+  else one beside the reply (up to 3 levels up).
+- After a send, 300 ms for the address to update for a new chat.
+
+## 6. The core (Odin)
+
+- **Starting**: `ppcore --data <user folder> --private <app-only folder> --assets <app files> [--port
+  7790]`; an unknown option or a missing folder prints the usage and stops. Makes its folders. The
+  session key comes from the platform (`PP_KEY`, one per start; else it makes one and keeps it in the
+  private folder). The API token is made on first start and is always on. Can't listen: "core: can't
+  listen on port N".
+- **Security**: listens on 127.0.0.1 only; the Host header must be 127.0.0.1:<port> or
+  localhost:<port> (no DNS rebinding: "wrong host"). Every call needs the key: the screen gets it once
+  through `/open?key=…` (an HttpOnly, SameSite=Strict cookie, then back to the screen; wrong: "wrong or
+  missing key"), the platform sends it as a header; the local API takes the API token as a Bearer key.
+  Keys are compared in constant time. Without the key: "missing or wrong key: open promptpipe from the
+  app". Requests: header at most 64 KB, body at most 64 MB, one per connection, never cached.
+- **Serving**: the screen's files, the docs, plugin files (yours, then a newer update, then the app's;
+  safe mode only the app's); paths can't leave their folder.
+- **Secrets** (today): a private, owner-only file holding only known names (git token, API token);
+  asking for an empty API token makes a new one. The remake replaces this with the Keystore
+  credentials (S1–S4).
+- **Settings**: one JSON file in the user folder ("config is not valid JSON").
+- **Events**: kept (the last 200), the screen long-polls (25 s). **Platform calls**: queued, the
+  platform long-polls (25 s) and answers by id ("nobody waits for that id"); the platform says hello
+  with its platform name, the modules it has, and why the missing ones are missing; it reports its
+  pages. A call when the platform isn't connected: "the app shell isn't connected". A module the
+  platform lacks never hides a feature: "<module> is not supported on this platform (<platform>):
+  <why>" (P5, 501). Timeouts: page commands 31 min by default (or the send's own), opening a page 60
+  s, pages 10 s, app actions 10 s, modules 60 s, fetch 90 s, jobs a week.
+- **Fetch** for plugins: https links only ("only https links can be fetched"); done by the platform
+  (the core has no TLS).
+- **Export**: a file to the export folder in the user folder ("bad file name", "could not save <name>
+  (<why>)").
+- **Storage**: the chats folder (the default, or a chosen one kept in the private folder so the
+  platform's git uses the same); count the chats in a folder; list a folder's folders (hidden left
+  out; "<path> is not a folder the app can open"); choose a folder (a full path, not the app's own
+  folders: "give a full folder path that starts with /", "that folder is the app's own", "that is a
+  file, not a folder", "could not make <path> (<why>)", "the phone won't let the app write in <path>:
+  <report>"; copying the chats over first if asked: "copying the chats stopped part way; the old
+  folder is untouched"); copy another folder's chats in without overwriting anything ("give the full
+  path of a folder that exists", "that is the folder already in use", "copying stopped part way (N chats
+  added); nothing was overwritten or removed"). Making folders walks up to the first one that exists,
+  then makes the rest one at a time (Android refuses opening /data or /storage).
+- **The storage check**: in the chats folder, "make a folder", "write a file in it", "write a file
+  beside the chats", each with ok or the system's own reason; cleaned up after.
+- **The chat list**: every chat with its first 1500 characters (enough for the header) and its time,
+  plus every folder (so empty ones show); hidden folders skipped. **All chats' text** for search.
+- **Saving** (one call): make folders, move, write, delete, then one commit of the touched paths with
+  the message, the name, email, remote and auto-push (when git is on); git failing doesn't fail the
+  save (its error is returned). A chat's companion files move and go with it. Paths are checked
+  ("bad path"; "could not write <path> (<why>)", "could not make the folder <path> (<why>)").
+- **Git through the platform**: the log (30 for everything, 200 for one chat), push, pull.
+- **The core log**: the last 64 000 characters of the log the platform writes, never starting inside a
+  character.
+- **Plugins**: the list (yours, newer updates, the app's), each with its manifest, where it came from,
+  the version yours hides, and an error for a bad plugin.json ("plugin.json is not valid JSON").
+  Copy a built-in one to yours ("bad plugin id", "plugins/<id> already exists", "no built-in plugin
+  '<id>'", "copy failed"). Remove yours ("no plugin of yours with that id"; the earlier copy goes too).
+  Roll back = swap with the copy the last install replaced (swapping again goes forward; "there is no
+  earlier version of this plugin to go back to", "couldn't move the current version aside", "couldn't
+  put the earlier version back").
+- **Installing**: from a link (a GitHub folder link becomes its raw plugin.json; a .zip; a plugin.json
+  and the files it lists: main, content script, css, files), from a picked file's bytes (a zip — one
+  plugin, or a bundle with bundle.json and one folder per plugin, one wrapping folder allowed — or a
+  lone plugin.json), or from files given as text (an AI's answer). Ids are letters, digits, - or _
+  ("plugin.json needs an id made of letters, digits, - or _"); paths are checked ("bad file path");
+  each needs plugin.json ("<id> has no plugin.json"); each plugin is replaced whole, the replaced one
+  kept for rolling back; "could not write <id>/<file> (<why>)". A bundle replaces the whole
+  downloaded update set at once. (Today the catalogue's hash is sent but not checked by this core; the
+  remake checks the hash against the signed catalogue, S5–S7.)
+- **The release bundle**: the latest release's `promptpipe-plugins-<version>.zip`; when GitHub's
+  anonymous API limit is used up (403), the release feed and the download link are used instead
+  ("GitHub's hourly limit is used up (…) and the release list didn't load either: …"); "release <tag>
+  has no plugin bundle", "no releases found", "updates come from owner/repo, not '<repo>'".
+- **The local API** (`/v1`, UC41): CORS open (any origin, authorization and content-type); a wrong
+  token: "Incorrect API key. Use the API token from promptpipe settings." (invalid_api_key). `GET
+  /v1/models` lists the profiles; `POST /v1/chat/completions`: model = a profile name (ignoring case;
+  else the active one); `"chat"` = a saved chat's path ending in .md (then only the last user message
+  is sent) or "new"; without it, one message is built from all messages (a single user message as it
+  is, else "### Role" headings, in order); text parts of array content are joined. Errors: "messages
+  is empty", "body is not JSON", "chat must be a saved chat's path ending in .md, or "new"", "open the
+  promptpipe app first" (503), the site's error (502), "Only /v1/models and /v1/chat/completions exist
+  here." (404). The answer: an OpenAI chat completion (id `chatcmpl-…`), the thinking as
+  `reasoning_content`, token counts estimated at 4 characters per token, and `promptpipe`: {chat, sent,
+  source}. With `stream`, the whole reply goes as one chunk then stop and `[DONE]` (the reply only
+  exists once the site has finished). The old simple API answers "the simple API is gone: use the
+  OpenAI-style API at /v1 (it takes an optional "chat" field)".
+- **The app's facts** for the screen: storage, core version, port, whether a git token is set, the API
+  token's value, whether the screen and platform are connected, the platform, its modules and missing
+  ones, what the platform knows (version, file access…), the pages.
+
+## 7. The platform (Kotlin, Android)
+
+- **One app process** (the browser engine starts extra processes; everything is set up only in the
+  main one). The core starts first; the screen opens once it answers.
+- **The core**: started as the bundled program with a new key per start (given only to the core and
+  the screen); the app's own files are copied out of the APK again whenever the app is installed or
+  updated (a failure is kept as the reason). It must never stop: when it does, it starts again,
+  waiting 1 s, doubling while it keeps failing fast, at most 30 s (reset after a minute up). Its output
+  goes to `logs/core.log` in the user folder (readable from a file manager or Termux), cleared over 512
+  KB.
+- **Opening the screen**: "Starting promptpipe…" with a spinner; up to 30 s for the core; failing:
+  "promptpipe couldn't start: <why>" (or "the core didn't answer within 30 seconds") with the last
+  lines of the core log and "Try again". Never a blank page.
+- **The screen and the pages**: the screen fills the window and draws everything, including the site
+  view; when it shows the site view it gives the page's place (fractions of the screen) and the page
+  is put there, over the screen. One view per site page; only the shown one sits in the place, the
+  others are moved far off screen at their real size (a page with no size draws nothing, and sites
+  with virtual lists such as DeepSeek then drop their messages, #96, #236); all keep running. The
+  keyboard or turning the phone keeps the page in its place. Edge to edge: both stay clear of the
+  status bar, navigation bar, cutout and keyboard.
+- **Focus** moves only when the site view opens or closes, or a tab is picked in an open site view,
+  never on a move (#240: the keyboard resizes the screen and took the address bar's focus).
+- **Pages**: 1–10 (setting the count adds or closes from the end; closed pages' commands fail "that
+  site page was closed (fewer pages in Settings)"); each page's page script connects on its own port;
+  hello marks it connected (with link and title), a lost port fails its waiting commands ("the AI page
+  reloaded"). A command waits up to 20 s for a page that isn't connected yet ("the AI page is not
+  connected (still loading? open it with the Site button)"); a missing page: "there is no site page N
+  (Settings › Sites › Max replies at once)"; no answer in time: "the AI page did not answer in time".
+  Opening a link waits up to 45 s for hello ("the page did not finish loading: <link>"). Pages start
+  blank; the screen opens the site when it needs it.
+- **Navigation**: links in the screen open in the normal browser, never inside the app. Sign-in
+  pop-ups (e.g. Google) get their own page over the site, closed when the site closes it or with
+  Back.
+- **Recovery**: Android may stop a page's engine to free memory, or it may crash: the page is reopened
+  and reloaded on its last link ("AI page [N] crashed / was stopped by Android and was reloaded");
+  the screen is reopened the same way. Coming back to the app reopens any page whose engine is gone.
+  The site view's reload reopens a dead page or reloads it. The built-in page script failing to load:
+  "Built-in extension failed to load: <why>".
+- **Back**: closes a sign-in pop-up, else the site view, else goes back in the screen, else puts the
+  app in the background. **Alt+S**: hides the site view, or asks the screen to show it (the screen
+  draws it first).
+- **App actions**: show the site view (with a page and its place), move its place, back to the chat,
+  reload a page, open a link in the browser, ask for all-files access (Android 11+: its settings page;
+  older: the storage permission), go to the background, stop the background service, a short tick
+  (vibration) when a reply arrives, the theme (the background behind the pages and light or dark system
+  bar icons), pick a plugin file (read and installed; "Install failed: <why>"; a bundle announces
+  itself).
+- **Sharing in**: text shared from another app (Share, or "Send to promptpipe" in the text selection
+  menu) becomes a share event (UC14), also when the app is already open.
+- **The background service**: a low-importance notification "promptpipe is running" / "AI page and
+  local API on 127.0.0.1:7790", tap opens the app, "Stop" ends it; it keeps the process, the pages and
+  the local port alive; restarted by the system if killed. Notifications are asked for on Android 13+.
+- **Modules**: git (commit, log, push, pull), clipboard (copy, paste; on the main thread), vibration,
+  share (text); anything else: "<module> has no call '<call>'", an unknown call: "the Android app
+  doesn't know '<kind>'". The platform says hello with "android", its modules, the app version and
+  whether it has all-files access, and retries while the core restarts.
+- **Fetch**: https only; redirects followed; a fresh connection each time ("Connection: close";
+  Android reuses connections GitHub has closed), a cut-off one tried once more; at most 50 MB ("that
+  download is over 50 MB"); errors in plain words with the host: "<host> wasn't found (no internet, or
+  the address is wrong)", "<host> didn't answer in time", "the secure connection to <host> failed
+  (…)", "the connection to <host> was cut off, twice. Try again in a moment", "couldn't download from
+  <host> (…)". User agent "promptpipe".
+- **Git** (JGit): the chats folder is the repository (made on first use, branch main, no file modes
+  or symlinks). A commit adds the touched paths and picks up moves and deletes; nothing to commit is
+  not an error; author "promptpipe" <promptpipe@localhost> unless set. Auto-push after a commit when
+  set ("Auto push failed: <why>"). Push and pull use the token as `x-access-token` against "origin"
+  ("set a remote URL first (Git sheet)", "pull failed: <why>"). The log: short id, message, time; for
+  one chat when given.
+- **Files**: the user folder is `/sdcard/PromptPipe` once all-files access is allowed, else the app's
+  own folder; app-only files (key, secrets, plugin updates, the app's own screen and plugins) in
+  private storage. Secrets from the first versions move into the core's file once.
+
+## 8. Guides
+
+- **Quick start** (`docs/QUICKSTART.md`) and **Writing plugins** (`docs/PLUGINS.md`) are shown in the
+  app (1.23) and copied for an AI (1.42). Their jobs carry over: first start (notifications, file
+  access, get a provider, log in), chatting, chats, tags, profiles and models, git, the local API with
+  a Termux example, sharing in, look, waiting, chats in parallel ("All pages share the login"; more
+  pages use more memory and can look like a bot), writing plugins, plugin updates, the keys, and
+  "Blank page?" (the app reloads a page Android stopped; else Reload over the page, or reopen the app).
+  Both are rewritten for the remake: some places they name are already out of date (the git and API
+  settings moved from Advanced), and the plugin guide follows the new plugin surface.
+
+## 9. What the inventory found (to fold into the model and requirements)
+
+Gaps (behaviour the design doesn't hold yet):
+
+1. **The chats list's order and the pinned order** must be stored, by chat id (1.31).
+2. **Bringing the old app's data in**: its chats (both old folders and today's chats folder, the chat
+   file with its hidden markers, the `switches`/`site` names), its profiles (every earlier shape and
+   both export versions), its prompt library (and the System prompt plugin's file), its settings, its
+   plugin settings and Memory's summary files must import into the new layout on first start, as the
+   old app upgraded itself (1.40, 1.41, 2.2, 2.4).
+3. **The template texts** (Development, Scene rules, Dialogue craft, Prose craft, Prose style, Bridge,
+   Co-writer, Editor) and every plugin's wording (Memory's requests and block labels, Base64's
+   instruction) carry over word for word as content (2.2, 3.1, 3.3).
+4. **Markdown tables** in replies (#214), already a requirement; the page script already sends tables.
+
+Questions for you:
+
+5. **The draft**: the old app keeps one draft on the device (it survives a restart); the design has a
+   draft per chat. One for the device, or one per chat?
+6. **Memory's summaries**: the old app keeps them as Markdown you can edit; the design keeps plugin
+   data as `<plugin>.json` in the chat's hidden folder. Keep them editable Markdown, or JSON?
+7. **The API token**: other apps need it, so the screen shows it and copies it, while credentials are
+   write-only by default (S2). Treat the API token as the one credential the app issues and may show,
+   or show it only once when made?
+8. **Counting tags**: today one counter per name for all chats; the design has `tags.counter_scope`.
+   Keep "all chats" as the default?
+
+Already decided, confirmed by the code:
+
+- Sub-chats' branching becomes a use of the branch model (N5, 3.2).
+- The catalogue's hash is sent but not checked by today's core; the remake checks it against the
+  signed catalogue (S5–S7).
+- Code run in a site page only as handed over by the app (S9: the page report's walk, a plugin's
+  `run`).
