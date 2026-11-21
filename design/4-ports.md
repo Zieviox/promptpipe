@@ -326,6 +326,5 @@ Every screen state traces to calls and records (above); `chat-empty` was looked 
 
 ## Next
 
-Stage 5: the strategies, redone against these calls (`5-strategies.md` is superseded until then).
-Open: whether counting tags restart in each chat by default (UC20 as decided) or count across all
-chats.
+Stage 5: the strategies, redone against these calls (`5-strategies.md`). Counting tags restart in
+each chat by default (UC20, confirmed 2026-11-21).

@@ -99,7 +99,8 @@ Requirements win over the screenshots (U 2026-11-21).
 - **UC19 Chat details**: title, chat tags, provider and model, the chat's history (F).
 - **UC20 Tags**: a chat tag goes on every message; a message tag on one; a tag ending in `#`
   counts up (`part#` → `part1`, `part2`) (F); whether the count runs within each chat or across all
-  chats is your choice in Settings (default: within each chat) (U 2026-11-21).
+  chats is your choice in Settings (default: within each chat) (U 2026-11-21, confirmed after the
+  behaviour inventory).
   A message holds one number per counter; the chip's +1 moves it to the next free number (F, from the old app's code).
 - **UC21 Copy or share a chat** (F).
 

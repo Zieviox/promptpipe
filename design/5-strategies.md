@@ -1,191 +1,229 @@
-# 4. Design strategies (pass 1 of the size work)
+# 5. Strategies (stage 5, redone 2026-11-21 against the calls)
 
-> **Superseded until revisited.** Written before the inside-out restart; parts of it no longer
-> hold (per-topic calls, old names, the old budget). Stage 5 redoes it. Use `4-ports.md` and
-> `3-terms.md` instead where they differ.
+Ways to need less code for the same features, each checked against `4-ports.md` and `3-terms.md`:
+what it is (with its standard name), what it replaces, which calls and records already carry it,
+and what it costs. Redone from the first pass (2026-11-20), whose eleven strategies were approved
+(decided A–C below); they are kept and refined here, not replaced, and three new ones come from the
+behaviour inventory and the stage 4 calls. Numbered "strategy 1 …" so they don't clash with the
+security ids S1–S10.
 
-Goal (U 2026-11-20): every feature in `2-requirements.md`, in about **3,000 lines of clean,
-comfortable code**. That means normal spacing, one statement per line, a fixed maximum line width
-of about 100 characters (set by a formatter), and comments where they help. The size has to come
-from a smarter structure, not from packing lines or removing features.
-
-This pass lists the structural ideas that make the same features need less code. Each idea has
-its standard name, what it replaces, an estimate, and its costs. You pick; pass 2 turns the picks
-into the architecture and a line budget per layer.
+Goal (U 2026-11-20): every feature in `2-requirements.md` and `2b-behaviour.md` in about **3,000
+lines of clean, comfortable code** (normal spacing, one statement per line, 100 characters wide,
+comments where they help). Size comes from structure, never from packed lines or cut features.
 
 ## Where the code is today
 
-10,370 lines of code (blank lines and comments not counted; tests and build scripts not
-included): screen 4,410 (ui.js alone 1,348), core 1,770, platform 993, page script 554, loader
-514, other runtime plugins 985, Memory/Sub-chats/Base64/Page report 826, providers 303,
-themes 15.
-
-The screen is mostly hand-built element trees: 177 `h("…")` calls in ui.js alone. The same
-shapes (a section, an item with a label and a value, a list of items with actions, a confirm) are
-built again in every file. The core and the platform each have a long list of special routes
-and actions that all do "take a request, run one thing, answer".
+10,370 lines of code (blank lines and comments not counted): screen 4,410 (ui.js 1,348), core 1,770,
+platform 993, page script 554, loader 514, other runtime plugins 985, Memory/Sub-chats/Base64/Page
+report 826, providers 303, themes 15. Most of the screen is hand-built element trees; the core and
+the platform are long lists of special routes doing "take a request, run one thing, answer". The
+inventory (`2b-behaviour.md`) lists what all of that does.
 
 ## The strategies
 
-### S1. Records with schemas, one generic viewer (the biggest lever)
+### Strategy 1. Records with schemas: one generic viewer and one generic store
 
-Standard name: model-driven UI, the **naked objects** pattern (Pawson, 2002–2004; Apache
-Causeway): the screen is generated from the data's description instead of written per screen.
+Standard names: model-driven UI, the **naked objects** pattern (Pawson; Apache Causeway), and the
+**repository** pattern (Fowler, *Patterns of Enterprise Application Architecture*) for storage.
 
-Nearly everything the user manages is a **collection of records**: chats, folders, profiles,
-blocks, groups, prompts, plugins, catalogue entries, sources, credentials, connections, queued
-messages, settings. Each collection gets a short schema (its fields with types and labels, its
-actions, how it's ordered or grouped). One generic viewer draws any collection as a list (keyed
-items, sections, select mode, reorder by drag or Move up/down) and any record as a form (toggle,
-choice, text, number, credential, link, list).
+Each collection (`chats`, `folders`, `turns`, `profiles`, `templates`, `blocks`, `groups`,
+`prompts`, `connections`, `sources`, `sends`, `drafts`, `settings`, `plugin_settings`,
+`provider_choices`) has one schema: its fields with types, labels and rules, its order or grouping,
+its actions (commands), and where it's stored. From it:
 
+- **the viewer**: one generic list (keyed items, sections, folding, select mode, reorder by drag or
+  Move up/down, a badge or a switch on the right) and one generic form (toggle, choice, text, number,
+  credential, list, link to another record), drawn in the screenshots' look;
+- **the store**: one load and one save per storage form (one JSON file for a collection, one file
+  per record, a record inside the chat's data folder), so `record_*` needs no per-collection code.
+
+- Checked against the calls: the seven `record_*` calls over 15 collections are this strategy;
+  `Setting_Def` is the schema's field shape for the app and for plugins alike.
 - Replaces: the chats list, the profile editor, Quick edit, the prompt library, the Plugins and
-  Catalogue screens, the plugin page, Settings, the chat info sheet, Model and options, secure
-  storage, the storage check: most of today's 4,410 screen lines.
-- Plugins' own settings already work this way (plugin.json declares them); this extends the same
-  idea to the whole app, so a plugin's settings and the app's settings are drawn by the same code.
-- Only the chat itself (messages, streaming reply, composer) and the site view stay bespoke.
-- Cost: a screen that needs a special layout needs a custom field type. The schemas are data,
-  and data lines count too.
+  Catalogue screens, the plugin page, Settings and its pages, the chat sheet, Model and options,
+  Credentials, the storage check, and today's per-collection load and save code.
+- Stays bespoke: the chat itself (turns, streaming reply, message box) and the site view's bar.
+- Cost: a screen with a special layout needs a field type of its own; schemas are data, and data
+  lines count (decided C).
 
-### S2. Commands as data (one command table)
+### Strategy 2. Commands as data: one command table
 
-Standard name: the **command pattern** with a single registry, as in code editors (VS Code's
-commands: every action has an id and is reused by menus, keys and the palette).
+Standard name: the **command pattern** with one registry (VS Code's commands).
 
-Every action the user can take is one record: `{ id, label, icon, key, when, run }`. Buttons,
-the ⋯ menus, long-press menus, keyboard shortcuts, the Ctrl+K command list, help texts (the ?
-mode) and the first-run tour all read the same table. A tour stop is a command id plus a
-sentence.
+Every action is one `Command` (`id`, `label`, `icon`, `key`, `when`, `handler`). Buttons, the ⋯
+menus, long-press menus, the keys, Find's functions, help mode's cards ("what it does, where it
+lives, its key"), the shortcuts list and the guides read the same table; a guide's stage is a
+command id plus its words, done when that command runs.
 
-- Replaces: hand-written menus in each file, the shortcut map, help.js and tour.js logic, and the
-  "what does this button do" texts written more than once.
-- Cost: a small engine (menus, shortcuts, help overlay) has to be written once.
+- Checked: `Command` in the model; the command list in the requirements is its content; plugins add
+  theirs with the `menu_items` hook.
+- Replaces: hand-written menus per file, the key map, help.js's texts, tour.js's step logic, Find's
+  separate list of functions.
+- Cost: one small engine (menus, keys, help card, guide spotlight), written once.
 
-### S3. One schema for settings
+### Strategy 3. One schema and one resolver for every setting and every linked-or-own value
 
-Standard name: **single source of truth**, schema-driven configuration.
+Standard names: **single source of truth**; **cascading settings with local override** (D8).
 
-Each setting is one record: key, type, default, label, section, limits, and old names (for
-migration). From it: the defaults, the Settings screen (through S1), validation, and the
-migration of old config.
+Each setting is one `Setting_Def` (key, type, default, label, section, limits, old keys for the
+import). One pure function, `value_get`, answers every "which value applies" question: a chat's own
+value, else the profile's, else the provider's choice, else the default.
 
-- Replaces: defaults in the loader, Settings code, scattered migration code.
+- Checked: `Config.settings` holds only values you changed; the linked-or-own table in the model;
+  `record_set` with a field set to none goes back to linked.
+- Replaces: defaults in the loader, Settings code, per-place fallbacks (today's provider, profile,
+  model and toggle lookups are four separate pieces of code).
 
-### S4. One message format and bus across every process
+### Strategy 4. One port each way, one envelope, one call table
 
-Standard names: **message bus**, request/reply plus publish/subscribe over one envelope (like
-JSON-RPC 2.0, which has calls, replies and notifications in one format).
+Standard names: a **message bus**; request/reply and notification in one format (as JSON-RPC 2.0).
 
-The screen, the core, the platform and the page script all send one envelope:
-`{ type: "call" | "reply" | "event", name, data, id }`. The core routes it; each side registers
-handlers by name (`chat_save`, `page_send`, `clipboard_copy`). Events (S-principles) travel the
-same way.
+- Checked: this is `4-ports.md` (81 calls, 9 events). The table is the routing, the boundary check,
+  P5's "not supported on this platform", and the stand-ins for tests.
+- Replaces: the core's ~40 routes, the platform's action and module lists, the page bridge's own
+  message types, and their glue.
+- Cost: the checks (the key, who may call what) live in one place, which has to be right.
 
-- Replaces: about 40 special routes in the core, the platform's action and module lists, the
-  page bridge's own message types, and the glue around them in the loader.
-- Adding a capability is registering one handler; nothing in between changes.
-- Cost: the security checks (the key, which side may call what) move to one place, which has to
-  be right.
+### Strategy 5. A small, generic core
 
-### S5. A small, generic core
+Standard names: **capability-based** file access (named roots, one path check), a thin server.
 
-Standard names: **capability-based access** to files (named roots, path checks once), and a
-"thin server".
+The core keeps only what must be native or trusted: the HTTP server and the key, files under named
+roots with the change check (the expected revision on every write, move and delete, D7), the search
+over the chats (`file_find`, #212), plugin verification (`catalogue_verify`, `plugin_write`), the log,
+and the local API's HTTP side.
 
-The core keeps only what must be native or trusted: the HTTP server and the key, the bus router,
-files under named roots (`chats`, `plugins`, `config`, `export`) with one path check, plugin
-install with hash and signature verification, and the local API's HTTP side. Everything else
-(saving a chat with its commit, copying a plugin, rolling back, moving the chats folder,
-exporting) becomes runtime code built from the file and repo calls.
+- Checked: the core answers 11 calls; saving a chat with its commit, moving the chats folder, copying
+  and rolling back plugins are runtime sequences over `file_*` and `repo_*`.
+- Odin's own library does the hard parts behind adapters: `core:net`, `core:crypto/sha2`,
+  `core:crypto/ed25519`, `core:encoding/json`.
+- Cost: none in features; the checks stay out of plugins' reach (S3).
 
-- Replaces: most of today's 1,770 core lines (special routes, per-feature file code).
-- Odin's own library does the hard parts: `core:net`, `core:crypto/sha2`, `core:crypto/ed25519`,
-  `core:compress/deflate`, `core:encoding/json`.
-- Cost: none in features; trust stays in the core (verification of updates must not be
-  updatable itself).
+### Strategy 6. A thin platform
 
-### S6. A thin platform
+The platform answers 25 calls, each a few lines around its library: pages, views and pop-ups
+(GeckoView), the repository (JGit), credentials with the keyed request (Keystore), clipboard,
+vibration, share, the picker, the bars, the service, the app's start.
 
-The platform registers its capabilities in one table (S4): pages and views (GeckoView), the
-repository (JGit), credentials with the keyed request, clipboard, vibration, share,
-notifications, file access. Each handler is a few lines around the library.
+- Refined from the first pass's architecture: the site view sits in a region the screen names
+  (`view_set`), so no geometry is kept in sync on every keyboard change (the cause of #240); hidden
+  pages keep their real size (R3).
+- Replaces: today's separate action, module and page-message paths.
 
-- Replaces: the separate action, module and page-message code paths in today's 993 lines.
+### Strategy 7. Providers as data; the default routine as an updatable content script
 
-### S7. Providers as data, a page script of primitives
+The page script in the APK only joins the port and runs the code the app hands it (S9). The
+default way of using a site (type, send, wait, read, the model list, the page report) is a content
+script in a runtime plugin, driven by the provider's `Provider_Def`; a provider's own content
+script replaces single stages only (DeepSeek's error stage, Qwen's send and thinking stages).
 
-The page script offers about ten primitives (find, wait for, read text, read as Markdown, type,
-click, watch changes, report) and **one** generic send-and-read routine driven by the
-provider's selectors. A provider's content script replaces single stages only.
+- Checked: `page_open` hands the provider and its scripts; the seven `site_*` calls are the routine's
+  stages.
+- Replaces: most of today's 554 page-script lines, and the helpers each provider rewrote.
 
-- Replaces: much of today's 554 page-script lines, and the helpers providers rewrote (the
-  duplicates report, item 14).
+### Strategy 8. One send sequence for every send
 
-### S8. One send sequence for every send
+Standard idea: a **pipeline** (pipes and filters), each stage's output feeding the next.
 
-Standard idea: a fixed sequence of stages, each one's output feeding the next (filters).
+A send runs: blocks → `send_before` hooks → the provider (`site_model_set` and `site_send`, or
+`http_fetch` for an API) → `reply_after` hooks → save. Your messages, side requests, Memory's
+summaries, Sub-chats' routing, other apps' jobs and API providers all use it; only the `Send`'s
+fields differ (saved or not, which profile, which chat, which page).
 
-A send is a list of stages run in order: blocks → `send_before` hooks → provider → `reply_after`
-hooks → save. The same sequence serves your messages, side requests (`PP.ask`), Memory's
-summaries, Sub-chats and the local API's jobs, with only its options differing (saved or not,
-which profile, which chat).
-
+- Checked: one `message_send`, one `Send` record, the queue and the failed list as views of `sends`.
 - Replaces: today's separate paths for chats, side requests and jobs.
 
-### S9. The platform's built-ins instead of custom code
+### Strategy 9. The browser engine's own features
 
-The browser engine already does a lot that the app does by hand:
+- `<dialog>` for sheets, confirms and text prompts (focus, Escape, the backdrop); `<details>` for
+  every fold (Q5); CSS for layout and `overflow-anchor` (UC8); `URL` for comparing addresses; `Intl`
+  for dates; streams for streaming replies; `CompressionStream` where a zip needs it.
+- Replaces: custom sheet, fold and scroll code.
 
-- `<dialog>` for sheets, confirms and text prompts (focus, Back/Escape, the backdrop).
-- `<details>` for folded thinking and long messages.
-- CSS for layout, scroll anchoring (`overflow-anchor`) and the "↓ 1 new" behaviour.
-- `URL` for comparing addresses, `Intl` for dates, Web Streams for streaming replies.
-
-- Replaces: custom sheet, fold and scroll code in the screen.
-
-### S10. Proven libraries for solved problems, behind adapters
+### Strategy 10. Proven libraries for solved problems, behind adapters
 
 Standard practice: don't rewrite what a maintained library does well; keep it behind an adapter
-(principles).
+(principles); pinned to exact versions; not counted (decided B). Refined with what the inventory
+showed:
 
-- **DOM morphing**: idiomorph (used by htmx and Turbo, about 3.3 KB compressed) instead of our
-  own morph.js.
-- **Markdown**: a maintained GitHub-flavoured Markdown library, which also gives tables,
-  strike-through and nested lists (#214) for free.
-- **Git**: JGit, as today.
+| Problem | Library | Replaces |
+|---|---|---|
+| Redraws that keep typing, focus, scroll (R4) | idiomorph | today's 202-line morph.js |
+| Markdown in replies, with tables (D5, #214) | a GitHub-flavoured Markdown library (markdown-it or marked) | today's Markdown code, and adds tables |
+| A reply's HTML as Markdown, in the page | Turndown with its GFM plugin | the page script's ~110-line converter |
+| Drag to reorder, with grips, auto-scroll at the edges, dropping into folders (UC17) | SortableJS | the chats list's and the editors' drag code |
+| Reading plugin zips and making the old app's backup | fflate | zip code in the core; the zip-bomb check (S6) stays ours |
+| The repository | JGit | — |
 
-Cost: their code ships in the APK and is updated by us; they're pinned to exact versions and
-are not counted in the 3k (Decide B).
+Cost: their code ships in the APK and we update them; each sits behind a small adapter.
 
-### S11. Themes as variables
+### Strategy 11. Themes as design tokens
 
-Standard name: **design tokens** (CSS custom properties). The screen's CSS uses a small set of
-variables and a few component classes; a theme is a short list of values.
+Standard name: **design tokens** (CSS custom properties). The screen's CSS uses one set of
+variables and a few component classes; a theme is a short list of values (`2b-behaviour.md` 1.45,
+3.6).
+
+### Strategy 12. One text form of a chat (new)
+
+Standard idea: a pure **format / parse** pair.
+
+One pure function formats a chat as its readable Markdown (D1): header, turns, the plugins' folded
+sections (`chat_section_format`); one parses an edit you kept back into the chat
+(`chat_section_parse` for the plugins' parts). The same format serves copying the whole chat,
+sharing it and exporting it (UC21), so there is no second exporter.
+
+- Checked: `chat_export` and the readable file are the same function's output.
+- Replaces: today's separate chat-file writer, copy and share text.
+
+### Strategy 13. The old-content import as a removable runtime plugin (new)
+
+The one-time import of the old app's content (X5: every old shape of chats, profiles, prompts,
+settings and Memory's summaries) is a runtime plugin that runs on the first start, then can be
+removed, and leaves the app later.
+
+- Checked: it uses only existing calls (`file_list`, `file_read` on `device`, `file_write`) and the
+  same record schemas (their `old_keys`).
+- Saves: about 150 lines from the app's permanent count; they're still written and shipped once.
+- Cost: none in features; it's code nobody keeps maintaining.
+
+### Strategy 14. Prose as content files (new)
+
+The templates' texts (X6), help mode's explanations, the guides' words and the plugin guide are
+prose, kept in Markdown content files beside the code, like the guides already are, and read by the
+code; not counted as lines of code. Schemas and the command table stay counted (decided C).
+
+- Saves: about 150 lines of string literals from the count; changing a text no longer touches code.
+- Cost: one small loader for content files (in the loader's plugin loading, which already reads a
+  plugin's files).
 
 ## Estimate with every strategy
 
-Rough, ±20%, for the full requirement list, in clean formatted code:
+Ranges, in clean formatted code, for every requirement and every behaviour in the inventory. The
+first pass's 3,000 was budgeted before the inventory showed the guides, help mode, Find's details,
+the old-content import in full, the catalogue's flows and the profile details; this estimate
+includes them.
 
-| Layer | Today | With S1–S11 |
+| Layer | Today | Estimate |
 |---|---|---|
-| Screen: generic viewer, command engine, chat view, composer, header, find, site view | 4,410 | 830 |
-| Screen data: command table, collection and settings schemas | (inside the above) | 400 |
-| Screen CSS (tokens, components) | (inside the above) | 180 |
-| Runtime logic: send sequence, queue and pages, history and chat file, profiles and library, jobs, migration | 985 | 600 |
-| Core (Odin) | 1,770 | 700 |
-| Platform (Kotlin) | 993 | 500 |
-| Loader (state, bus client, plugin loader, hooks, `PP`) | 514 | 220 |
-| Page script | 554 | 280 |
-| **App subtotal** | 9,226 | **≈ 3,710** |
-| Memory, Sub-chats, Base64, Page report | 826 | 355 |
-| Providers (mostly selectors), themes | 318 | 120 |
-| **Everything** | 10,370 | **≈ 4,185** |
+| Screen: viewer, command engine, chat view, composer, header, provider menu, site view bar, Find, dialogs, toasts | 4,410 | 980–1,150 |
+| Screen data: schemas, command table, guide stages | (inside) | 300–380 |
+| Screen CSS (tokens, components) | (inside) | 160–200 |
+| Runtime: state and apply, send sequence, queue and pages, chats and the text form, folders and tags, profiles and message build, plugins and catalogue, settings resolver, change check, jobs | 985 | 700–820 |
+| Loader (bus client, plugin loader, safe mode, hooks, events, `PP`, content files) | 514 | 180–220 |
+| Page script (APK) and the default routine (runtime content script) | 554 | 200–250 |
+| Core (Odin) | 1,770 | 580–660 |
+| Platform (Kotlin) | 993 | 520–600 |
+| **App** | 9,226 | **3,620–4,280** |
+| Old-content import (strategy 13, removable) | — | 130–170 |
+| Memory, Sub-chats, Base64, Page report | 826 | 330–400 |
+| Providers (DeepSeek, Qwen, OpenAI), themes | 318 | 160–200 |
+| **Everything** | 10,370 | **4,240–5,050** |
 
-Honest reading: pass 1 brings the app from about 10,400 to about 3,700 (or 4,200 with the
-optional plugins), with every feature. The last 700 are not found yet. Pass 2 looks for them in
-the architecture itself (where the boundaries sit, what can merge), still without packing lines
-or cutting features. If 3k turns out to need either of those, I'll say so instead of hiding it.
+Honest reading: with every strategy, the app comes to about **3,600 to 4,300** lines, every feature
+kept: about a third of today's. That is 20–40% over the 3,000 target. The first pass's budget of
+exactly 3,000 didn't yet include what the inventory found. Stage 6 looks for the rest in the
+structure (where boundaries sit, what merges); if 3,000 needs packed lines or cut features, stage 6
+says so instead of hiding it.
 
 ## Decided (2026-11-20)
 
@@ -194,10 +232,22 @@ or cutting features. If 3k turns out to need either of those, I'll say so instea
 - **C.** The 3k covers the app (core, platform, loader, page script, runtime plugins with the
   screen, its data and CSS); ideally the optional plugins fit in it too.
 
+## Open (stage 5)
+
+1. **The libraries in strategy 10** (idiomorph, a Markdown library, Turndown, SortableJS, fflate,
+   JGit): approve? Recommended: yes; versions are picked and pinned in stage 6.
+2. **Strategy 13**, the old-content import as a removable runtime plugin: recommended yes.
+3. **Strategy 14**, prose in content files, not counted: recommended yes.
+4. **The target**: the estimate is 3,600–4,300 for the app. Recommended: stage 6 budgets for the low
+   end and hunts the rest structurally; if it can't reach 3,000 without packing or cutting, accept
+   the honest number rather than cut.
+
 ## Sources
 
-- Naked objects: [Wikipedia](https://en.wikipedia.org/wiki/Naked_objects), [Apache Causeway, background and theory](https://causeway.apache.org/userguide/3.1.0/background-context-and-theory.html), [Pawson's thesis](https://causeway.apache.org/docs/2.0.0/_attachments/Pawson-Naked-Objects-thesis.pdf)
-- Schema-driven settings: [Nextcloud declarative settings](https://docs.nextcloud.com/server/stable/developer_manual/exapp_development/tech_details/api/settings.html), [WordPress DataForm settings pages](https://developer.wordpress.org/news/2026/01/how-to-use-dataform-to-create-plugin-settings-pages/), [Drupal schema_form](https://drupal.org/project/schema_form)
-- idiomorph: [README](https://unpkg.com/idiomorph@0.7.4/README.md), [repository](https://github.com/bigskysoftware/idiomorph/)
-- Platform features: [Ed25519 verify in Firefox (caniuse)](https://caniuse.com/mdn-api_subtlecrypto_verify_ed25519), [Compression Streams in all browsers (web.dev)](https://web.dev/blog/compressionstreams?authuser=8)
-- Earlier passes: [GLib/GNOME namespacing](https://developer.gnome.org/documentation/guidelines/programming/namespacing.html), [SemVer 2.0.0](https://semver.org/), [.NET event names](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca1713), [Google AIP-136 custom methods](https://google.aip.dev/136)
+- Naked objects: [Wikipedia](https://en.wikipedia.org/wiki/Naked_objects), [Apache Causeway, background](https://causeway.apache.org/userguide/3.1.0/background-context-and-theory.html); Repository: [Fowler, P of EAA](https://martinfowler.com/eaaCatalog/repository.html)
+- Command registry: [VS Code commands](https://code.visualstudio.com/api/extension-guides/command)
+- JSON-RPC 2.0: [specification](https://www.jsonrpc.org/specification)
+- Pipes and filters: [Microsoft architecture patterns](https://learn.microsoft.com/azure/architecture/patterns/pipes-and-filters)
+- Libraries: [idiomorph](https://github.com/bigskysoftware/idiomorph), [markdown-it](https://github.com/markdown-it/markdown-it), [Turndown](https://github.com/mixmark-io/turndown), [SortableJS](https://github.com/SortableJS/Sortable), [fflate](https://github.com/101arrowz/fflate), [JGit](https://www.eclipse.org/jgit/)
+- Platform features: [`<dialog>`](https://developer.mozilla.org/docs/Web/HTML/Element/dialog), [Compression Streams](https://developer.mozilla.org/docs/Web/API/Compression_Streams_API)
+- Design tokens: [W3C Design Tokens Community Group](https://www.designtokens.org/)
