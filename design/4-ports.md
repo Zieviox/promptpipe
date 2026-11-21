@@ -148,7 +148,7 @@ single stages of it (UC42.7).
 | `http_received` | platform | request, the part received | application, plugins (UC15) |
 | `share_received` | platform | text or files | application (UC14, UC48) |
 | `back_pressed` | platform | — (answered: handled or not) | screen (R5) |
-| `job_received` | core | `Job` | application (UC41) |
+| `job_received` | core | `Job` (`request: "cancel"` when the caller left, #209) | application (UC41) |
 | `job_changed` | application | job, a part of the answer, status | core (UC41) |
 
 The screen needs no events of its own: it draws the `State` after every change.

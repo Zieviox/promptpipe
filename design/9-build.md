@@ -44,4 +44,45 @@ files in `runtime-profiles/templates/`.
 
 **Libraries**: fflate 0.8.3 in `runtime-plugins/vendor/` (with its licence), not counted.
 
-**Next layer**: the core (Odin), compile-checked here with the dev-2026-11 compiler.
+
+## The core (Odin), 2026-11-21
+
+In `promptpipe`, branch `rewrite`, folder `core/`: `main`, `server`, `router`, `files`,
+`plugins`, `api`, and the JSON adapter `json`; `core/test/test_core.py` runs the built core
+against real HTTP.
+
+**Checks**: compiles with `odin check -vet -strict-style` (dev-2026-11); the 17 checks of
+`test_core.py` pass against the running program (the key, the challenge, writes and outside
+changes, paths that can't leave their root, the phone's storage rules, search, pattern reads,
+copies, plugin hashes, which copy runs and is served, the catalogue's signature, the token, and a
+local API job answered by a stand-in screen); every line within 100 characters (wrapped by hand
+and by a small script: Odin's formatter isn't installed here).
+
+**Size**: 1,185 lines against 580 (2.0×): api 241, files 313, json 52, main 62, plugins 247,
+router 116, server 154. Wrapping long JSON templates and conditions to 100 characters took about
+200 of them.
+
+**Re-estimate**: both layers built so far came out at about twice their budgets. If that holds,
+the app is about **6,500–7,000** lines, every feature kept (today: 9,226). The adapters still to
+come (platform, loader, page side, screen) decide where it lands.
+
+**Where it differs from the function list** (written into the design files):
+
+- The platform's check (S2) is `/challenge?nonce=…`: the core answers HMAC-SHA256 of the nonce
+  with the key, so the key is never sent.
+- The port over HTTP is `POST /call` (an envelope in, an envelope out) and `POST /event` (the
+  app's `job_changed`); `GET /events` is the event stream (server-sent events, the last 200 kept
+  for a reconnect).
+- The phone's storage (`device`) is read and listed; the only write is a `.nomedia` marker and the
+  only delete a folder named `PromptPipe` (the old app's, X5).
+- `file_read` takes a `pattern` (`*` for one path part) to read every chat's `meta.json` at once.
+- A job the caller leaves is cancelled with `job_received` and `request: "cancel"`; the runtime
+  stops its send.
+- The catalogue's two public keys are placeholders until the key is made on the phone (S8); until
+  then no catalogue is accepted (safe by default).
+- Plugin copies: built-in in the APK's `plugins/`, updates in app-private `plugins/`, yours in the
+  app folder's `.promptpipe/plugins/`, each with a `-previous` folder for going back.
+
+**Not reused**: nothing from the old core; only the Odin library's own API was looked up.
+
+**Next layer**: the platform (Kotlin), which can't be compiled here: you build it on the phone.
