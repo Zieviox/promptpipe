@@ -1,139 +1,148 @@
-# 1. Principles
+# 1. Principles (stage 1, revisited inside-out)
 
-The rules every later part of the design (requirements, terms, functions) is checked against.
+The rules every later stage (requirements, model, ports, adapters, functions) is checked against.
 They come first because they decide what counts as a good answer.
 
-## A full remake, not an edit
-
-The refactor is a full remake: new code, written from this design, in new files. The current
-code is not edited, moved or copied in (U 2026-11-21: "Do NOT reuse any old code unless you
-get stuck").
+## A full remake, designed from the requirements
 
 - **Only the intent and the UX/UI survive** (U 2026-11-21): what the app is for, and what the
   user sees and does (screens, layout, look, gestures, wording). Everything else is new: code,
   structure, internal file formats, the plugin format, names, the plugin surface.
-- **The old app is the UX/UI reference**: screenshots of every screen and state are captured from
-  it before building, and the new screen is checked against them.
-- **The old code is a reference, read-only.** It tells what the app does and the edge cases
-  learned the hard way (a site's quirks, Android's timing, the bugs in BUGS.md). Each lesson is
-  written into the requirements or the function list first, then implemented fresh.
-- **No copy-paste from the old code.** Copying brings its names, its duplicates and its hidden
-  assumptions back. Even a function that looks right is rewritten to the new names and rules.
-- **Only when stuck**, old code may be looked at closely or reused, and then it is said in the
-  review of that stage (what, from where, why), never done silently.
-- **What carries over is the user's content, not code or formats**: see requirement O3.
-- **The old app keeps working until the new one does everything** in the requirements, checked
-  requirement by requirement. Then the old code is removed in one change.
-- **Each part is built against its checks** (the core's route tests, the stand-in checks, terms
-  and clone checks) from its first commit, so nothing is "finished later".
-- **The language reference is current**: the Odin docs and the core library index for the
-  release the phone builds with (`sh scripts/odin-reference.sh`, into `build/odin-reference/`).
+- **The design comes from the requirements and the screenshots, not from the code**
+  (U 2026-11-21: "don't touch the code. Design from the requirements"). The design stages use
+  `design/0-intent.md`, `design/2-requirements.md` and `design/ux/` only. Lessons the old app
+  taught (site quirks, Android timing, bugs) are already requirements with their bug numbers.
+- **Requirements win over the screenshots** where they differ (U 2026-11-21); the screenshots win
+  over anything else about look and feel. There is no separate mockup.
+- **No reuse of old code unless stuck** (U 2026-11-21), and then it is said in that stage's
+  review (what, from where, why), never done silently.
+- **The old app keeps working until the new one passes every requirement**, checked one by one;
+  then the old code is removed in one change.
+- **Each part is built with its checks from its first commit** (they are designed with the
+  function list), so nothing is "finished later".
+- **The language reference is current**: the Odin docs and library index for the compiler
+  release in use (`sh scripts/odin-reference.sh`).
 
 ## DRY, KISS, YAGNI
 
-- **DRY (Don't Repeat Yourself).** Every item of knowledge has one source: a data format, a
-  rule, a list, a limit. "The files that make up a plugin" is written once; the installer, the
-  hash check, the loader and the build script all call it. DRY is about knowledge, not
-  identical text: two functions that look alike but would change for different reasons stay
-  apart. Checked by the clone-detection skill (and later a gate in `scripts/checks.py`).
+- **DRY (Don't Repeat Yourself).** Every item of knowledge has one source: a data shape, a rule,
+  a list, a limit. DRY is about knowledge, not identical text: two functions that look alike but
+  would change for different reasons stay apart.
 - **KISS (Keep It Simple).** The fewest moving parts that meet the requirement: plain data and
   plain functions, no frameworks, no class hierarchies in app code, no build stage for plugins.
   When two designs meet the requirements, the one with less code and fewer concepts wins.
 - **YAGNI (You Aren't Gonna Need It).** Build only what a current requirement needs. Being ready
-  for another platform means clean boundaries now, not a desktop shell now. A setting, option or
-  extension point exists only when something uses it.
+  for another platform means clean ports now, not a desktop platform now. A setting, option,
+  port call or extension point exists only when a use case uses it.
 
-Order when they conflict: correctness and security first, then KISS, then DRY (a small,
-clear repetition beats a clever shared abstraction), then YAGNI decides what is built at all.
+Order when they conflict: correctness and security first, then KISS, then DRY (a small, clear
+repetition beats a clever shared abstraction), then YAGNI decides what is built at all.
+
+## Inside-out: the application, its ports, its adapters
+
+The standard shape is **Ports and Adapters** (hexagonal architecture, Alistair Cockburn, 2005):
+
+- **The application** is in the middle: the logic that makes the use cases happen (sending,
+  profiles, chats and history, the queue, plugins and the catalogue, jobs). It knows nothing
+  about Odin, Kotlin, GeckoView, JGit or the DOM.
+- **Driving ports** are how the outside starts something: one per use case in `0-intent.md`
+  (you through the screen, other apps through the local API, plugin authors through `PP`).
+- **Driven ports** are what the application needs from the outside, named by that need (a
+  **role**): for keeping files, for driving site pages, for the repository, for secrets, for
+  HTTP, for the phone's services. Cockburn names them the same way (`ForGettingTaxRates`).
+- **Adapters** connect a port to a technology: the core (Odin) adapts files and the local API's
+  HTTP; the platform (Kotlin) adapts GeckoView, JGit, the key store and the phone's services; the
+  screen adapts the DOM; the page script adapts a site's page.
+
+Three rules make it work:
+
+- **The dependency rule** (Robert C. Martin, *Clean Architecture*; the Dependency Inversion
+  Principle): the application defines its ports; adapters conform to them. What a "page" offers
+  is decided by the use cases, never by what GeckoView happens to have.
+- **Role interfaces** (Martin Fowler; the Interface Segregation Principle, "no client should be
+  forced to depend on methods it does not use"): each port has only the calls one interaction
+  needs. A library feature that no port needs is not wrapped at all.
+- **The anti-corruption layer** (Eric Evans, *Domain-Driven Design*): an adapter translates the
+  library's meaning into the application's words and nothing more ("the translator should just
+  translate"). Its interface is entirely in the application's terms; the application never sees a
+  session, a delegate, an intent or an exception.
 
 ## Functional core, imperative shell
 
-The standard split (Gary Bernhardt's "functional core, imperative shell"; also "ports and
-adapters"):
+Inside the application the same split again (Gary Bernhardt's "functional core, imperative
+shell"):
 
-- **Functional core**: all the app's logic as **pure functions**. Data in, data out. A pure
-  function reads nothing but its arguments, changes nothing outside its return value, and gives
-  the same output for the same input. Building a message from blocks, parsing a chat file,
-  deciding which plugin files to download, comparing versions, planning a drag and drop: all pure.
-- **Imperative shell**: the thin outer layer that does effects (files, network, the browser
-  page, the operating system, the screen). It calls the pure functions to decide *what* to do,
-  then does it. Effects happen only here.
-
-So: logic is tested without a phone, a browser or a network; effects are few and easy to find.
+- **Pure functions** do all the deciding: data in, data out; nothing read but the arguments,
+  nothing changed but the return value. Building a message from blocks, parsing a chat file,
+  deciding which plugin files to fetch, comparing versions, planning a move: all pure.
+- **A thin effect layer** calls the driven ports to carry out what the pure functions decided.
+- So the application is tested without a phone, a browser or a network, by giving its pure
+  functions data and its ports stand-ins.
 
 ## Stateless functions, state as data (data-oriented design)
 
-- **Functions are stateless**: no hidden state in closures, module variables or objects. What a
-  function needs comes in as arguments.
-- **State is plain data in one place per process**: the core's state record, the screen's state
-  record, the page script's state record. Plain records and arrays (JSON-shaped), referenced by
-  id, never object graphs with methods. A function gets the part of the state it needs.
-- **State changes in one place**: an "apply" function takes the current state and a change (a plain
-  record) and returns the next state, or writes the change in one known function. Nothing else
-  writes state. The screen is drawn from state (`view = f(state)`); the patcher (`morph.js`)
-  makes that cheap.
-- **Data-oriented design (DOD)**: design the data first (its shape, who owns it, how it flows),
-  then the functions that transform it. Records are flat and keyed by id; lists are arrays of
-  records of one shape; derived values are computed, not stored twice.
+- **Functions are stateless**: no hidden state in closures, module variables or objects.
+- **State is plain data in one place per process** (the screen's state record in the screen
+  view; the core's own small record; the platform's; each page script's). Plain records and
+  arrays, keyed by id, never object graphs with methods.
+- **State changes in one place**: an apply function takes the state and a change record and
+  returns the next state. The screen is drawn from the state (`view = f(state)`), with a DOM
+  morphing library keeping the redraw cheap and keeping what the person is doing (typing,
+  selection, scroll).
+- **Data-oriented design**: design the data first (its shape, its one owner, how it flows), then
+  the functions that transform it. Derived values are computed, not stored twice.
 
-## Libraries and platforms behind adapters
+## The main sequence, hooks and events
 
-- Every library and platform API sits behind an **adapter** (a wrapper): a small set of
-  functions with app terms on the outside and the library's terms on the inside. GeckoView,
-  JGit, Android services, the browser's DOM and storage, Odin's `core:net`, `fetch`: each is
-  touched only inside its adapter.
-- The adapter is the only place that deals with the library's style: objects, callbacks,
-  threads, exceptions. It turns them into plain data and plain results.
-- The app's own code uses **agnostic terms**: a page, not a GeckoSession; the repository, not
-  JGit; secure storage, not Android Keystore. Changing a library or adding a platform means a
-  new adapter, not changes across the app.
-- Adapters are small and mostly free of decisions; decisions stay in the functional core.
-
-## The main sequence and events
-
-- **The main sequence** is the chain of calls that does one thing from start to end (send a
-  message: build, hooks, provider, wait, save). Inside it, functions call each other and return
-  results: direct calls, in order, easy to follow.
-- **Events** are for everything outside the main sequence: something happened and others may
-  want to know (a reply grew, a page loaded, a plugin was installed, the config changed). The
-  same idea as delegates and events in Unity and C#, and signals in Godot (the observer pattern).
-  - The emitter doesn't know who listens; listeners can't change the emitter's result.
-  - An event is a name and a plain data record; names are past tense (`page_loaded`,
-    `reply_progressed`).
-  - Events never replace a return value: if the caller needs the answer, it's a call.
-- **Hooks** are different from events: a hook is a stage plugins add *inside* the main sequence,
-  run in order, each one's output feeding the next (before send, after reply). Hooks return
-  values; events don't.
+- **The main sequence** is the chain of calls that carries out one use case from start to end.
+  Inside it, functions call each other and return results, in order.
+- **Hooks** are stages plugins add *inside* a sequence (before send, after reply), run in order,
+  each one's output feeding the next. Hooks return values.
+- **Events** are for everything outside the sequence: something happened and others may want to
+  know (a reply grew, a page loaded, a plugin was installed). The observer pattern, as delegates
+  in Unity and C# and signals in Godot. The emitter doesn't know the listeners; listeners can't
+  change its result; names are past tense (`page_loaded`) or `_changed` (`reply_changed`).
+  Driven ports report back through events (a page's progress, a download's end).
+- Events never replace a return value: if the caller needs the answer, it's a call.
 
 ## Errors are data
 
-- Functions return either a value or an error, as data: Odin's `(value, err)`; in JS a record
-  `{ ok: true, value }` or `{ ok: false, error: { code, message } }` at boundaries.
-- Throwing is only for programming errors (a bug), not for things that can happen (no network,
-  a refused file). Adapters catch the library's exceptions and return error data.
+- Functions return a value or an error, as data: Odin's `(value, err)`; in JS
+  `{ ok: true, value }` or `{ ok: false, error: { code, message } }` across a port.
+- Throwing is only for bugs, not for things that can happen (no network, a refused file).
+  Adapters catch the library's exceptions and return error data.
 - An error message says what happened and what to do, in the glossary's words.
 
 ## Names
 
-- **Noun first, then the verb**: `file_write`, `chat_save`, `page_open`, `plugin_install`. The
-  noun is the module, so a module's functions sort together and autocomplete lists them all
-  after typing the noun (`chat_` lists every chat function). One noun per module, one verb per
-  meaning (the verbs are a closed list in the terms).
-- The same name in every layer for the same job: the route `/api/chat/save`, the core's
-  `chat_save`, the screen's `chat_save`.
-- Names use only glossary words and standard programming terms; no invented words. A name that
-  needs a comment to be understood gets a better name.
+- **Noun first, then the verb** (`file_write`, `chat_save`, `page_open`), in `snake_case` in every
+  language (decided 2026-11-20). The noun is the module, so its functions sort together and
+  autocomplete lists them after the noun. One noun per module, one verb per meaning (the closed
+  verb list in the terms).
+- **Ports are named by role**, the same way: `for_keeping_files`, `for_driving_pages`.
+- **One name per job across every layer**: a call keeps its name from the application through the
+  port to the adapter (`file_write` is `file_write` in the runtime, on the bus and in the core).
+- Only glossary words and standard programming terms; no invented words. A name that needs a
+  comment to be understood gets a better name.
 
 ## Plugins keep the app updatable
 
-- What can live in a plugin lives in a plugin (logic in JS, updated from the catalogue without a
-  new APK). The native parts (the core, the shell) hold only what must be native or trusted:
-  files, keys and secrets, verification, the HTTP server, the bridge to the shell, OS services.
-- The plugin surface (`PP`) is the only way plugins reach the app: named, versioned, documented.
-  No plugin depends on another plugin's internal names.
+- The application lives in **runtime plugins** (JS, updatable from the catalogue without a new
+  APK). The adapters that must be native or trusted live in the **core** (Odin: files, the local
+  API's HTTP, plugin verification) and the **platform** (Kotlin: pages, the repository, secrets,
+  the phone's services). The **loader** starts the runtime.
+- `PP` is the driving port for plugin authors: named, versioned, documented. No plugin depends on
+  another plugin's internal names.
 
 ## Checks keep the rules
 
-Each rule that can be checked has a check: terms-check (one vocabulary), clone-detection (DRY),
-the core's route tests, the stand-in checks (screen, migration, redraw). A refactor change is done
-when its checks pass.
+Each rule that can be checked has a check: terms-check (one vocabulary), clone-detection (DRY), the
+size count against the budget, the application's tests with stand-in ports, the adapters' own
+tests, and the screenshots for the screen. A change is done when its checks pass.
+
+## Sources
+
+- [Hexagonal architecture (Wikipedia)](https://en.wikipedia.org/wiki/Hexagonal_architecture_(software)), [Cockburn's book draft](https://alistaircockburn.com/code%20hexarch%20book%20v0.9a.pdf)
+- [The dependency rule](https://milanjovanovic.tech/blog/dependency-rule-clean-architecture), [Interfaces are owned by high-level modules](https://mikhail.io/2016/05/dependency-inversion-implies-interfaces-are-owned-by-high-level-modules/)
+- [Fowler: Role Interface](https://www.martinfowler.com/bliki/RoleInterface.html), [Interface segregation principle](https://www.wikipedia.org/wiki/Interface_Segregation_Principle)
+- [Anti-corruption layer (Microsoft)](https://learn.microsoft.com/azure/architecture/patterns/anti-corruption-layer), [Evans on legacy systems](https://domainlanguage.com/wp-content/uploads/2016/04/GettingStartedWithDDDWhenSurroundedByLegacySystemsV1.pdf)

@@ -22,6 +22,9 @@ still open.
 - **Record every decision** where it belongs, with the date: `Decided (YYYY-MM-DD): …`.
 - **Standard terms only**: the glossary in PLUGINS.md and standard programming terms; no invented
   words. `scripts/terms-check.py` stays at 0 (a retired word it flags is reworded, not exempted).
+- **Design from the requirements, not from the code**: the design stages use only `design/`
+  (intent, requirements, screenshots); the old code isn't opened. Lessons from it are already
+  requirements.
 - **No reuse of old code unless stuck**, and then say so in the stage's review (what, from where,
   why). The old code is a read-only reference for behaviour and lessons.
 - **Honest numbers**: estimates come with a range; a target that isn't reachable is said, not

@@ -138,8 +138,8 @@ seeded chats, folders, tags, profiles and prompts. File names: `<state>-light.pn
 | Feedback | `dialog-confirm`, `dialog-text`, `toast-error` |
 
 The screenshots show today's app with its bugs too (the reply's table shows as raw `|` lines,
-#214). Where a requirement fixes something, the requirement wins over the screenshot. A mockup
-from you, when it comes, wins over both where they differ.
+#214). Where a requirement fixes something, the requirement wins over the screenshot (decided
+2026-11-21). There is no separate mockup: the screenshots are the visual reference.
 
 Not in screenshots, kept as written:
 
