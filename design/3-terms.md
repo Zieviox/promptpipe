@@ -83,6 +83,7 @@ The folder is part of `file`, not a field of its own (not stored twice). The rea
 | `profile`, `model`, `page_url` | strings | what it went with |
 | `error` | `Error` | why it ended badly, if it did (UC4) |
 | `blocks` | list of strings | the names of the blocks that went out ("Sent with 4", UC25) |
+| `diagnostics` | list of numbers | for waits of 30 s or more: when the page's stop signal and the reply's length changed, numbers only (UC1) |
 
 A plugin's data for a chat is in the chat's data folder, `<plugin id>.json`, keyed by turn when it
 needs to be: one place, not a field on every turn.

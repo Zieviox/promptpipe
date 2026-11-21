@@ -25,9 +25,11 @@ Requirements win over the screenshots (U 2026-11-21).
      plain words (F, #245, #247); no connection, a wrong address or a refused certificate is said
      at once, not after a wait (#241).
   6. Waiting limits are optional: idle and total, in minutes, 0 = none (F).
+  Also: a short vibration when a reply arrives; replies are read from the page as Markdown (lists, headings, code, tables kept), with thinking kept out of the reply's text; a site that shows a "Log in" or "Sign in" button ends the send with "log in on the site"; errors already on the page before a send belong to an earlier message, and a human check over the whole page stops the send at once; a wait of 30 s or more keeps a numbers-only diagnosis with the message (when the page's stop signal and the reply's length changed, no text), so a wait that never ends can be looked into without sharing the chat; links in replies open in the phone's browser, not inside the app (F, from the old app's code).
 - **UC2 Send while a reply is coming**: the message waits in the chat's queue, shown under the
   chat; queued messages go in order and can be moved up, edited or removed (F).
   While a reply is coming and the box is empty, Send becomes Stop; typing turns it back into Send, and the message queues (F, from the old app's code).
+  A chat never has two sends at once; different chats are answered side by side (F, from the old app's code).
 - **UC3 Stop waiting**: gives up on the reply at once; the page is told to stop (F).
   Esc does the same when nothing else is open (F, from the old app's code).
 - **UC4 Recover a failed send**: the failed message shows its reason with Check (keep what the
@@ -51,6 +53,7 @@ Requirements win over the screenshots (U 2026-11-21).
 - **UC9 Choose the provider**: the provider's name in the header (with its state dot) opens the
   provider menu: switch provider, open its site, log in once (F).
   The header shows the provider, its model (marked as wanted until the page shows it), a state dot (replying, ready, idle) and a dot when the provider's plugin has an update; getting a provider shows the advice to use a separate account on the site (F, from the old app's code).
+  The provider's site loads in the background when the app starts, ready to log in or send (F, from the old app's code).
 - **UC10 Model and options**: the model list and the provider's options are read from the site
   ("Read the page again" re-reads them), saved for that provider, and set on the page before each
   message; "Choose on the site" when the list can't be read (F, seen in `models`).
@@ -82,6 +85,7 @@ Requirements win over the screenshots (U 2026-11-21).
 - **UC17 Organise**: pin, move (drag, or "Move to"), rename, delete (the chat stays in the
   history), select several by long press; create, rename, delete folders (F).
   Dragging a chat's grip moves it into a folder, onto Pinned (pins it) or to another place in the order; dragging one selected chat moves all the selected ones; a folder is renamed with its pencil and shows how many chats it holds (F, from the old app's code).
+  An empty folder is kept, in the history too (F, from the old app's code).
 - **UC18 Find**: text in every chat, with `#tag`, `in:folder`, `"exact phrase"`, `is:you`,
   `is:ai` (F); fast with thousands of chats, without reading every file in full each time (#212).
   The same search finds the app's commands and settings (F, seen in the shortcuts list).
@@ -90,6 +94,7 @@ Requirements win over the screenshots (U 2026-11-21).
 - **UC20 Tags**: a chat tag goes on every message; a message tag on one; a tag ending in `#`
   counts up (`part#` → `part1`, `part2`) (F); whether the count runs within each chat or across all
   chats is your choice in Settings (default: within each chat) (U 2026-11-21).
+  A message holds one number per counter; the chip's +1 moves it to the next free number (F, from the old app's code).
 - **UC21 Copy or share a chat** (F).
 
 ### Profiles and prompts
@@ -189,7 +194,8 @@ Requirements win over the screenshots (U 2026-11-21).
      app; + `ui` for the screen) (U 2026-11-20; the old `driver` type is gone, see 7).
   2. Hooks: add a block's text, change the message before sending, work on the reply after it,
      pick the profile and site chat (route), draw a turn or a toggle, add menu entries (F).
-  3. Side requests: ask the provider something in a fresh, unsaved chat (F).
+  3. Side requests: ask the provider something in a fresh, unsaved chat, optionally with a named
+     profile and whether that profile's plugins run (F).
   4. A plugin's own sheets and settings (F).
   5. A plugin that needs a newer app says so (minimum app version) (F).
   6. `PP` is the only way in: named, versioned, documented; a plugin says which `PP` version it
@@ -210,9 +216,13 @@ Requirements win over the screenshots (U 2026-11-21).
 
 - **UC43 Long chats keep their context** (Memory): older turns are summarised in a side request
   before the limit, and the summaries are sent with new messages (F).
+  Pinned facts are always sent first, never summarised; memory can be sent every N messages; below a maximum size everything goes in full; above it, the recent messages stay word for word and older ones go in as summaries at coarser levels the older they are, each summary made once; your side and the AI's side are summarised separately, or together if set; the summary request carries the profile's System prompts, prompts picked for summaries, or none; "only what this site chat hasn't seen" leaves out what a site chat already has; each line names the AI when the chat used more than one site; text the AI wrote can never pose as the summaries' structure (F, from the old app's code).
 - **UC44 A long chat continues in a new site chat** (Sub-chats); the chat file stays one (F).
+  Before a message goes out it picks the site chat: the current one, a new one, or an earlier one; another profile can lend only its site and model while the chat's own plugins keep running; dividers between sub-chats and a note on where the next message goes; "New sub-chat here" under a reply starts a sub-chat that sees the chat up to that reply, then only its own messages (a first form of branching, N5) (F, from the old app's code).
 - **UC45 Encode and decode** (Base64): the message is encoded, the reply decoded (F).
+  Decoding is strict or lenient (lenient decodes what is there and says what it fixed); "Decode base64" is offered under every reply even when the plugin is off (F, from the old app's code).
 - **UC46 Report a site's page** (Page report) to fix a provider when the site changes (F).
+  A provider's own report, when it has one, wins over the generic one (F, from the old app's code).
 - **UC47 Themes**: Ember and Paper (F).
 
 ## Part 2. Constraints
@@ -265,7 +275,8 @@ Requirements win over the screenshots (U 2026-11-21).
 
 ### S. Security
 
-- **S1** Every call to the core needs the security key; the Host header is checked (F).
+- **S1** Every call to the core needs the security key, made new at every start; the Host header is
+  checked (F).
 - **S2** The platform checks it talks to its own core (a challenge, never sending the key), and
   says so when another app holds the port (#203).
 - **S3** Every plugin download is checked against the catalogue's hash (#201); the catalogue is
@@ -284,6 +295,8 @@ Requirements win over the screenshots (U 2026-11-21).
   (#207, #208; decided 2026-11-21). The catalogue's signing key is made on the phone and kept
   there, with a copy in a password manager; the APK holds two public keys (main and backup)
   (#202; decided 2026-11-21).
+- **S10** What comes from a site is shown as text, never run as HTML (the Markdown is escaped first)
+  (F, from the old app's code).
 - **S9** Code runs in a site page only when the app hands it over through the platform's extension
   port, never from the website itself; it is plugin code, checked like every plugin (S3, S4, D7);
   credential values never reach it (U 2026-11-21).
@@ -292,12 +305,17 @@ Requirements win over the screenshots (U 2026-11-21).
 
 - **R1** After a reboot the app waits for storage and never starts the core on a bad path (#237).
 - **R2** A background service keeps the app and its pages alive, with its notification (F).
-- **R3** Pages the system stopped are reloaded (F).
+- **R3** Pages the system stopped or that crashed are reloaded, also when you come back to the app;
+  hidden pages keep running at their real size, so their replies can still be read (F, from the old
+  app's code).
 - **R4** Redraws never lose typing, the keyboard's word in progress, the cursor, a selection or a
   scroll position (F, #249 to #252).
 - **R5** Back always closes what is on top (#239).
-- **R6** The core log can be read in the app (F).
+- **R6** The core log can be read in the app, and as a file a file manager or Termux can reach (F, from
+  the old app's code).
 - **R7** The screen fits the visible area above the on-screen keyboard (F, from the old app's code).
+- **R8** Starting shows "Starting…"; if the core doesn't answer, the screen says why, never a blank
+  page (F, from the old app's code).
 
 ### Q. Quality
 
@@ -350,6 +368,8 @@ Requirements win over the screenshots (U 2026-11-21).
   every plugin.
 - **X4** The old app stays usable until the new one passes every requirement; then the old code is
   removed in one change.
+- **X6** The shipped templates' blocks and texts (Plain, Writing feedback, Dialogue & Role play,
+  Story & Prose) carry over as content (F).
 - **X5** Your content from the old app (chats, prompt library, profiles) is imported once on the
   new app's first start (decided 2026-11-21).
 
