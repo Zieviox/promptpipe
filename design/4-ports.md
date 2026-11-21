@@ -37,19 +37,21 @@ fields, labels, rules, and where it's stored.
 | `record_move` | collection, id, place → record | S, P |
 | `record_copy` | collection, id → record | S, P |
 | `record_delete` | collection, id → done | S, P |
+| `record_export` | collection, ids, to (`clipboard` · `share` · `file`) → done (the schema gives the file's form: a chat as its readable text, profiles with the prompts they link, prompts as Markdown or the library file) | S |
+| `record_import` | collection, a file or pasted text (also the old app's export files) → records (a name clash as set, UC27) | S |
 
 Collections: `chats` (rename, tags, folder, site chat link, and its own provider, profile,
 model, options and toggles, D8),
 `provider_choices` (the model and options saved for each provider),
 `folders` (rename, delete, and your order of each folder and of the pinned chats), `turns` (message tags), `profiles`, `templates`, `blocks`, `groups`, `prompts`,
 `connections`, `sources`, `sends` (queued messages: move up, edit, remove), `drafts`,
-`settings`, `plugin_settings`.
+`settings`, `plugin_settings`, `chat_data` (a plugin's data for a chat, by chat and plugin: Memory's summaries, Sub-chats' notes; callers P).
 
 **Everything with its own behaviour**
 
 | Call | In → out | Callers | Use cases |
 |---|---|---|---|
-| `message_send` | a `Send` draft (`chat`, `message`, `attachments`, and when needed `profile`, `saved`, `replaces`) → `Send` | S, P, A | UC1, UC2, UC5, UC15, UC42.3, UC43, UC44 |
+| `message_send` | a `Send` draft (`chat`, `message`, `attachments`, and when needed `profile`, `replaces`; no `chat` for a side request) → `Send` | S, P, A | UC1, UC2, UC5, UC15, UC42.3, UC43, UC44 |
 | `message_build` | profile, chat → the text that would be sent | S, P, A | UC1, UC25 |
 | `send_stop` | send → done | S, P | UC3 |
 | `failure_resolve` | send, choice (`retry` · `check` · `edit` · `dismiss`) → done | S | UC4 |
@@ -57,15 +59,7 @@ model, options and toggles, D8),
 | `model_list` | chat → models, the page's model, and the provider's options with their states | S | UC10 |
 | `site_chat_open` | provider, url → chat | S | UC13 |
 | `site_chat_import` | chat, page, which (`all` · `newest`), save (off: the newest reply decoded by the after-reply hooks, as a preview) → turns | S | UC13 |
-| `chat_create` | folder, text → chat | S, A | UC14, UC16 |
-| `chat_open` | chat → chat with its turns | S, P | UC16 |
 | `chat_find` | query → matching messages (the screen adds matching commands and settings from its own tables) | S, P | UC18 |
-| `commit_list` | chat, or none for every commit → the history | S | UC19, UC36 |
-| `chat_export` | chat, to (`clipboard` · `share` · `file`) → done | S | UC6, UC21 |
-| `profile_export` | profiles, to → done | S | UC27 |
-| `profile_import` | a file or pasted text (also the old app's export files) → profiles | S | UC27 |
-| `prompt_export` | prompts, to → done | S | UC26, UC27 |
-| `prompt_import` | files → prompts | S | UC27 |
 | `catalogue_load` | source, or none for every source that is on → offers and available updates, verified (one source: to check it has a catalogue before it's added) | S | UC28, UC30, UC31, UC39 |
 | `plugin_install` | from (a catalogue entry, a link, a zip, an AI answer's files) → plugin | S | UC29, UC30 |
 | `plugin_update` | plugins, or all; or back to the previous version → plugins | S | UC29, UC31 |
@@ -76,8 +70,6 @@ model, options and toggles, D8),
 | `change_resolve` | change, choice (`theirs` · `ours` · `both`) → done | S | D7 |
 | `job_run` | job → the job's results, as `job_changed` events | C | UC41 |
 | `plugin_set` | the plugin's definition (its hooks and commands, and its section of the readable chat file with how to read it back, D1) | P | UC42.2 |
-| `chat_data_read` | chat → the plugin's data for it | P | UC43, UC44 |
-| `chat_data_write` | chat, data → done | P | UC43, UC44 |
 | `sheet_open` | the sheet's definition → done | P | UC42.4 |
 | `event_on` | event name, handler | P | UC42 |
 
@@ -118,7 +110,7 @@ write, move and delete: one mechanism for every file (D7).
 | `repo_commit` | paths, message → commit | A | D2 |
 | `repo_push` | → done (the token comes from the credential named in settings) | S, A | UC36 |
 | `repo_pull` | → done | S | UC36 |
-| `commit_list` | path, count → commits (the repository's side of the same call above) | A | UC19 |
+| `commit_list` | path (a chat's files), or none for every commit; count → commits | S | UC19, UC36 |
 | `clipboard_write` | text → done | S, A | UC4, UC6 |
 | `clipboard_read` | → text or an image | S | UC6, UC48 |
 | `content_export` | content (text or file), to (`share` · `file`) → done | A | UC21, UC26, UC27 |
@@ -151,13 +143,11 @@ single stages of it (UC42.7).
 
 | Event | From | Data | Listened to by |
 |---|---|---|---|
-| `page_changed` | platform (with what the page script reports) | page, status (`loading` · `ready`: the chat box shows · `busy` · `failed`), url, title, error (an `Error`: no connection, address not found, certificate refused) | application (UC12, #241) |
-| `popup_changed` | platform | page, open or closed | application (UC12, #244) |
+| `page_changed` | platform (with what the page script reports) | page, status (`loading` · `ready`: the chat box shows · `busy` · `failed`), popup (a sign-in window open or closed, #244), url, title, error (an `Error`: no connection, address not found, certificate refused) | application (UC12, #241) |
 | `reply_changed` | page script | page, text and thinking so far, status (`streaming` · `finished` · `failed`), error (an `Error`) | application (UC1, UC1.5) |
 | `http_received` | platform | request, the part received | application, plugins (UC15) |
 | `share_received` | platform | text or files | application (UC14, UC48) |
 | `back_pressed` | platform | — (answered: handled or not) | screen (R5) |
-| `app_resumed` | platform | — | application (R3) |
 | `job_received` | core | `Job` | application (UC41) |
 | `job_changed` | application | job, a part of the answer, status | core (UC41) |
 
@@ -172,25 +162,25 @@ The screen needs no events of its own: it draws the `State` after every change.
 | UC3 stop | `send_stop` → `site_stop` |
 | UC4 failed | `failure_resolve` → `site_read` (newest, wait) for Check; for site errors also `view_set` (Open the site) and `site_report_build`, `clipboard_write` (Copy page report) |
 | UC5 resend | `message_send` with `replaces` (or unchanged, as a new send) |
-| UC6 reuse text | `chat_export`, `clipboard_write` |
+| UC6 reuse text | `record_export` on `chats`, `clipboard_write` |
 | UC7 long text | `record_set` on `drafts`, `picker_open` |
 | UC8 new reply | the screen alone |
 | UC9 provider | `record_set` on `chats` (own) or `settings` (the default), `page_open`, `view_set`, `url_open` |
 | UC10 model, options | `model_list` → `site_model_list`; `record_set` on `provider_choices` (linked) or `chats` (own) → `site_model_set` |
 | UC11 toggles | `record_set` on `chats` (own) or `blocks` (the profile's default) |
-| UC12 site view | `page_open`, `page_close`, `page_navigate`, `view_set`; `page_changed`, `popup_changed` |
+| UC12 site view | `page_open`, `page_close`, `page_navigate`, `view_set`; `page_changed` |
 | UC13 site chats | `site_chat_list`, `site_chat_open`, `site_chat_import` → `site_read` (all, or newest), `record_set` on `chats` (link to the page) |
-| UC14 share in | `share_received` → `chat_create` |
+| UC14 share in | `share_received` → `record_create` on `chats`, `record_set` on `drafts` |
 | UC15 API | `message_send` → `http_fetch` with a credential |
-| UC16–UC17 chats | `chat_create`, `chat_open`, `record_*` on `chats` and `folders` → `file_*`, `repo_commit` |
+| UC16–UC17 chats | `record_*` on `chats` (`record_get` brings its turns) and `folders` → `file_*`, `repo_commit` |
 | UC18 find | `chat_find` → `file_find` |
 | UC19 details | `record_get`, `commit_list` |
 | UC20 tags | `record_set` on `chats` and `turns` |
-| UC21 copy, share | `chat_export` → `clipboard_write`, `content_export` |
+| UC21 copy, share | `record_export` on `chats` → `clipboard_write`, `content_export` |
 | UC22–UC24 profiles, blocks, groups | `record_*` on `profiles`, `templates`, `blocks`, `groups` |
 | UC25 preview | `message_build` |
-| UC26 prompts | `record_*` on `prompts` and `blocks`, `prompt_export` |
-| UC27 export, import | `profile_export`, `profile_import`, `prompt_export`, `prompt_import` → `content_export`, `picker_open` |
+| UC26 prompts | `record_*` on `prompts` and `blocks`, `record_export` |
+| UC27 export, import | `record_export`, `record_import` on `profiles` and `prompts` → `content_export`, `picker_open` |
 | UC28–UC31 plugins | `catalogue_load` (one source when adding it, UC30), `plugin_install`, `plugin_update`, `plugin_remove` → `http_fetch`, `catalogue_verify`, `plugin_write`; Reload plugins: `app_start` |
 | UC32 plugin settings | `record_set` on `plugin_settings` |
 | UC33 safe mode | `app_start` |
@@ -202,7 +192,7 @@ The screen needs no events of its own: it draws the `State` after every change.
 | UC40 credentials | `credential_create`, `credential_list`, `credential_delete`, `record_*` on `connections` |
 | UC41 other apps | `job_received` → `job_run` → `job_changed` (a `models` job answers with the profiles' names) |
 | UC42 plugin authors | `plugin_set`, `sheet_open`, `event_on`, and the calls marked P |
-| UC43–UC47 built-in plugins | `message_send` (unsaved), `chat_data_read`, `chat_data_write`, `site_report_build`, hooks |
+| UC43–UC47 built-in plugins | `message_send` (no chat), `record_get` and `record_set` on `chat_data`, `site_report_build`, hooks |
 | UC48 attachments | `attachment_add`, `picker_open`, `clipboard_read`, `share_received`, `site_send` |
 | X5 the old app's content | the application's first start (no call of its own): `file_list` and `file_read` on `device`, the zip made in the runtime, `file_write` (the backup, the marker, the imported records); deleting the old folders later: `file_delete` on `device` |
 | D7 change check | `change_resolve`; the expected revision on `file_write`, `file_move`, `file_delete` |
@@ -214,12 +204,12 @@ without one.
 
 | State | What it shows | Calls and records |
 |---|---|---|
-| `chat-empty` | a new chat: the header and the message box | `chat_create`, `record_set` on `drafts`, `message_send` |
-| `chat` | header, turns, reply actions, message box | `chat_open`; `State.chat`, `sends`, `ui.unseen`; `chat_export`, `clipboard_write` (swipes, Copy); hooks `turn_render`, `menu_items` |
+| `chat-empty` | a new chat: the header and the message box | `record_create` on `chats`, `record_set` on `drafts`, `message_send` |
+| `chat` | header, turns, reply actions, message box | `record_get` on `chats`; `State.chat`, `sends`, `ui.unseen`; `record_export` on `chats`, `clipboard_write` (swipes, Copy); hooks `turn_render`, `menu_items` |
 | `chat-composer-big` | the big message box | `Ui.composer`; `record_set` on `drafts` |
-| `chat-message-menu` | a reply's menu: copy, quote, send again, tags, trace | `chat_export`, `clipboard_write`, `message_send` (`replaces`), `record_set` on `turns` (tags); `Turn.sent`, `received`, `notes`, `blocks` |
+| `chat-message-menu` | a reply's menu: copy, quote, send again, tags, trace | `record_export`, `clipboard_write`, `message_send` (`replaces`), `record_set` on `turns` (tags); `Turn.sent`, `received`, `notes`, `blocks` |
 | `chat-select-text` | the box for picking a part | `clipboard_write` |
-| `chat-info` | the chat sheet: name, tags, actions | `record_set` on `chats` and `folders` (pin), `chat_export` |
+| `chat-info` | the chat sheet: name, tags, actions | `record_set` on `chats` and `folders` (pin), `record_export` |
 | `chat-history` | the chat's commits | `commit_list` |
 | `chat-move` | move to a folder | `record_move` on `chats`, `record_create` on `folders` |
 | `chat-failed` | a failed send with Check, Retry, Edit, Dismiss (and for site errors Open the site, Copy page report) | `Send.status` failed, `Error.page`; `failure_resolve`, `view_set`, `site_report_build`, `clipboard_write` |
@@ -234,16 +224,16 @@ without one.
 | `provider-sheet` | profile and provider: model, link, import, add newest reply, decode preview, page report | `model_list`, `site_chat_import` (`save` off for the preview), `record_set` on `chats` (link), `site_report_build` |
 | `models` | model and options | `model_list`; `record_set` on `provider_choices` or `chats` → `site_model_set` |
 | `quick-edit` | this chat's toggles, text files, plugin entries | `record_set` on `chats` (own toggles), `record_move` on `blocks`, `picker_open`; hook `menu_items` |
-| `site-view` | tabs, address bar, the linked chat strip | `page_open`, `page_close`, `page_navigate`, `view_set`; `page_changed`, `popup_changed` |
+| `site-view` | tabs, address bar, the linked chat strip | `page_open`, `page_close`, `page_navigate`, `view_set`; `page_changed` |
 | `profiles-new` | a new profile from a template | `record_create` on `profiles` (from `templates`) |
 | `profile-editor` | the blocks, top to bottom | `record_*` on `profiles` and `blocks` |
 | `profile-add-block` | add a System prompt or a plugin | `record_create` on `blocks`, `record_create` on `prompts` |
 | `profile-block-page` | one block: on, when, scope, group | `record_set` on `blocks` |
 | `profile-groups` | groups | `record_*` on `groups` |
 | `profile-preview` | what will be sent | `message_build` |
-| `profile-import` | import a profile | `profile_import`, `picker_open` |
-| `prompt-library` | the library | `record_list` on `prompts`, `prompt_import`, `prompt_export` |
-| `prompt-page` | one prompt: linked by, use, pin, copy, export, delete | `record_set`, `record_delete` on `prompts`, `record_create` on `blocks`, `clipboard_write`, `prompt_export` |
+| `profile-import` | import a profile | `record_import` on `profiles`, `picker_open` |
+| `prompt-library` | the library | `record_list`, `record_import`, `record_export` on `prompts` |
+| `prompt-page` | one prompt: linked by, use, pin, copy, export, delete | `record_set`, `record_delete` on `prompts`, `record_create` on `blocks`, `clipboard_write`, `record_export` |
 | `prompt-editor` | new or edit a prompt | `record_create`, `record_set` on `prompts` |
 | `plugins` | the Profile tab | `record_*` on `blocks`; `State.plugins` |
 | `plugins-catalogue` | the Catalogue tab: installed, updates, sources | `catalogue_load`, `plugin_update`, `record_*` on `sources`, `app_start` (Reload) |
@@ -261,7 +251,7 @@ without one.
 | `settings-storage` | chats folder, app folder, old app's folders, storage check | `chats_folder_move`, `storage_access_open`, `file_delete` on `device` (old folders, X5) |
 | `settings-folder` | the folder picker | `file_list` on `device`, `chats_folder_move` |
 | `settings-git` | git settings, push, pull, commits | `record_set` on `settings`, `credential_create` (token), `repo_push`, `repo_pull`, `commit_list` |
-| `settings-import-export` | profiles, library, name clashes | `profile_export`, `profile_import`, `prompt_export`, `prompt_import`, `record_set` on `settings` |
+| `settings-import-export` | profiles, library, name clashes | `record_export`, `record_import` on `profiles` and `prompts`, `record_set` on `settings` |
 | `settings-local-api` | address, token, folder | `record_set` on `settings`, `clipboard_write` |
 | `settings-api-token` | the token, masked, Copy, Show, make a new one | `credential_read`, `clipboard_write`, `api_token_create` (the screenshot shows it unmasked: UC37 wins) |
 | `settings-api-how` | how apps use it | the screen, `clipboard_write` |
@@ -300,7 +290,7 @@ adding new ones (U 2026-11-21):
 - `chats_folder_move` takes `how` (move, use, merge): "use it as it is" and "copy its chats in" (UC36)
   had no call.
 - `catalogue_load` takes an optional source, to check a new source before it's added (UC30).
-- `profile_import` reads the old app's export files too (X5).
+- `profile_import` reads the old app's export files too (X5); in stage 7 it became `record_import`.
 - `page_changed`'s `ready` means the chat box shows; the welcome guide's "logged in" (UC39) reads it.
 
 Every screen state traces to calls and records (above); `chat-empty` was looked at again, and
@@ -319,10 +309,10 @@ Every screen state traces to calls and records (above); `chat-empty` was looked 
 ## In numbers
 
 - One port each way, one envelope.
-- 7 record operations for 15 collections; 31 more calls answered by the application (5 of them
+- 9 record operations for 16 collections; 21 more calls answered by the application (3 of them
   only for plugins).
-- 11 calls answered by the core, 25 by the platform, 7 by the page script.
-- 9 events.
+- 11 calls answered by the core, 25 by the platform, 7 by the page script: 73 in all.
+- 7 events.
 
 ## Next
 

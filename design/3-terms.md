@@ -113,8 +113,8 @@ is computed (`value_get`, a pure function), never stored.
 
 | Value | Linked to | Own at |
 |---|---|---|
-| provider | `Config.provider` (the default) | `Chat.own.provider` |
-| profile | `Config.active_profile` | `Chat.own.profile` |
+| provider | the setting `chats.provider` (the default) | `Chat.own.provider` |
+| profile | the setting `chats.profile` (the active profile) | `Chat.own.profile` |
 | model, options | `Config.provider_choices[provider]` | `Chat.own.model`, `Chat.own.options` |
 | a block's toggle | the profile's `Block.on` (or its group's `on`) | `Chat.own.toggles[block]` |
 | a provider plugin's setting | the plugin's `Setting_Def.default` | `Config.provider_choices[provider].settings[key]` (saved per provider, not per profile) |
@@ -128,8 +128,6 @@ is computed (`value_get`, a pure function), never stored.
 | Field | Type | Meaning |
 |---|---|---|
 | `version` | number | the file's format version |
-| `active_profile` | profile id | UC22 |
-| `provider` | plugin id | for new chats (UC9) |
 | `profiles` | list of `Profile` | yours |
 | `templates` | list of `Profile` | your templates (the app's come with a runtime plugin) |
 | `provider_choices` | map plugin id → `{ model, options, settings }` | the model, options and plugin settings saved for each provider (UC10, D8) |
@@ -138,7 +136,7 @@ is computed (`value_get`, a pure function), never stored.
 | `api_token_hash` | string | how the core checks the local API token (the token itself is a credential, UC37); the core trusts it only while the file's revision is the one it wrote (D7) |
 | `settings` | map setting key → value | only values you changed; the rest are linked to the schema's defaults (`Setting_Def`, D8), so nothing is stored twice |
 
-App settings are keys like `look.mode`, `look.accent`, `look.scale`, `sites.pages` (default 5), `sites.idle_min`, `sites.total_min`, `look.enter_sends`, `look.stay_at_bottom` (on),
+App settings are keys like `chats.provider` (for new chats, UC9), `chats.profile` (the active one, UC22), `look.mode`, `look.accent`, `look.scale`, `sites.pages` (default 5), `sites.idle_min`, `sites.total_min`, `look.enter_sends`, `look.stay_at_bottom` (on),
 `git.commit` (on), `git.name`, `git.email`, `git.remote`, `git.auto_push`, `tags.counter_scope` (each chat, all chats), `api.folder`, `updates.check` (off, daily, weekly),
 `updates.bundle`, `import.clash`, `help.button`, `help.seen.<place>`. The full list is the schema,
 written with the function list.
@@ -253,12 +251,12 @@ function (the only writer).
   (none for side requests and jobs), `turn` (the turn it fills), `message`, `attachments`, `replaces` (the turn it replaces, UC5),
   `status` (`"queued"` · `"waiting"`
   (for a free page) · `"sending"` · `"failed"`), `error` (an `Error`), `provider`, `page` (none for api
-  providers), `saved` (false for side requests), `job`, `at`, `progress`. The queue and the failed
+  providers), `job`, `at`, `progress`. A send with no `chat` is a side request: it isn't saved. The queue and the failed
   list are views of `sends` by status, not lists of their own (UC1–UC4, UC41, UC42.3).
 - **`Page`**: one open site page: `id`, `provider`, `url`, `title`, `status` (`"loading"` ·
   `"ready"` (the chat box shows: logged in, or a guest the site lets in; what the welcome guide
   watches, UC39) · `"busy"` · `"failed"`), `error`. Which send uses a page, and so whether it is a
-  side request's page (the send's `saved` is false, UC12), is on the `Send`, not here.
+  side request's page (the send has no chat, UC12), is on the `Send`, not here.
 - **`Job`**: a request from another app: `id`, `request` (`"models"` · `"chat"`), `profile`, `chat`
   (to continue, or none), `messages`, `stream`, `status` (UC41). (Its send points to it, not the other way.)
 - **`Ui`**: `sheets` (a stack of `{ collection, id }`: a collection, or one record of it; a plugin's
@@ -295,7 +293,7 @@ function (the only writer).
 | Record | The only writer | Stored |
 |---|---|---|
 | `Chat`, `Turn`, `Attachment`, the readable file | runtime, chats module | the chat's data folder; the readable `.md` |
-| a plugin's data for a chat | that plugin, through `PP` | the chat's data folder, `<plugin id>.json` |
+| a plugin's data for a chat (`chat_data`) | that plugin, through `PP` (`record_set`) | the chat's data folder, `<plugin id>.json` |
 | `Prompt` | runtime, profiles module | `.promptpipe/prompts.json` |
 | `Config` and everything in it | runtime, settings module | `.promptpipe/config.json` |
 | `Credential` | platform | its credential store |
@@ -327,7 +325,7 @@ function (the only writer).
 
 ### Naming rules
 
-- **Functions**: `noun_verb` or `noun_noun_verb` (`chat_create`, `site_chat_list`). The noun is
+- **Functions**: `noun_verb` or `noun_noun_verb` (`record_create`, `site_chat_list`). The noun is
   the module; the verb comes from the closed list.
 - **Casing** (decided 2026-11-20): `snake_case` for functions and data fields in every language
   and in JSON files. Records `Ada_Case`. Constants `UPPER_SNAKE` (`PAGES_DEFAULT`).
@@ -354,7 +352,7 @@ function (the only writer).
 | `find` | the records that match a query | `chat_find(query)` |
 | `read` / `write` | raw text or bytes at a location | `file_read`, `file_write` |
 | `load` / `save` | read and parse / format and write a record | (inside the application, through `file_read` and `file_write`) |
-| `create` / `delete` | a standalone record and its storage | `chat_create`, `record_delete` |
+| `create` / `delete` | a standalone record and its storage | `record_create`, `record_delete` |
 | `add` / `remove` | into or out of a container | `attachment_add`, `plugin_remove` |
 | `move` / `rename` / `copy` | place, name, duplicate (`copy` only means duplicate; the clipboard is `clipboard_write`) | `record_move`, `plugin_copy` |
 | `parse` / `format` | text to data / data to text, pure | (pure functions, e.g. a chat into its readable file) |
@@ -370,7 +368,7 @@ function (the only writer).
 | `fetch` | an HTTP request through the platform (any method) | `http_fetch` |
 | `run` | execute hooks, a job or a command | `job_run` |
 | `on` | listen to an event | `event_on` |
-| `import` / `export` | bring content in from a file or another place / send it out to one | `profile_import`, `chat_export` |
+| `import` / `export` | bring content in from a file or another place / send it out to one | `record_import`, `record_export` |
 | `navigate` | move a page to a URL, back, or reload | `page_navigate` |
 | `resolve` | answer a pending choice | `failure_resolve`, `change_resolve` |
 | `commit` / `push` / `pull` | the repository's own terms (git) | `repo_commit`, `repo_push` |
@@ -399,9 +397,9 @@ choice's effective value, linked or own, D8).
 
 ### Events
 
-The nine in `4-ports.md`, each coming from the call contract: `page_changed`, `popup_changed`,
-`reply_changed`, `http_received`, `share_received`, `back_pressed`, `app_resumed`,
-`job_received`, `job_changed`. A record's changes are one `_changed` event with a status field,
+The seven in `4-ports.md`, each coming from the call contract: `page_changed` (a sign-in pop-up
+included), `reply_changed`, `http_received`, `share_received`, `back_pressed`, `job_received`,
+`job_changed`. A record's changes are one `_changed` event with a status field,
 not one event per status. The screen needs no events: it draws the `State` after every change.
 
 ### Name pass (2026-11-21)

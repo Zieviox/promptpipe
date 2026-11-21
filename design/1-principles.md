@@ -155,7 +155,7 @@ shell"):
 
 ## Names
 
-- **Noun first, then the verb** (`file_write`, `chat_create`, `page_open`), in `snake_case` in every
+- **Noun first, then the verb** (`file_write`, `record_create`, `page_open`), in `snake_case` in every
   language (decided 2026-11-20). The noun is the module, so its functions sort together and
   autocomplete lists them after the noun. One noun per module, one verb per meaning (the closed
   verb list in the terms).

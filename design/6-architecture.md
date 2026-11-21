@@ -55,7 +55,7 @@ the library used as it is. Library features no call needs are not wrapped.
 | core | `catalogue_verify`, `plugin_write`, `plugin_list`, `plugin_remove` | `core:crypto/ed25519`, `core:crypto/sha2`, `core:os` |
 | core | the HTTP server, the event stream, the local API | `core:net` (our small HTTP/1.1; Odin has no HTTP server), `core:encoding/json` |
 | core | `log_read` | `core:os` |
-| platform | `page_*`, `view_set`, `popup_changed`, `page_changed`, `back_pressed`, `app_resumed` | GeckoView (sessions, views, the navigation and content delegates), version pinned (S8) |
+| platform | `page_*`, `view_set`, `page_changed`, `back_pressed` | GeckoView (sessions, views, the navigation and content delegates), version pinned (S8) |
 | platform | the port to the screen and the pages | GeckoView's WebExtension messaging (`connectNative` from the built-in extension's content script; the app's own address is in its match list) |
 | platform | `repo_*`, `commit_list` | JGit |
 | platform | `credential_*`, `http_fetch`, `http_received` | Android Keystore (AES-GCM key) for the values; `HttpURLConnection` for requests, streamed, with the credential added only for its hosts (S7) |
@@ -118,7 +118,7 @@ Each becomes one readable chain in the function list (stage 8). ⚡ marks an eve
    → `reply_after` hooks → the turn saved (`file_write` of its data and its readable `.md`) →
    `repo_commit` (and push if set) → `vibration_start`; a failure becomes the `Send`'s `Error`
    (UC4), a cut-off reply keeps what came.
-3. **Side request** (Memory, Sub-chats, plugins): the send sequence with `saved` off and a fresh
+3. **Side request** (Memory, Sub-chats, plugins): the send sequence with no chat and a fresh
    site chat on a free page.
 4. **Job** (local API): `/v1` → ⚡`job_received` → `job_run`: the send sequence with the job's
    profile and chat (a `models` job answers the profiles' names) → ⚡`job_changed` parts → the core
@@ -177,12 +177,12 @@ A desktop or iOS platform answers the platform's calls (pages, the port, the rep
 credentials, the services) and starts the core; the core, the loader, the runtime plugins, the page
 script and the screen stay as they are.
 
-## Open (stage 6)
+## Decided (2026-11-21)
 
-1. **The channels**: the screen talks to the platform over the extension's port and to the core
-   over HTTP; the core never relays (the first pass's P1). Recommended: yes.
-2. **The budget**: 3,620 for the app, every feature kept, the 3,000 target not reachable without
-   cuts (decided G applies). Recommended: accept it as the budget for the function list (stage 8).
+- **H.** The channels: the screen talks to the platform over the extension's port and to the core
+  over HTTP; the core never relays.
+- **I.** The budget: 3,620 for the app, every feature kept, is the budget for the function list
+  (stage 8); 3,000 isn't reachable without cuts (decided G).
 
 ## Sources
 

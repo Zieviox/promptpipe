@@ -28,7 +28,7 @@ Standard names: model-driven UI, the **naked objects** pattern (Pawson; Apache C
 
 Each collection (`chats`, `folders`, `turns`, `profiles`, `templates`, `blocks`, `groups`,
 `prompts`, `connections`, `sources`, `sends`, `drafts`, `settings`, `plugin_settings`,
-`provider_choices`) has one schema: its fields with types, labels and rules, its order or grouping,
+`provider_choices`, `chat_data`) has one schema: its fields with types, labels and rules, its order or grouping,
 its actions (commands), and where it's stored. From it:
 
 - **the viewer**: one generic list (keyed items, sections, folding, select mode, reorder by drag or
@@ -128,7 +128,7 @@ Standard idea: the **filters** pattern (a fixed sequence of filters, each stage'
 A send runs: blocks → `send_before` hooks → the provider (`site_model_set` and `site_send`, or
 `http_fetch` for an API) → `reply_after` hooks → save. Your messages, side requests, Memory's
 summaries, Sub-chats' routing, other apps' jobs and API providers all use it; only the `Send`'s
-fields differ (saved or not, which profile, which chat, which page).
+fields differ (a chat or none, which profile, which page).
 
 - Checked: one `message_send`, one `Send` record, the queue and the failed list as views of `sends`.
 - Replaces: today's separate paths for chats, side requests and jobs.
@@ -172,7 +172,7 @@ sections (`chat_section_format`); one parses an edit you kept back into the chat
 (`chat_section_parse` for the plugins' parts). The same format serves copying the whole chat,
 sharing it and exporting it (UC21), so there is no second exporter.
 
-- Checked: `chat_export` and the readable file are the same function's output.
+- Checked: `record_export` on `chats` and the readable file are the same function's output.
 - Replaces: today's separate chat-file writer, copy and share text.
 
 ### Strategy 13. The old-content import as a removable runtime plugin (new)
