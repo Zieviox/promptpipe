@@ -4,8 +4,9 @@ Designed from `0-intent.md`, `2-requirements.md` and `design/ux/` only. Part 1 i
 record the application keeps or passes around, its fields, its one owner (the only part that
 writes it), where it is stored and how long it lives. Part 2 is the words used for it.
 
-Field names are `snake_case`; record names are `Ada_Case` (Odin's own convention, so a record has
-one name in every layer; single-word names look the same either way; stage 7 confirms it).
+Field names are `snake_case`; record names are `Ada_Case` (proposed: one name in every layer;
+single-word names look the same either way). Every library sits behind an adapter, Odin's
+included, so no library's style decides ours; stage 7 checks the choice against the standards.
 Shapes are plain JSON-like data: strings, numbers, booleans, lists, maps; records refer to each
 other by id, never by holding each other.
 
@@ -13,26 +14,45 @@ other by id, never by holding each other.
 
 ### Where data lives
 
-| Place | What | Who can see it |
-|---|---|---|
-| **The app folder** (shared storage) `.promptpipe/` | `config.json`, `plugins/<id>/` (your copies of plugins) | you, Termux, Neovim; hidden from "Recent" (`.nomedia`) (D6, S4) |
-| **The chats folder** (shared storage; by default the app folder itself; can be moved, UC36) | the chat files, `<folder>/<name>.md`, and folders | you, any app; the only files in "Recent" (D1, D6) |
-| the chats folder's `.promptpipe/` | `repo/` (the history repository; the chats folder is its working tree), `prompts.json` (the prompt library), `attachments/<chat id>/` | hidden from "Recent"; moves with the chats (D2, D3, UC48) |
-| **App-private storage** | `updates/<id>/` (updated plugins), `hashes.json` (S4), the chats folder's location, the core's key, the core log | the app only |
-| the platform's credential store (app-private, encrypted with the key store) | credentials | the platform only (S7) |
-| **The APK** | the built-in plugins, the loader, the page script | read-only |
-| **Memory** (the screen's state) | everything in "Live records" below | lost on restart, by design |
+```
+<app folder>/                      shared storage
+  .promptpipe/                     hidden, .nomedia
+    config.json                    Config
+    plugins/<id>/                  your copies of plugins
+  chats/                           the chats folder (default; can be moved, UC36)
+    Trip ideas.md                  the readable chat: built from its data, the only files in "Recent"
+    food/Recipe notes.md           folders hold readable chats
+    .promptpipe/                   hidden, .nomedia; moves with the chats
+      chats/<chat id>/
+        meta.json                  Chat (everything but the turns): small, read for the chats list
+        turns.json                 the turns
+        attachments/               UC48
+        <plugin id>.json           a plugin's data for this chat (Memory's summaries, ...)
+      prompts.json                 the prompt library
+      repo/                        the history repository (its working tree is the chats folder)
+<app-private storage>              updated plugins, the hash record (S4), where the chats folder is,
+                                   the core's key, the core log
+<the platform's credential store>  credentials, encrypted with the key store (S7)
+<the APK>                          the built-in plugins, the loader, the page script (read-only)
+<memory>                           the screen's State, lost on restart by design
+```
 
-When the chats folder is the app folder (the default), both `.promptpipe/` folders are the same
-folder; their files don't overlap.
+- **The chat's data is the source; the readable `.md` is built from it** (D1, D6). The app never
+  reads a `.md` back, so there is no Markdown parsing of chats: the readable file can stay pretty,
+  and the data can hold what doesn't belong in it (plugins' data, attachments' details).
+- `meta.json` holds the path of its readable file; a readable file's first lines carry the chat's
+  id, so a file moved or renamed with a file manager is found again.
+- The repository commits both the data and the readable files, so a pushed remote is readable too.
 
-### Your content (saved, in the chats folder)
+### Your content (saved, in the chats folder's `.promptpipe/`)
 
-**`Chat`**: one conversation, one Markdown file. Owner: the runtime's chats module.
+**`Chat`**: one conversation: `meta.json` (all fields but `turns`) and `turns.json`, plus its
+readable `.md` built from them. Owner: the runtime's chats module.
 
 | Field | Type | Meaning |
 |---|---|---|
-| `id` | string | stable id, kept in the file header (survives a rename or a move) |
+| `id` | string | stable id; names the chat's data folder, and heads its readable file |
+| `file` | path | its readable `.md`, relative to the chats folder (the folder is part of it) |
 | `title` | string | shown in the list and the header |
 | `created`, `updated` | time | |
 | `provider` | plugin id | the provider this chat uses |
@@ -44,8 +64,8 @@ folder; their files don't overlap.
 | `toggles` | map block id → boolean | this chat's own toggles (UC11) |
 | `turns` | list of `Turn` | in order |
 
-The folder is the file's place, not a field (derived, not stored twice). The file form (a readable
-header, then one section per turn) is settled in the function list.
+The folder is part of `file`, not a field of its own (not stored twice). The readable file's form
+(a short header, then one section per turn) is settled in the function list.
 
 **`Turn`**: your message and its reply; part of a `Chat`.
 
@@ -62,10 +82,10 @@ header, then one section per turn) is settled in the function list.
 | `profile`, `model`, `page_url` | strings | what it went with |
 | `error` | string | why it ended badly, if it did (UC4) |
 | `notes` | list of strings | what plugins noted about it ("sent with 4") |
-| `data` | map plugin id → plugin's data | per-turn data a plugin keeps (Memory's summaries) |
+| `data` | map plugin id → plugin's data | small per-turn data a plugin keeps; a plugin's data for the whole chat goes in `<plugin id>.json` |
 
-**`Attachment`**: `id`, `name`, `type` (MIME type), `size`, `path` (inside the chats folder's
-`.promptpipe/attachments/`). Part of a `Turn` or a draft.
+**`Attachment`**: `id`, `name`, `type` (MIME type), `size`, `path` (inside the chat's data folder,
+`attachments/`). Part of a `Turn` or a draft.
 
 **`Prompt`**: a System prompt in the library (UC26). Fields: `id`, `name`, `text`, `pinned`,
 `updated`. All prompts in `prompts.json`. Owner: the runtime's profiles module. Which profiles link
@@ -197,8 +217,8 @@ function (the only writer).
 | `jobs` | list of `Job` |
 | `ui` | `Ui` |
 
-- **`Chat_Head`**: what the chats list needs from a file's header: `id`, `path`, `title`,
-  `folder`, `updated`, `pinned`, `tags`, `provider` (UC16, UC18).
+- **`Chat_Head`**: what the chats list needs, read from each `meta.json`: `id`, `file`, `title`,
+  `updated`, `pinned`, `tags`, `provider` (UC16, UC18).
 - **`Queue_Item`**: `id`, `chat`, `message`, `attachments`, `at` (UC2).
 - **`Failed_Item`**: `id`, `chat`, `message`, `attachments`, `error`, `at`, `page` (UC4).
 - **`Send`**: one message on its way: `id`, `chat` (none for side requests and jobs), `turn`,
@@ -228,7 +248,8 @@ function (the only writer).
 
 | Record | The only writer | Stored |
 |---|---|---|
-| `Chat`, `Turn`, `Attachment` | runtime, chats module | chat files; `.promptpipe/attachments/` |
+| `Chat`, `Turn`, `Attachment`, the readable file | runtime, chats module | the chat's data folder; the readable `.md` |
+| a plugin's data for a chat | that plugin, through `PP` | the chat's data folder, `<plugin id>.json` |
 | `Prompt` | runtime, profiles module | `.promptpipe/prompts.json` |
 | `Config` and everything in it | runtime, settings module | `.promptpipe/config.json` |
 | `Credential` | platform | its credential store |
@@ -335,8 +356,9 @@ and its parts (`sheet`, `drawer`, `menu`, `toast`, `dialog`, `item`), `theme`, `
 | `credential` | Android Keystore (platform) |
 | `http` | the platform's HTTP client |
 | `clipboard`, `vibration`, `share`, `notification` | Android's services (platform) |
-| `file` | the core's files under named folders |
+| `file` | the core's files under named folders (Odin `core:os` inside) |
 | the local API's HTTP | Odin `core:net` (core) |
+| `json`, `hash`, `signature`, `zip` | Odin `core:encoding/json`, `core:crypto/sha2`, `core:crypto/ed25519`, `core:compress/deflate` (core) |
 | `render`, `morph` | the browser's DOM and a morphing library (screen) |
 | page building blocks | the site's DOM (page script) |
 | `store_local` | the browser's local storage (screen; per-device conveniences only) |

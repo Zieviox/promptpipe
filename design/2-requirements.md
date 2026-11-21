@@ -115,7 +115,8 @@ Requirements win over the screenshots (U 2026-11-21).
   quick actions under replies, stay at the bottom while a reply comes in, Enter sends, thinking
   folded or open (F).
 - **UC35 Sites**: pages at once (default 5, a warning above 5), waiting limits (F).
-- **UC36 Chats and storage**: move the chats folder (with or without copying), back to the
+- **UC36 Chats and storage**: the chats folder is a `chats` subfolder of the app folder by default
+  (U 2026-11-21); move the chats folder (with or without copying), back to the
   default; all-files access; a storage check, step by step with the system's reason; git: remote,
   token (from credentials), push, pull, auto-push (F, U).
 - **UC37 Local API**: the address, the token (make a new one; kept in credentials), how apps
@@ -195,16 +196,19 @@ Requirements win over the screenshots (U 2026-11-21).
 
 ### D. Data
 
-- **D1** Every chat is a Markdown file with a header, in the chats folder on shared storage,
-  readable with any app (F, intent).
+- **D1** Every chat has one readable Markdown file in the chats folder (a `chats` subfolder of the
+  app folder by default), readable with any app. It is built from the chat's data and rebuilt
+  whenever the chat changes, so it is always complete and current; it is a view, so edits made to
+  it outside the app are overwritten (U 2026-11-21).
 - **D2** Every change to the chats folder is a commit in its repository (F).
 - **D3** The prompt library is kept with the chats, in the app's hidden folder (D6) (F).
 - **D4** Files are written safely: a cut-off write never leaves a broken file (#211).
 - **D5** Replies are shown in full: tables, images (as links), strike-through, nested lists (#214).
-- **D6** The chats folder shows only the chat files. Everything else the app keeps there (the
-  history repository, the prompt library, attachments, indexes, backups) is in one hidden folder
-  (`.promptpipe/`, with a `.nomedia` marker), so the system's media index and file managers'
-  "Recent" lists skip it; checked on the phone (U 2026-11-21).
+- **D6** The chats folder shows only the readable chat files. Each chat's data (its turns,
+  thinking, plugins' data such as Memory's summaries, attachments) is in its own hidden folder, and
+  everything else the app keeps there (the history repository, the prompt library) is hidden too,
+  under `.promptpipe/` with a `.nomedia` marker, so the system's media index and file managers'
+  "Recent" lists show only the readable chats; checked on the phone (U 2026-11-21).
 
 ### S. Security
 

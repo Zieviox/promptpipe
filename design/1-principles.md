@@ -50,6 +50,9 @@ The standard shape is **Ports and Adapters** (hexagonal architecture, Alistair C
 - **Driven ports** are what the application needs from the outside, named by that need (a
   **role**): for keeping files, for driving site pages, for the repository, for credentials, for
   HTTP, for the phone's services. Cockburn names them the same way (`ForGettingTaxRates`).
+- **Every library goes through an adapter**, the languages' own libraries included (U 2026-11-21):
+  Odin's `core:*` packages, the browser's APIs, Android's. Application code never calls a library
+  directly, so no library's conventions or types leak into it.
 - **Adapters** connect a port to a technology: the core (Odin) adapts files and the local API's
   HTTP; the platform (Kotlin) adapts GeckoView, JGit, the key store and the phone's services; the
   screen adapts the DOM; the page script adapts a site's page.
