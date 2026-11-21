@@ -29,3 +29,8 @@ For each job: the typical code to search for (ripgrep patterns), and what the la
 | Test harness (start stand-in, PASS/FAIL) | `spawn(process.execPath`, `PASS `, `results.push` | migration-check.js, redraw-check.js |
 | Escaping | `&amp;`, `quote ::`, `esc(` | Hub.kt, md.js, jsonx.odin quote: different jobs, accepted |
 | Tags on plugins | `tagsOf`, `hasTag`, `m.tags` | hasTag (core.js, installed plugins), tagsOf (plugins-screen.js, catalogue entries) |
+| Opening a site page (remake) | `"page_open"` | 4 places with different rules (2026-11-21): send.js `pool_remove` (limit, counts pages being opened, tracked), profiles.js `model_list` (no limit, not tracked), storage.js `app_start_run` (tracked, no limit), screen `page_add` (limit, not counting pages being opened) |
+| Creating a chat for a first message (remake) | `chat_file_build(`, `record_create(s, { collection: "chats"` | screen `message_send`, send.js `job_run` (no `created`/`updated`), chats.js `site_chat_open`, old-app-import |
+| Base64 to bytes and back (remake) | `atob(`, `btoa(` | actions.js `text_decode`, old-app-import `bytes_from`/`base64_from`, plugins.js inline, base64.js `text_encode` |
+| Adding profiles with new ids (remake) | `group_ids`, `new Map(` near blocks | export.js `profiles_add` ("Name (2)"), old-app-import `config_import` ("Name (old app)") |
+
