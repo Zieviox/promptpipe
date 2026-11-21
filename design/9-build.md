@@ -144,8 +144,163 @@ Chromium against a stand-in site (sending, streaming, a table read as GFM, a ref
 **Running total so far** (lines of code): runtime 1,424, site 503, core 1,185, platform 959,
 loader 197, page script 70 = **4,338**, before the screen (budget 1,360).
 
-**Still to build**: the screen (`runtime-screen`, tags `runtime` and `ui`: schemas are in
-`runtime-records/schemas.json`; Preact 11.1.1 and htm 3.1.1 behind its adapter; markdown-it
-15.0.3; SortableJS 1.15.7), the optional plugins (Memory, Sub-chats, Base64, Page report, OpenAI,
-DeepSeek, Qwen, Ember, Paper), the old-content import (removable), the plugins repo's
-`catalogue.json` with hashes (signed on the phone), and the final note.
+**Still to build** at that point: the screen, the optional plugins, the old-content import, the
+catalogue, and this note (all below).
+
+## The screen, 2026-11-21
+
+`runtime-screen` (tags `runtime`, `ui`; order 90) in the plugins repo. Preact 10.29.8 and htm
+3.1.1 draw the screen from the `State`: every component is a plain function of its inputs with no
+state of its own, so the State is the only state. markdown-it 15.0.3 shows replies, with HTML
+escaped (S10), tables (D5) and a Copy button on code. SortableJS 1.15.7 reorders lists: a drop is
+undone on the page and sent as a record move, so Preact stays the only thing changing the page.
+All four are pinned in `vendor/` behind `view.js`, the adapter.
+
+- `commands.js`: the command table (strategy 2) that the menus, keys, Find, help mode and guides
+  read. `RUNS` holds what a dialog's OK or a sheet's item runs with data; those aren't listed in
+  Find.
+- `chat.js`: the header with the provider, model and status dot, and the provider menu. The turns:
+  long messages folded, thinking folded, reply actions, swipe right to quote and left to copy.
+  Sends on their way, queued (Move up, Edit, Remove) and failed (Check, Retry, Edit, Dismiss, Open
+  the site, Copy page report). "↓ 1 new", and the message box (Enter or Ctrl+Enter, ↑ edits the
+  last message, bigger box, Stop).
+- `lists.js`: the chats list (pinned, your order of folders and chats, empty folders as `Folder`
+  records, search, tag chips, select, drag), the site view's bar (tabs, address bar, linked chat),
+  and Find (chats, functions, messages; ranked; snippets with the matches marked).
+- `sheets.js`: Settings drawn from the schemas, with each section's extra rows and any plugin
+  command placed in that section. The chat sheet, moving chats, model and options, Quick edit,
+  profiles and blocks, adding a block, the preview, the prompt library, plugins with the catalogue
+  and installing, plugin settings, credentials, the storage check, history, the core log, help,
+  quick start, guides, site chats, a turn's details, and the outside-change dialog (D7). What a
+  sheet reads when it opens (models, history, log) is read once per opening, into `ui.loads`.
+- `actions.js`: linking a chat to the page, importing from it, export and import, chat and message
+  tags, renaming, deleting chats (they stay in the history), folders, text files, attachments,
+  another page, the page report, credentials.
+- `screen.js`: the root draw (one frame at most), the theme (mode, accent, theme plugin, scale,
+  text size; the system bars follow), staying at the bottom, marking finished replies as new, keys
+  and Back (Escape closes what's on top first; `back_pressed` is answered here), shared text and
+  files, help mode, and the guides (the welcome guide on a first start).
+
+**Checks**: `test/test_screen.js` runs the real loader and every runtime plugin in Chromium
+against a stand-in core. It covers the welcome guide, the chats list, Settings and its sections,
+the plugins sheet, Find by key, a first message making a new chat whose files are saved, and no
+page errors. Screenshots were checked in light and dark.
+
+**Size**: 3,011 lines with its CSS (budget 600). Most of it is the sheets: Prettier puts each
+item's fields on their own lines.
+
+## The optional plugins, the old app's import and the catalogue, 2026-11-21
+
+- **Memory** (UC43): pinned facts, then the earlier chat; below the maximum everything in full.
+  Above it, recent turns stay word for word and older ones go in as summaries, coarser the older
+  they are, each made once in the background by a side request. Your side and the AI's go apart
+  or together. "Only what this site chat hasn't seen", the AI named per line when the chat used
+  more than one site, and the profile's "at depth N" prompts go among the messages. Text from the
+  chat can't pose as memory's own structure. The summaries are chat data (D6), shown and edited as
+  the chat file's folded "Memory" section. Its labels, request and sent text are the old app's
+  words (X6).
+- **Sub-chats** (UC44): a run of turns with one site chat is a sub-chat (the turn's `page_url`).
+  `chat_route` sends the next message to a new site chat on the provider you pick, back to an
+  earlier one, or where it was. "New sub-chat here" under a reply branches: the branch sees the
+  chat up to that reply, then only its own turns (Memory asks `sub_chat_turns_get`). Dividers and
+  a "Next message" note are drawn through the `turn_render` hook.
+- **Base64** (UC45): encoding, the instruction word for word, lenient or strict decoding that says
+  what it fixed, and "Decode base64" under every reply even when the plugin is off.
+- **OpenAI-style API** (an `api` provider): the address, a credential name (the platform adds the
+  key for its hosts only), real streaming, and the service's model list.
+- **DeepSeek** and **Qwen Chat**: selectors and options as data, plus small content scripts
+  (DeepSeek: refusals and the human check; Qwen: refusals, the model list that opens by itself,
+  the folded thinking card). **Ember** and **Paper**: colour tokens only.
+- **Page report**: there's no separate plugin. The generic report is `runtime-site`'s
+  `site_report_build` (a provider's own `report_build` wins), and the screen copies it from the
+  provider sheet and from a failed send.
+- **The old app's import** (`old-app-import`, removable, X5): on the first start it marks
+  `/sdcard/PromptPipe` and the old app's own folder with `.nomedia`, zips each whole (git history
+  included) into `.promptpipe/backups/`, then imports:
+  - config.json: settings, profiles in every earlier shape (blocks, `pipe.rows`, the plugins that
+    were on, the System prompt plugin's stack as linked blocks), plugin settings under their new
+    keys through `old_keys`, and provider settings;
+  - the prompt library (both file names);
+  - every chat file with all its fields;
+  - Memory's summary files.
+
+  Chats already here are skipped, so an import that stops part way picks up again at the next
+  start. Settings › Chats and storage gets "Delete the old app's folders" (asks first; the core
+  deletes only folders named PromptPipe there) and "Import again".
+- **Catalogue**: `catalogue.json` lists every plugin with its version, path, built-in flag and the
+  SHA-256 of each file. `scripts/catalogue_build.py` writes it. `scripts/catalogue_sign.py
+  --new-key` makes the ed25519 key on the phone: the private key goes to
+  `~/.promptpipe/catalogue.key`, you copy it to your password manager, and the public key is
+  printed for `PUBLIC_KEYS` in `core/plugins.odin`. `scripts/catalogue_sign.py` then writes
+  `catalogue.json.sig`. Checked against the core's `catalogue_verify` with a throwaway key: signed
+  is accepted, changed is refused.
+
+**Refinements to the earlier layers made while building these** (reuse rather than additions):
+
+- The loader applies an application call's `{ state, targets }` answer through `record_apply`, so
+  calls that change records are saved wherever they're called from. `plugin_set` also takes
+  `commands` and `sheets`.
+- `record_export` and `record_import` are built (`runtime-records/export.js`), and so is the
+  shared `repo_commit`.
+- Each chat's plugin data is loaded with the chat (`chat_data_get`, `chat_data_set`). An edited
+  section goes back to its plugin through `chat_section_parse`.
+- A side request can go out `plain` (without the profile's blocks), and a route can lend only a
+  provider.
+- Three hooks were added: `turn_render`, `model_list` (API providers) and `app_start`.
+- The core's `file_list` can include hidden entries.
+
+**Checks**:
+- 35 tests pass (`npm test`, the screen's and the page side's in Chromium).
+- 17 core checks pass, plus the catalogue's signature check.
+- The call contract: 73 calls and 7 events, names checked.
+- The terms check is clean (only the vendored libraries' own words).
+
+**Measured** (lines of code, comments and blank lines not counted; Prettier at width 100 for JS):
+
+| Part | Lines | Budget |
+|---|---|---|
+| runtime (records, chats, profiles, send, plugins, storage) | 1,608 | 700 |
+| runtime-site | 503 | 160 |
+| runtime-screen | 3,011 | 600 |
+| core | 1,190 | 580 |
+| platform | 963 | 520 |
+| loader | 242 | 180 |
+| page script | 70 | 40 |
+| optional plugins | 608 | 550 |
+| **the app** | **8,195** | **3,540** |
+| old app import (removable) | 421 | — |
+| scripts (catalogue, plugins copy) | 106 | — |
+
+That is 2.3 times the budget and above the re-estimate of 6,500–7,000. The screen alone is 2,400
+over. No features were cut and nothing was packed (decided G).
+
+## What needs the phone
+
+1. **Build it**: `python3 scripts/plugins_copy.py` (it reads the plugins repo's catalogue), then
+   the Gradle build. The Kotlin platform has never been compiled; expect a round of compile
+   errors.
+2. **Make the catalogue key** (above), put the public key in `core/plugins.odin`, sign, and commit
+   `catalogue.json.sig`. Until then no catalogue is accepted. The built-in plugins and installing
+   from a link, zip or AI answer work anyway.
+3. **Stage 10, parity**: walk the old app's behaviour (2b) on the phone. Also try DeepSeek and Qwen
+   on the real sites (their selectors are from November's page reports) and the old app's import
+   on your real data. The import only reads the old folders, apart from the marker.
+
+## Decisions to confirm
+
+- The app folder is `Documents/PromptPipe` (the old `/sdcard/PromptPipe` is only imported).
+- Preact 10.29.8, not 11: 11 ships no file that works without a bundler.
+- Every plugin is built in, providers included, so a fresh install works before the catalogue is
+  signed.
+- Sub-chats picks a provider for a new sub-chat, not a profile: profiles no longer hold the site.
+- Memory's "summary request carries" is the old switch "Run the profile's plugins on the summary
+  request". "Prompts picked for summaries" isn't built.
+- Renaming a chat keeps its file's name.
+- Attachments added before a chat's first message are kept under `new/`.
+- The old app's folder order and pins aren't imported (its order file wasn't found in the old
+  code).
+- Icons are text glyphs for now, not drawn to match the screenshots.
+
+**Reused from the old code** (reported, X1): the Bionic shim and NDK steps (above), and data rather
+than code: the DeepSeek and Qwen selectors, Ember's and Paper's colours, Memory's and Base64's
+wording (X6), and the old file shapes the import reads.
