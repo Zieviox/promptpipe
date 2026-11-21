@@ -25,7 +25,7 @@ Grouped by who answers. "Callers" says who may call it: **S** the screen, **P** 
 
 ### Answered by the application
 
-**Records**: one set of operations for every collection (S1). Each collection's schema gives its
+**Records**: one set of operations for every collection (reuse first, DRY). Each collection's schema gives its
 fields, labels, rules, and where it's stored.
 
 | Call | In → out | Callers |
@@ -98,10 +98,12 @@ model, options and toggles, D8),
 | `plugin_write` | plugin, files, catalogue entry → plugin (each file's hash checked against the entry) | A | UC29–UC31, S3 |
 | `plugin_remove` | plugin, copy → done | S | UC29 |
 | `log_read` | → the core log | S | UC38 |
+| `api_token_set` | the token's hash → done (the core checks `/v1` requests against it) | A | UC37 |
 | `folder_export` | root, folder, zip path → done (the folder as one zip, its git history included) | A | D9 |
 
-Roots: `app`, `chats`, `built_in` (read-only), `device` (the phone's shared storage: list and
-make folders only, for picking the chats folder, UC36). The change check is the expected revision on every
+Roots: `app`, `chats`, `built_in` (read-only), `device` (the phone's shared storage: list, read and
+make folders, for picking the chats folder and copying chats in, UC36; and for the old app's folders
+only, the `.nomedia` marker, the backup and, when you ask, deleting them, D9). The change check is the expected revision on every
 write, move and delete: one mechanism for every file (D7).
 
 ### Answered by the platform
@@ -126,7 +128,7 @@ write, move and delete: one mechanism for every file (D7).
 | `content_export` | content (text or file), to (`share` · `file`) → done | A | UC21, UC26, UC27 |
 | `picker_open` | types, many → files | S | UC7, UC27, UC30, UC48 |
 | `url_open` | url → done | S | UC9, UC39 |
-| `vibration_start` | → done | S | I1 |
+| `vibration_start` | → done | S | UC1 |
 | `bars_set` | colours → done | S | UC34 |
 | `storage_access_open` | → done (the system's file access screen) | S | UC36 |
 | `app_get` | → version, platform, the calls it answers, safe mode | S, A | P5, UC38 |
@@ -184,7 +186,7 @@ The screen needs no events of its own: it draws the `State` after every change.
 | UC13 site chats | `site_chat_list`, `site_chat_open`, `site_chat_import`, `record_set` on `chats` (link to the page) |
 | UC14 share in | `share_received` → `chat_create` |
 | UC15 API | `message_send` → `http_fetch` with a credential |
-| UC16–UC17 chats | `chat_create`, `chat_open`, `record_*` on `chats` and `folders` → `file_*`, `repo_commit` |
+| UC16–UC17 chats | `chat_create`, `chat_open`, `record_*` on `chats`, `folders` and `chat_list` → `file_*`, `repo_commit` |
 | UC18 find | `chat_find` → `file_find` |
 | UC19 details | `record_get`, `commit_list` |
 | UC20 tags | `record_set` on `chats` and `turns` |
@@ -193,20 +195,20 @@ The screen needs no events of its own: it draws the `State` after every change.
 | UC25 preview | `message_build` |
 | UC26 prompts | `record_*` on `prompts` and `blocks`, `prompt_export` |
 | UC27 export, import | `profile_export`, `profile_import`, `prompt_export`, `prompt_import` → `content_export`, `picker_open` |
-| UC28–UC31 plugins | `catalogue_load`, `plugin_install`, `plugin_update`, `plugin_remove` → `http_fetch`, `catalogue_verify`, `plugin_write` |
+| UC28–UC31 plugins | `catalogue_load`, `plugin_install`, `plugin_update`, `plugin_remove` → `http_fetch`, `catalogue_verify`, `plugin_write`; Reload plugins: `app_start` |
 | UC32 plugin settings | `record_set` on `plugin_settings` |
 | UC33 safe mode | `app_start` |
 | UC34–UC35 look, sites | `record_set` on `settings`, `bars_set` |
 | UC36 storage, git | `file_list` on `device`, `chats_folder_move`, `storage_verify`, `storage_access_open`, `record_set` on `settings`, `repo_push`, `repo_pull`, `commit_list` |
-| UC37 local API | `api_token_create` → `credential_create`; `credential_read` (Show, Copy) |
+| UC37 local API | `api_token_create` → `credential_create`, `api_token_set`; `credential_read` (Show, Copy) |
 | UC38 advanced | `record_delete` on `settings` (reset to defaults), `plugin_copy`, `log_read`, `app_close`, `service_stop`, `app_get` |
 | UC39 help | the screen, `record_set` on `settings` |
 | UC40 credentials | `credential_create`, `credential_list`, `credential_delete`, `record_*` on `connections` |
-| UC41 other apps | `job_received` → `job_run` → `job_changed` |
+| UC41 other apps | `job_received` → `job_run` → `job_changed` (a `models` job answers with the profiles' names) |
 | UC42 plugin authors | `plugin_set`, `sheet_open`, `event_on`, and the calls marked P |
 | UC43–UC47 built-in plugins | `message_send` (unsaved), `chat_data_read`, `chat_data_write`, `site_report_build`, hooks |
 | UC48 attachments | `attachment_add`, `picker_open`, `clipboard_read`, `share_received`, `site_send` |
-| D9 the old app's data | `content_import` → `folder_export`, `file_list` and `file_read` on `device`, `file_write` |
+| D9 the old app's data | `content_import` → `folder_export`, `file_list` and `file_read` on `device`, `file_write`; deleting the old folders: `file_delete` on `device` |
 | D7 change check | `change_resolve`; the expected revision on `file_write`, `file_move`, `file_delete` |
 
 ## What this leaves out on purpose
@@ -224,5 +226,5 @@ The screen needs no events of its own: it draws the `State` after every change.
 - One port each way, one envelope.
 - 7 record operations for 16 collections; 33 more calls answered by the application (5 of them
   only for plugins).
-- 12 calls answered by the core, 25 by the platform, 7 by the page script.
+- 13 calls answered by the core, 25 by the platform, 7 by the page script.
 - 9 events.

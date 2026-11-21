@@ -19,7 +19,7 @@ Numbers, texts and limits are kept exactly; texts in quotes are the screen's wor
   light or dark worked out from it (dark when 0.299·R + 0.587·G + 0.114·B < 140). A change of the
   system's light or dark is followed at once.
 - UI scale: 60% to 200%, in whole percent; changing it says "UI scale N%". The Look page offers
-  90%, 100%, 115%, 130%; keys step it by 5% (Ctrl+=, Ctrl+-) and Ctrl+0 goes back to 100%.
+  90%, 100%, 115%, 130%; keys change it by 5% (Ctrl+=, Ctrl+-) and Ctrl+0 goes back to 100%.
 
 ### 1.2 Model and options (UC10)
 
@@ -374,7 +374,7 @@ Numbers, texts and limits are kept exactly; texts in quotes are the screen's wor
   - **Model gap**: the order of the list and of the pinned chats must be stored (with the chats,
     by chat id), not only a pinned flag. To fix in the model.
 - Dropping chats: on the Pinned header (pinned, at the top), among pinned chats (pinned, at that
-  place), into a folder, before or after a row (moved into that row's folder, at that place), or to
+  place), into a folder, before or after a list item (moved into that item's folder, at that place), or to
   the top level. A folder only reorders within its own level (it never goes into Pinned or into
   another folder by dragging). Two chats with the same name in one place: "\"<name>\" already
   exists. Rename one of the chats first."
@@ -392,7 +392,7 @@ Numbers, texts and limits are kept exactly; texts in quotes are the screen's wor
   folders that no longer exist are closed; Find's index is rebuilt.
 - Moving chats is saved as "move: N chat(s) -> <folder> / (top)". Pinning puts chats at the top of
   Pinned; unpinning takes them out.
-- Selecting: pressing and holding a row for 450 ms (moving more than 8 px cancels) starts selecting
+- Selecting: pressing and holding a list item for 450 ms (moving more than 8 px cancels) starts selecting
   with that row; in select mode a folder row selects or unselects all the chats directly in it
   (not the pinned ones).
 - Dragging: the grip ("Drag to move") picks the row up; it follows the finger; the row under the
@@ -573,11 +573,11 @@ Numbers, texts and limits are kept exactly; texts in quotes are the screen's wor
     everything" (done when nothing is left to update), "Plugins from friends" with the warning "Only
     add repos from people you trust. Plugins are code. They can read your chats. Never add one from
     a random site." (done when Get plugins opens).
-- A step lights up its control: the rest is dimmed (a picture with a hole; it never takes a tap)
+- Each stage of a guide lights up its control: the rest is dimmed (a picture with a hole; it never takes a tap)
   and only the lit control and the card take taps. The control is scrolled into view once. If it
   isn't on screen (or something covers it), nothing is dimmed or blocked and the card says "That
   control is not on this screen." with "Take me there". The card moves to the top when the control
-  is in the lower half. "Try it now: use the lit control" (or the step's own hint).
+  is in the lower half. "Try it now: use the lit control" (or that stage's own hint).
 - Using the control moves the guide on (tidying up after, e.g. closing Find); the last step ends it
   with "<guide> guide done".
 - The card: step dots (tap to jump), the title and lines, "Skip guide", "Back", and "Next" (or the
@@ -1012,7 +1012,7 @@ in the file carries over:
 - Each message keeps (as data) its time, profile, tags, notes, error, seconds, and plugins' own data
   by plugin id.
 - Reading back an edited file (D7, only when you keep an outside edit): the sections are found by
-  markers alone on their line; the old app's names (`switches`, `site`) are read too.
+  markers alone on their line; the old app's earlier field names (for toggles and the provider) are read too.
 - **Gap to carry:** the old app's chat files (this shape, with its hidden markers) must import into
   the new layout without losing a field.
 
@@ -1217,13 +1217,13 @@ What a provider tells the page script (as data), carried over in the new format:
     text of any dialog, drawer, pop-up or modal on top, 160 characters);
   - a toast or alert matching permission/denied/limit/too many/try again/error/failed/login stops the
     wait: "Qwen said: "<first line, 200 characters>"";
-  - live thinking: opens the steps drawer once Qwen starts thinking and passes the steps on as they
-    grow ("thinking… N chars"), or the current step's title in italics; never taps Skip;
+  - live thinking: opens the thinking drawer once Qwen starts thinking and passes its parts on as they
+    grow ("thinking… N chars"), or the current part's title in italics; never taps Skip;
   - finished = the action row under the reply, no Stop, and the text held for 1 s; without that sign,
     45 s of nothing changing (pauses during long thinking don't end it); "still writing… N chars";
     Stop ends the wait and keeps the reply so far;
   - the reply is the answer part only (no thinking card, no Copy/Translate labels); the thinking is
-    read from the reply's card (opened and closed again if needed), as titled steps in Markdown;
+    read from the reply's card (opened and closed again if needed), as titled parts in Markdown;
   - its page report: taps the newest thinking card open and lists what appeared (in the message and
     elsewhere), panels and thinking outside the reply, how many reply versions the newest turn holds
     and anything that looks like a choice between them (Qwen sometimes waits on that), how many
@@ -1531,7 +1531,7 @@ Gaps (behaviour the design doesn't hold yet):
 
 1. **The chats list's order and the pinned order** must be stored, by chat id (1.31).
 2. **Bringing the old app's data in**: its chats (both old folders and today's chats folder, the chat
-   file with its hidden markers, the `switches`/`site` names), its profiles (every earlier shape and
+   file with its hidden markers, its earlier field names), its profiles (every earlier shape and
    both export versions), its prompt library (and the System prompt plugin's file), its settings, its
    plugin settings and Memory's summary files must import into the new layout on first start, as the
    old app upgraded itself (1.40, 1.41, 2.2, 2.4).

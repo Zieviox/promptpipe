@@ -188,8 +188,9 @@ Requirements win over the screenshots (U 2026-11-21).
 ### Other apps
 
 - **UC41 Local API**: OpenAI-style at `127.0.0.1:7790/v1`, reachable only from the phone, the
-  token always required (F); model = a profile name; each request is a new chat, or continues a
-  saved chat with `"chat"` (F); real streaming, keep-alive while waiting, a closed connection
+  token always required (F); model = a profile name, and the model list is the profiles; callable
+  from pages in the phone's browser too (CORS), still only with the token; each request is a new
+  chat, or continues a saved chat with `"chat"` (F); real streaming, keep-alive while waiting, a closed connection
   cancels the job, a retried request joins the running one (#209); the answer says which chat it
   went to and what was sent (F).
 
@@ -265,6 +266,18 @@ Requirements win over the screenshots (U 2026-11-21).
 - **D3** The prompt library is kept with the chats, in the app's hidden folder (D6) (F).
 - **D4** Files are written safely: a cut-off write never leaves a broken file (#211).
 - **D5** Replies are shown in full: tables, images (as links), strike-through, nested lists (#214).
+- **D6** The chats folder shows only the readable chat files. Each chat's data (its turns,
+  thinking, plugins' data such as Memory's summaries, attachments) is in its own hidden folder, and
+  everything else the app keeps there (the history repository, the prompt library) is hidden too,
+  under `.promptpipe/` with a `.nomedia` marker, so the system's media index and file managers'
+  "Recent" lists show only the readable chats; checked on the phone (U 2026-11-21).
+  A plugin's data for a chat is one JSON file in that chat's hidden folder (U 2026-11-21).
+- **D7** **The change check**: one system, reused for every file the app writes on shared storage
+  (readable chats, chat data, the prompt library, settings, your plugin copies). The app records a
+  hash of what it wrote; before it overwrites or trusts a file again it compares, and if the file
+  changed outside the app it asks once, in one dialog used everywhere: keep the outside change,
+  keep the app's, or keep both (a copy). Standard name: optimistic concurrency control with content
+  hashes as revisions (as HTTP's ETag and If-Match) (U 2026-11-21).
 - **D8** **Linked or own** (U 2026-11-21): a chat's provider, profile, model, options and each
   block's toggle are **linked** by default (they follow the shared value: the default provider,
   the active profile, the provider's saved model and options, the profile's default for the block)
@@ -273,23 +286,12 @@ Requirements win over the screenshots (U 2026-11-21).
   the plugin's defaults) and for the app's settings (linked to their defaults). One mechanism,
   the same idea as a linked System prompt. Standard name: cascading settings with local override
   (as git's system, global and local config).
-- **D7** **The change check**: one system, reused for every file the app writes on shared storage
-  (readable chats, chat data, the prompt library, settings, your plugin copies). The app records a
-  hash of what it wrote; before it overwrites or trusts a file again it compares, and if the file
-  changed outside the app it asks once, in one dialog used everywhere: keep the outside change,
-  keep the app's, or keep both (a copy). Standard name: optimistic concurrency control with content
-  hashes as revisions (as HTTP's ETag and If-Match) (U 2026-11-21).
-- **D6** The chats folder shows only the readable chat files. Each chat's data (its turns,
-  thinking, plugins' data such as Memory's summaries, attachments) is in its own hidden folder, and
-  everything else the app keeps there (the history repository, the prompt library) is hidden too,
-  under `.promptpipe/` with a `.nomedia` marker, so the system's media index and file managers'
-  "Recent" lists show only the readable chats; checked on the phone (U 2026-11-21).
-  A plugin's data for a chat is one JSON file in that chat's hidden folder (U 2026-11-21).
 - **D9** **The old app's data**: on the first start of the remade app, the old app's folders
   (`/sdcard/PromptPipe` and the app's own old folder) get a `.nomedia` marker, are zipped whole (git
   history included) into `.promptpipe/backups/old-app-<date>.zip`, then imported: chats (every old
   chats folder, every field of the old chat file), profiles (every earlier shape), the prompt library,
-  settings, plugin settings and Memory's summaries. The app never changes or deletes the old folders;
+  settings, plugin settings and Memory's summaries. Apart from the `.nomedia` marker the app never
+  changes the old folders, and it deletes them only when you ask;
   Settings › Chats and storage shows them with their backup and lets you delete them. An import that
   stops part way loses nothing (U 2026-11-21).
 
@@ -315,11 +317,11 @@ Requirements win over the screenshots (U 2026-11-21).
   (#207, #208; decided 2026-11-21). The catalogue's signing key is made on the phone and kept
   there, with a copy in a password manager; the APK holds two public keys (main and backup)
   (#202; decided 2026-11-21).
-- **S10** What comes from a site is shown as text, never run as HTML (the Markdown is escaped first)
-  (F, from the old app's code).
 - **S9** Code runs in a site page only when the app hands it over through the platform's extension
   port, never from the website itself; it is plugin code, checked like every plugin (S3, S4, D7);
   credential values never reach it (U 2026-11-21).
+- **S10** What comes from a site is shown as text, never run as HTML (the Markdown is escaped first)
+  (F, from the old app's code).
 
 ### R. Reliability
 
@@ -336,6 +338,11 @@ Requirements win over the screenshots (U 2026-11-21).
 - **R7** The screen fits the visible area above the on-screen keyboard (F, from the old app's code).
 - **R8** Starting shows "Starting…"; if the core doesn't answer, the screen says why, never a blank
   page (F, from the old app's code).
+- **R9** The core is started again when it stops, waiting longer each time it fails quickly (1 s,
+  doubling, at most 30 s) (F, from the old app's code).
+- **R10** A download or request that fails says what happened in plain words with the host (not
+  found, no answer in time, the secure connection failed, cut off); a connection cut off is tried
+  once more (F, from the old app's code).
 
 ### Q. Quality
 
@@ -350,14 +357,17 @@ Requirements win over the screenshots (U 2026-11-21).
   below.
 - **Q3** Accessible: every icon button has a label, alerts have their role, every theme has
   readable contrast.
+- **Q4** About 3,000 lines of clean, comfortable code for the app (core, platform, loader, page
+  script, runtime plugins with the screen); the optional plugins ideally inside it too; no packed
+  lines, no cut features; libraries behind adapters are not counted (U 2026-11-20).
 - **Q5** Everything is folded by default unless it's active (U 2026-11-21): thinking, a message's
   trace, "Sent with", long messages, folders in the chats list, sections of a sheet. Active means
   in use right now: the thinking of a reply that is still streaming, the folder of the open chat,
   what you just unfolded. Anything can be unfolded by a tap and stays unfolded until you fold it
   or leave.
-- **Q4** About 3,000 lines of clean, comfortable code for the app (core, platform, loader, page
-  script, runtime plugins with the screen); the optional plugins ideally inside it too; no packed
-  lines, no cut features; libraries behind adapters are not counted (U 2026-11-20).
+- **Q6** The app does everything `design/2b-behaviour.md` lists (behaviour, wording, limits and
+  messages the screenshots can't show), except where a requirement changes it; it is the reference
+  for parity (X4) (U 2026-11-21: "the functionality needs to carry over").
 
 ### W. Words
 
@@ -388,10 +398,11 @@ Requirements win over the screenshots (U 2026-11-21).
   every plugin.
 - **X4** The old app stays usable until the new one passes every requirement; then the old code is
   removed in one change.
+- **X5** Your content from the old app is backed up and imported once, on the new app's first
+  start (decided 2026-11-21; how: D9).
 - **X6** The shipped templates' blocks and texts (Plain, Writing feedback, Dialogue & Role play,
-  Story & Prose) carry over as content (F).
-- **X5** Your content from the old app (chats, prompt library, profiles) is imported once on the
-  new app's first start (decided 2026-11-21).
+  Story & Prose) and the built-in plugins' wording (Memory's requests and labels, Base64's
+  instruction, the providers' messages) carry over word for word, as content (F, U 2026-11-21).
 
 ### N. Not now (YAGNI)
 
@@ -406,7 +417,7 @@ Requirements win over the screenshots (U 2026-11-21).
 ## The command list
 
 Every command the person can run (from the old app's code, in the design's words). Menus, Find,
-the keys and help all read this one list (S2); plugins add theirs (`menu_items`).
+the keys and help all read this one list (Q2); plugins add theirs (`menu_items`).
 
 | Command | Place | Key |
 |---|---|---|

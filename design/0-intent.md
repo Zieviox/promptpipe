@@ -154,6 +154,10 @@ The screenshots show today's app with its bugs too (the reply's table shows as r
 Every state was checked against the design on 2026-11-21 (each element and action traced to a use
 case, a call or a record); what was missing went into the requirements, the model and the calls.
 
+`design/2b-behaviour.md` lists everything the old app does that a screenshot can't show (behaviour,
+wording, limits, messages), read line by line from its code on 2026-11-21; it is the reference for
+behaviour (Q6).
+
 Not in screenshots, kept as written:
 
 - **Gestures**: swipe a reply right (quote) or left (copy); long-press a chat (select mode) or text

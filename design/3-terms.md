@@ -20,6 +20,7 @@ other by id, never by holding each other.
     config.json                    Config
     plugins/<id>/                  your copies of plugins
     backups/old-app-<date>.zip     the old app's folders, backed up before the import (D9)
+    drafts.json                    the drafts, one per chat (UC7); on this device, never in the history
   chats/                           the chats folder (default; can be moved, UC36)
     Trip ideas.md                  the readable chat: built from its data, the only files in "Recent"
     food/Recipe notes.md           folders hold readable chats
@@ -34,7 +35,7 @@ other by id, never by holding each other.
       tags.json                    counter tags' last numbers (when they count across all chats)
       repo/                        the history repository (its working tree is the chats folder)
 <app-private storage>              updated plugins, the revision record (D7), where the chats folder is,
-                                   the core's key, the core log, the drafts (one per chat, UC7)
+                                   the core's key and the local API token's hash, the core log
 <the platform's credential store>  credentials, encrypted with the key store (S7)
 <the APK>                          the built-in plugins, the loader, the page script (read-only)
 <memory>                           the screen's State, lost on restart by design
@@ -66,7 +67,11 @@ readable `.md` built from them. Owner: the runtime's chats module.
 
 The folder is part of `file`, not a field of its own (not stored twice). Whether a chat is pinned is
 its place in `Chat_List.pinned` (not stored twice). The readable file's form
-(a short header, then one section per turn) is settled in the function list.
+(a short header, one section per turn, then the plugins' folded sections, D1) is settled in the
+function list.
+
+Folders are the chats folder's own folders, not records stored elsewhere; an empty one holds a
+marker file so the history keeps it (UC17).
 
 **`Chat_List`**: your order of the chats list (UC16, UC17), in `chat_list.json`. Owner: the
 runtime's chats module. Fields: `pinned` (list of chat ids, in order), `order` (map folder path
@@ -91,13 +96,15 @@ keeps the default order; renaming or moving a folder updates its keys.
 | `error` | `Error` | why it ended badly, if it did (UC4) |
 | `blocks` | list of strings | the names of the blocks that went out ("Sent with 4", UC25) |
 | `notes` | list of strings | what plugins noted while working on it ("Base64: fixed 2 characters"), shown in the trace (from the old app) |
-| `diagnostics` | list of numbers | for waits of 30 s or more: when the page's stop signal and the reply's length changed, numbers only (UC1) |
+| `diagnostics` | list of `{ at_s, stop, reply_length, thinking_length, replies_shown, view_width, view_height, hidden }` | for waits of 30 s or more: the last changes the page showed, numbers and flags only, never text (UC1) |
 
 A plugin's data for a chat is in the chat's data folder, `<plugin id>.json`, keyed by turn when it
 needs to be: one place, not a field on every turn.
 
 **`Attachment`**: `id`, `name`, `mime_type`, `size`, `path` (inside the chat's data folder,
-`attachments/`). Part of a `Turn` or a draft.
+`attachments/`). Part of a `Turn` or a draft. A file is copied into the chat's `attachments/` when
+you attach it (so a draft's attachments survive a restart) and removed if the draft drops it before
+sending; it enters the history with the message that sends it.
 
 **`Prompt`**: a System prompt in the library (UC26). Fields: `id`, `name`, `text`, `pinned`,
 `updated`. All prompts in `prompts.json`. Owner: the runtime's profiles module. Which profiles link
@@ -130,8 +137,7 @@ is computed (`value_get`, a pure function), never stored.
 | `provider_choices` | map plugin id → `{ model, options, settings }` | the model, options and plugin settings saved for each provider (UC10, D8) |
 | `connections` | list of `Connection` | UC40.6 |
 | `sources` | list of `Source` | UC30 |
-| `settings` | map setting key → value | only values you changed; the rest are linked to the schema's defaults (`Setting_Def`, D8), so nothing is stored twice (S3) |
-| `api_token_hash` | string | to check the local API token (the token itself is a credential, UC37) |
+| `settings` | map setting key → value | only values you changed; the rest are linked to the schema's defaults (`Setting_Def`, D8), so nothing is stored twice |
 
 App settings are keys like `look.mode`, `look.accent`, `look.scale`, `sites.pages` (default 5), `sites.idle_min`, `sites.total_min`, `look.enter_sends`, `look.stay_at_bottom` (on),
 `git.commit` (on), `git.name`, `git.email`, `git.remote`, `git.auto_push`, `tags.counter_scope` (each chat, all chats), `api.folder`, `updates.check` (off, daily, weekly),
@@ -208,10 +214,10 @@ number }`, UC48); for web: `url`, `chat_urls` (patterns of a site chat's address
 (`{ open, items }`), `options` (list of `{ name, selector, text }`), `settle_ms`, `stuck_ms`; for
 api: `protocol` (`"openai"` first), `base_url` (the default).
 
-**`Setting_Def`**: one setting, for the app and for plugins alike (S3, DRY): `key`, `type`
+**`Setting_Def`**: one setting, for the app and for plugins alike (D8, DRY): `key`, `type`
 (`"toggle"` · `"choice"` · `"text"` · `"number"` · `"credential"` · `"list"`), `label`, `description`,
 `default`, `choices` (list of `{ value, label }`), `min`, `max`, `section`, `old_keys` (for the
-one-time import, X5).
+one-time import, D9).
 
 **`Catalogue`**: what a source offers: `source`, `signature`, `entries` (list of
 `Catalogue_Entry`). **`Catalogue_Entry`**: `id`, `name`, `version`, `description`, `tags`,
@@ -251,10 +257,11 @@ function (the only writer).
   providers), `saved` (false for side requests), `job`, `at`, `progress`. The queue and the failed
   list are views of `sends` by status, not lists of their own (UC1–UC4, UC41, UC42.3).
 - **`Page`**: one open site page: `id`, `provider`, `url`, `title`, `status` (`"loading"` ·
-  `"ready"` · `"busy"` · `"failed"`), `error`. Which send uses a page, and so whether it is a
+  `"ready"` (the chat box shows: logged in, or a guest the site lets in; what the welcome guide
+  watches, UC39) · `"busy"` · `"failed"`), `error`. Which send uses a page, and so whether it is a
   side request's page (the send's `saved` is false, UC12), is on the `Send`, not here.
-- **`Job`**: a request from another app: `id`, `profile`, `chat` (to continue, or none),
-  `messages`, `stream`, `status` (UC41). (Its send points to it, not the other way.)
+- **`Job`**: a request from another app: `id`, `request` (`"models"` · `"chat"`), `profile`, `chat`
+  (to continue, or none), `messages`, `stream`, `status` (UC41). (Its send points to it, not the other way.)
 - **`Ui`**: `sheets` (a stack of `{ collection, id }`: a collection, or one record of it; a plugin's
   own sheet by its name; Back takes the top one, R5), `drawer`,
   `site_view` (`{ open, page }`), `selection` (`{ on, ids }`), `query` (Find's), `help` (the ?
@@ -281,7 +288,8 @@ function (the only writer).
   `message` (what happened and what to do), `page` (the page involved, if any: then the screen
   offers Open the site and Copy page report, UC4).
 - Each side's own small state stays private to it: the core's (its key, its folders, the revision
-  record, the local API's open requests), the platform's (its views, pop-ups, the credential
+  record, the local API token's hash (set by `api_token_set`; kept out of the shared settings, which
+  another app could edit), the local API's open requests), the platform's (its views, pop-ups, the credential
   store, the core process), a page script's (its provider description, the send it is watching).
 
 ### Who writes what
@@ -297,6 +305,9 @@ function (the only writer).
 | updated plugins | core (install, after verifying) | app-private `updates/` |
 | the revision record (D7) | core | app-private `revisions.json` |
 | counter tags' numbers | runtime, chats module | `.promptpipe/tags.json` |
+| `Chat_List` | runtime, chats module | `.promptpipe/chat_list.json` |
+| drafts | runtime, chats module | the app folder's `.promptpipe/drafts.json` |
+| the old app's backup | core (`folder_export`, on the runtime's call) | the app folder's `.promptpipe/backups/` |
 | history commits | platform (the repository adapter), on the runtime's call | `.promptpipe/repo/` |
 | `State` | runtime, the apply function | memory |
 
@@ -326,7 +337,10 @@ function (the only writer).
   they're about (`file_write`, `site_send`). No per-topic ports, no port names to learn (stage 4).
 - **Events**: past tense (`job_received`, `back_pressed`) or `_changed` (`reply_changed`).
 - **Hooks**: named by their place in a sequence, noun first: `send_before`, `reply_after`,
-  `block_text`, `chat_route`, `turn_render`, `toggle_render`, `menu_items`.
+  `block_text`, `chat_route`, `turn_render`, `toggle_render`, `menu_items` (the ⋯ menu, Quick edit's
+  entries and a reply's actions, each item saying its place), `chat_section_format` and
+  `chat_section_parse` (a plugin's folded section of the readable chat file, and reading an edit of
+  it back, D1).
 - **`PP`**: every function plugins may use is on `PP` under its full name (`PP.message_send`); no
   bare names shared between plugins.
 - **One name per call across layers**: a call keeps its name from the application through its port
@@ -351,7 +365,7 @@ function (the only writer).
 | `verify` | integrity or authenticity | `catalogue_verify`, `storage_verify` |
 | `compare` | order two values | `version_compare` |
 | `apply` | a change record to state | (the application's apply function) |
-| `migrate` | old saved data to the current format | (the one-time import of old content, X5) |
+| `migrate` | old saved data to the current format | (inside `content_import`, D9) |
 | `open` / `close` | something shown or held open | `page_open`, `page_close`, `picker_open` |
 | `start` / `stop` | a process, stream, job or service | `app_start`, `send_stop`, `vibration_start` |
 | `send` | hand a message to a provider, page or the platform | `message_send`, `site_send` |
@@ -378,7 +392,8 @@ The module nouns are the record names in lower case plus these: `app`, `file`, `
 `option`, `model`, `http`, `version`, `bundle` (the release's zip of built-in plugins), `screen`
 and its parts (`sheet`, `drawer`, `menu`, `toast`, `dialog`, `item`), `theme`, `log`, `schema`
 (the list of `Setting_Def`), `failure` (a failed send), `change` (an outside change, D7),
-`commit`, `view` (the site view), `content` (what's exported), `picker` (the system's file
+`commit`, `view` (the site view), `content` (your content as a whole: exported, or imported from the
+old app), `chat_section` (a plugin's part of the readable chat file), `picker` (the system's file
 picker), `clipboard`, `url`, `vibration`, `bars` (the system bars), `storage`, `storage_access`,
 `service` (the background service), `api_token`, `chats_folder`, `chat_data`, `catalogue`,
 `record` (any record of a collection), `collection`, `popup` (a sign-in window a site opens),
@@ -439,4 +454,4 @@ the screenshots only where the design has no word; one meaning per term):
 | `json`, `hash`, `signature`, `zip` | Odin `core:encoding/json`, `core:crypto/sha2`, `core:crypto/ed25519`, `core:compress/deflate` (core) |
 | `render`, `morph` | the browser's DOM and a morphing library (screen) |
 | page building blocks | the site's DOM (page script) |
-| `local_storage` | the browser's local storage (screen; per-device conveniences only) |
+| `local_storage` | the browser's local storage (screen; per-device conveniences only: folds, Find's recent picks) |
