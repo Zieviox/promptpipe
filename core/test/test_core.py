@@ -68,6 +68,8 @@ try:
     ids = {p["id"]: p["copy"] for p in call("plugin_list", {})["data"]}
     check("the list says which copy runs", ids == {"base64": "built_in", "rot13": "updated"})
     check("the plugin's files are served from the copy that runs", http("/plugins/rot13/main.js")[1] == "x")
+    folders = call("chats_folder_get", {})["data"]
+    check("the core names the default chats folder", folders["default"] == os.path.join(app, "chats"))
     check("an unsigned catalogue is refused", call("catalogue_verify", {"data": "{}", "signature": "A" * 86 + "=="})["error"]["code"] == "permission_denied")
     try:  # another source's catalogue, checked against the key accepted for it
         import base64

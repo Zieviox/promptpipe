@@ -110,6 +110,7 @@ call_run :: proc(body: []byte) -> Response {
 	case "file_list":        result, err = file_list(data)
 	case "file_find":        result, err = file_find(data)
 	case "log_read":         result, err = log_read()
+	case "chats_folder_get": result, err = chats_folder_get()
 	case "catalogue_verify": result, err = catalogue_verify(data)
 	case "plugin_list":      result, err = plugin_list()
 	case "plugin_write":     result, err = plugin_write(data)

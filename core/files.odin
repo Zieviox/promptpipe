@@ -27,6 +27,15 @@ join :: proc(parts: ..string) -> string {
 	return strings.join(parts, "/")
 }
 
+// The chats folder in use and the default one, for the app (the core owns the default).
+chats_folder_get :: proc() -> (string, Error) {
+	return fmt.tprintf(
+		`{{"folder":%s,"default":%s}}`,
+		quote(chats_dir()),
+		quote(join(S.app_dir, "chats")),
+	), {}
+}
+
 // The chats folder: the setting `storage.chats_folder` in config.json, else <app>/chats.
 chats_dir :: proc() -> string {
 	data, err := os.read_entire_file(join(S.app_dir, "config.json"), context.allocator)

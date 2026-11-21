@@ -19,6 +19,7 @@
     "plugin_write",
     "plugin_remove",
     "log_read",
+    "chats_folder_get",
   ];
   const calls = {}; // the application's calls: name → handler(data, state)
   const listeners = {}; // event name → handlers
@@ -26,23 +27,34 @@
   const content = {}; // "plugin/file" → text, for content files (prose, data)
   const waiting = {}; // envelope id → { resolve, reject }
   let platform_calls = ["app_get"];
-  let state = { plugins: [], sends: [], pages: [], turns: [], loaded: [], drafts: [], changes: [] };
+  let state = {
+    plugins: [],
+    sends: [],
+    pages: [],
+    turns: [],
+    loaded: [],
+    drafts: [],
+    changes: [],
+  };
   let redraw = () => {};
   let next = 0;
 
   const id_create = () =>
     `${Date.now().toString(36)}${(next += 1).toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-  const error_build = (code, message) => Object.assign(new Error(message), { code });
+  const error_build = (code, message) =>
+    Object.assign(new Error(message), { code });
 
   // ---------- the port ----------
 
   // A call to the platform (or a page through it) goes over the extension's relay in this page.
-  const port_send = (envelope) => window.postMessage({ pp: "out", envelope }, location.origin);
+  const port_send = (envelope) =>
+    window.postMessage({ pp: "out", envelope }, location.origin);
 
   // An application call that changes records answers { state, targets }: it's applied and saved
   // here (committed under the call's name), and the caller gets the rest of the answer.
   const answer_apply = async (name, answer) => {
-    if (answer && answer.error) throw error_build(answer.error.code, answer.error.message);
+    if (answer && answer.error)
+      throw error_build(answer.error.code, answer.error.message);
     if (!answer || !answer.state || !answer.targets) return answer;
     await PP.record_apply(() => answer, name.replace(/_/g, " "));
     const { state: _state, targets: _targets, ...rest } = answer;
@@ -61,7 +73,10 @@
       return reply.data;
     }
     if (!platform_calls.includes(name) && !name.startsWith("site_")) {
-      throw error_build("unimplemented", `${name} is not supported on this platform`);
+      throw error_build(
+        "unimplemented",
+        `${name} is not supported on this platform`,
+      );
     }
     const id = id_create();
     return new Promise((resolve, reject) => {
@@ -79,7 +94,10 @@
         .catch((e) => console.error(name, e));
     }
     if (name === "job_changed") {
-      fetch("/event", { method: "POST", body: JSON.stringify({ type: "event", name, data }) });
+      fetch("/event", {
+        method: "POST",
+        body: JSON.stringify({ type: "event", name, data }),
+      });
     }
   };
 
@@ -90,7 +108,9 @@
     if (e.type === "reply" && waiting[e.id]) {
       const { resolve, reject } = waiting[e.id];
       delete waiting[e.id];
-      return e.error ? reject(error_build(e.error.code, e.error.message)) : resolve(e.data);
+      return e.error
+        ? reject(error_build(e.error.code, e.error.message))
+        : resolve(e.data);
     }
     if (e.type === "event") return event_send(e.name, e.data);
     if (e.type === "call") {
@@ -98,7 +118,10 @@
       try {
         reply.data = await call_send(e.name, e.data);
       } catch (error) {
-        reply.error = { code: error.code || "internal", message: error.message };
+        reply.error = {
+          code: error.code || "internal",
+          message: error.message,
+        };
       }
       port_send(reply);
     }
@@ -137,11 +160,19 @@
     const blocks = state.config.blocks.filter(
       (b) => b.profile === profile.id && b.type === "plugin",
     );
-    return [...new Set(blocks.filter((b) => PP.block_on_get(state, chat, b)).map((b) => b.plugin))];
+    return [
+      ...new Set(
+        blocks
+          .filter((b) => PP.block_on_get(state, chat, b))
+          .map((b) => b.plugin),
+      ),
+    ];
   };
 
   const hook_run = async (name, input, context = {}) => {
-    const ids = SEND_HOOKS.includes(name) ? active_list(context) : Object.keys(hooks);
+    const ids = SEND_HOOKS.includes(name)
+      ? active_list(context)
+      : Object.keys(hooks);
     let value = input;
     for (const id of ids) {
       const hook = hook_get(id, name);
@@ -169,6 +200,15 @@
     time_get: () => new Date().toISOString(),
     time_offset_get: () => -new Date().getTimezoneOffset(),
     pause: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    // Base64 to bytes and back, for files that come and go as base64 (picked files, zips).
+    base64_decode: (text) =>
+      Uint8Array.from(atob(text), (c) => c.charCodeAt(0)),
+    base64_encode: (bytes) => {
+      let binary = "";
+      for (let i = 0; i < bytes.length; i += 32768)
+        binary += String.fromCharCode(...bytes.subarray(i, i + 32768));
+      return btoa(binary);
+    },
     content_read: (plugin, file) => content[`${plugin}/${file}`] ?? "",
     redraw_set: (fn) => (redraw = fn),
   };
@@ -187,7 +227,8 @@
     own.plugin_set = (def) => {
       Object.assign(PP, def.functions || {});
       Object.assign(calls, def.calls || {});
-      for (const [name, handler] of Object.entries(def.events || {})) event_on(name, handler);
+      for (const [name, handler] of Object.entries(def.events || {}))
+        event_on(name, handler);
       hooks[plugin.id] = { ...(hooks[plugin.id] || {}), ...(def.hooks || {}) };
       // Commands join the screen's menus, Find and keys; sheets are opened by name.
       const commands = (def.commands || []).map((c) => ({
@@ -212,7 +253,8 @@
           "PP",
           `${await file_fetch(plugin.id, file)}\n//# sourceURL=${plugin.id}/${file}`,
         )(own);
-      } else content[`${plugin.id}/${file}`] = await file_fetch(plugin.id, file);
+      } else
+        content[`${plugin.id}/${file}`] = await file_fetch(plugin.id, file);
     }
     // The content script's files run in site pages, never here: kept as content to hand over.
     for (const file of page_files)
@@ -227,13 +269,18 @@
     );
     const runtime = (p) => (p.manifest.tags || []).includes("runtime");
     list.sort(
-      (a, b) => runtime(b) - runtime(a) || (a.manifest.order ?? 50) - (b.manifest.order ?? 50),
+      (a, b) =>
+        runtime(b) - runtime(a) ||
+        (a.manifest.order ?? 50) - (b.manifest.order ?? 50),
     );
     const loaded = [];
     for (const plugin of list) {
       try {
         if (!plugin.changed_outside) await plugin_load(plugin);
-        loaded.push({ ...plugin, status: plugin.changed_outside ? "changed_outside" : "loaded" });
+        loaded.push({
+          ...plugin,
+          status: plugin.changed_outside ? "changed_outside" : "loaded",
+        });
       } catch (error) {
         if (runtime(plugin) && plugin.copy === "yours" && !SAFE) {
           location.replace(
@@ -255,13 +302,17 @@
         PP.pause(3000).then(() => ({})),
       ]);
       platform_calls = app.calls || [];
-      state = { ...state, app: { ...app, safe_mode: SAFE, failed: params.get("failed") || "" } };
+      state = {
+        ...state,
+        app: { ...app, safe_mode: SAFE, failed: params.get("failed") || "" },
+      };
       const plugins = await plugin_list_load();
       if (!plugins) return;
       state = { ...state, plugins };
       stream_open();
       if (PP.state_load) state = await PP.state_load(state);
-      if (PP.app_start_run) PP.app_start_run(state).catch((e) => console.error(e));
+      if (PP.app_start_run)
+        PP.app_start_run(state).catch((e) => console.error(e));
       redraw(state);
     } catch (error) {
       // Never a blank page (R8): the reason, Retry, and safe mode.
