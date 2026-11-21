@@ -86,3 +86,29 @@ come (platform, loader, page side, screen) decide where it lands.
 **Not reused**: nothing from the old core; only the Odin library's own API was looked up.
 
 **Next layer**: the platform (Kotlin), which can't be compiled here: you build it on the phone.
+
+## The platform (Kotlin), 2026-11-21
+
+In `promptpipe`, branch `rewrite`: `app/` (Gradle files, the manifest, the launcher icons carried
+over as part of the look) and `app/src/main/java/dev/zieviox/promptpipe/`: `App`, `Core` (the app
+folder, starting and checking the core, R1, R8, S2), `Port` (the envelope over the extension's
+port; the platform's calls; `site_*` passed on to pages), `Pages` (sessions, page scripts,
+recovery, pop-ups, `page_changed`), `MainActivity` (the views, the region, Back, Alt+S, sharing in,
+the picker), `Repo` (JGit), `Credentials` (Keystore, `http_fetch`), `Services`, `KeepAlive`;
+`core/android/shim.c`; `scripts/build.sh`, `scripts/plugins_copy.py`.
+
+**Checks**: none possible here (no Android build environment, as agreed): it's compiled on the
+phone. Written against the APIs the old app already builds with (GeckoView 144, JGit 5.13).
+
+**Size**: 959 lines against 520 (1.8×).
+
+**Where it differs or needs your decision**:
+
+- **The app folder is `Documents/PromptPipe`** (or the app's own external folder without
+  all-files access), not `/sdcard/PromptPipe`: that's the old app's, which the new one only
+  imports (X5). Documents is Android's standard place for documents you make.
+- Alt+S while a page has the focus reaches the screen as `back_pressed` with `key: "Alt+S"`.
+- The application names the chats folder, the author and the remote in each git call.
+
+**Reused because there's no other way** (reported, X1): the Bionic shim's three no-op pthread
+calls and its 64-aligned thread-local, and the build steps for linking Odin against the NDK.
