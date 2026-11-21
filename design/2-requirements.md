@@ -46,7 +46,7 @@ Requirements win over the screenshots (U 2026-11-21).
   ("Read the page again" re-reads them), saved for that provider, and set on the page before each
   message; "Choose on the site" when the list can't be read (F, seen in `models`).
 - **UC11 Toggles for this chat**: Quick edit next to the message box turns blocks on or off for
-  this chat; a plugin's toggle can also sit in the header or the toolbar (F).
+  this chat (each toggle linked to the profile's default, or the chat's own, D8); a plugin's toggle can also sit in the header or the toolbar (F).
 - **UC12 Site view**: tabs, each showing its own page (#236); closing a tab closes its page, any
   tab can be closed and a page opens again when one is needed (#242); pages opened for side
   requests show as tabs marked as side requests and close when the request is done (#242); a new
@@ -221,6 +221,14 @@ Requirements win over the screenshots (U 2026-11-21).
 - **D3** The prompt library is kept with the chats, in the app's hidden folder (D6) (F).
 - **D4** Files are written safely: a cut-off write never leaves a broken file (#211).
 - **D5** Replies are shown in full: tables, images (as links), strike-through, nested lists (#214).
+- **D8** **Linked or own** (U 2026-11-21): a chat's provider, profile, model, options and each
+  block's toggle are **linked** by default (they follow the shared value: the default provider,
+  the active profile, the provider's saved model and options, the profile's default for the block)
+  or set as **this chat's own**. The screen shows which, and a value can be made the chat's own or
+  linked again at any time. The same holds one level up (a profile's plugin settings are linked to
+  the plugin's defaults) and for the app's settings (linked to their defaults). One mechanism,
+  the same idea as a linked System prompt. Standard name: cascading settings with local override
+  (as git's system, global and local config).
 - **D7** **The change check**: one system, reused for every file the app writes on shared storage
   (readable chats, chat data, the prompt library, settings, your plugin copies). The app records a
   hash of what it wrote; before it overwrites or trusts a file again it compares, and if the file

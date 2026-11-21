@@ -57,12 +57,10 @@ readable `.md` built from them. Owner: the runtime's chats module.
 | `file` | path | its readable `.md`, relative to the chats folder (the folder is part of it) |
 | `title` | string | shown in the list and the header |
 | `created`, `updated` | time | |
-| `provider` | plugin id | the provider this chat uses |
-| `profile` | profile id | the profile this chat sends with next |
+| `own` | map | the values this chat sets as its own (D8): `provider`, `profile`, `model`, `options` (map option → on), `toggles` (map block id → on). A value that isn't here is linked |
 | `site_url` | string | the site chat this chat continues (UC13) |
 | `pinned` | boolean | UC17 |
 | `tags` | list of strings | chat tags, put on every new message (UC20) |
-| `toggles` | map block id → boolean | this chat's own toggles (UC11) |
 | `turns` | list of `Turn` | in order |
 
 The folder is part of `file`, not a field of its own (not stored twice). The readable file's form
@@ -95,6 +93,18 @@ needs to be: one place, not a field on every turn.
 `updated`. All prompts in `prompts.json`. Owner: the runtime's profiles module. Which profiles link
 it is derived from the profiles (not stored).
 
+**Linked or own (D8)**: where a value comes from when a chat doesn't set its own. The effective value
+is computed (`value_get`, a pure function), never stored.
+
+| Value | Linked to | Own at |
+|---|---|---|
+| provider | `Config.provider` (the default) | `Chat.own.provider` |
+| profile | `Config.active_profile` | `Chat.own.profile` |
+| model, options | `Config.provider_choices[provider]` | `Chat.own.model`, `Chat.own.options` |
+| a block's toggle | the profile's `Block.on` (or its group's `on`) | `Chat.own.toggles[block]` |
+| a plugin setting | the plugin's `Setting_Def.default` | `Profile.plugin_settings[plugin][key]` |
+| an app setting | the schema's `Setting_Def.default` | `Config.settings[key]` |
+
 ### Settings (saved, in the app folder)
 
 **`Config`**: the one settings file. Owner: the runtime's settings module.
@@ -109,7 +119,7 @@ it is derived from the profiles (not stored).
 | `provider_choices` | map plugin id → `{ model, options }` | the model and options saved for each provider (UC10) |
 | `connections` | list of `Connection` | UC40.6 |
 | `sources` | list of `Source` | UC30 |
-| `settings` | map setting key → value | only values you changed; defaults come from the schema (`Setting_Def`), so they're never stored twice (S3) |
+| `settings` | map setting key → value | only values you changed; the rest are linked to the schema's defaults (`Setting_Def`, D8), so nothing is stored twice (S3) |
 | `api_token_hash` | string | to check the local API token (the token itself is a credential, UC37) |
 
 App settings are keys like `look.mode`, `look.accent`, `look.scale`, `look.thinking` (folded or
@@ -119,7 +129,8 @@ open), `sites.pages` (default 5), `sites.idle_min`, `sites.total_min`, `chats.en
 written with the function list.
 
 **`Profile`** (also the shape of a template): `id`, `name`, `blocks` (list of `Block`), `groups`
-(list of `Group`), `plugin_settings` (map plugin id → map key → value). UC22–UC25.
+(list of `Group`), `plugin_settings` (map plugin id → map key → value: only the values this profile
+sets; the rest are linked to the plugin's defaults, D8). UC22–UC25.
 
 **`Block`**: one line of a profile (UC23).
 
@@ -349,7 +360,8 @@ and its parts (`sheet`, `drawer`, `menu`, `toast`, `dialog`, `item`), `theme`, `
 picker), `clipboard`, `url`, `vibration`, `bars` (the system bars), `storage`, `storage_access`,
 `service` (the background service), `api_token`, `chats_folder`, `chat_data`, `catalogue`,
 `record` (any record of a collection), `collection`, `popup` (a sign-in window a site opens),
-`report` (the page report), `share` (what another app shares in), `back` (the Back button).
+`report` (the page report), `share` (what another app shares in), `back` (the Back button), `value` (a
+choice's effective value, linked or own, D8).
 
 ### Events
 

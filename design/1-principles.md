@@ -39,7 +39,8 @@ file, saying which one decided it:
 - **YAGNI**: when nothing existing fits, the new addition covers today's use cases only.
 
 Examples already in the design: one set of record operations for every collection; one port each
-way; one change check for every file; one `Send` record for queued, sending and failed messages;
+way; one change check for every file; one `Send` record for queued, sending and failed messages; one "linked or own" rule for every
+choice a chat, a profile or the app can override (D8);
 the default way of using a site as an ordinary content script instead of a `driver` type.
 
 ## DRY, KISS, YAGNI

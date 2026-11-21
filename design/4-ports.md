@@ -33,16 +33,17 @@ fields, labels, rules, and where it's stored.
 | `record_list` | collection, filter → records | S, P |
 | `record_get` | collection, id → record | S, P |
 | `record_create` | collection, fields, place → record | S, P |
-| `record_set` | collection, id, fields → record | S, P |
+| `record_set` | collection, id, fields → record (a field set to none goes back to linked, D8) | S, P |
 | `record_move` | collection, id, place → record | S, P |
 | `record_copy` | collection, id → record | S, P |
 | `record_delete` | collection, id → done | S, P |
 
-Collections: `chats` (rename, pin, tags, folder, provider, profile, site chat link),
+Collections: `chats` (rename, pin, tags, folder, site chat link, and its own provider, profile,
+model, options and toggles, D8),
 `provider_choices` (the model and options saved for each provider),
 `folders`, `turns` (message tags), `profiles`, `templates`, `blocks`, `groups`, `prompts`,
 `connections`, `sources`, `sends` (queued messages: move up, edit, remove), `drafts`,
-`settings`, `plugin_settings`, `toggles`.
+`settings`, `plugin_settings`.
 
 **Everything with its own behaviour**
 
@@ -173,9 +174,9 @@ The screen needs no events of its own: it draws the `State` after every change.
 | UC6 reuse text | `chat_export`, `clipboard_write` |
 | UC7 long text | `record_set` on `drafts`, `picker_open` |
 | UC8 new reply | the screen alone |
-| UC9 provider | `record_set` on `chats`, `page_open`, `view_set`, `url_open` |
-| UC10 model, options | `model_list`, `option_list` → `site_model_list`, `site_option_list`; `record_set` on `provider_choices` |
-| UC11 toggles | `record_set` on `toggles` |
+| UC9 provider | `record_set` on `chats` (own) or `settings` (the default), `page_open`, `view_set`, `url_open` |
+| UC10 model, options | `model_list`, `option_list` → `site_model_list`, `site_option_list`; `record_set` on `provider_choices` (linked) or `chats` (own) |
+| UC11 toggles | `record_set` on `chats` (own) or `blocks` (the profile's default) |
 | UC12 site view | `page_open`, `page_close`, `page_navigate`, `view_set`; `page_changed`, `popup_changed` |
 | UC13 site chats | `site_chat_list`, `site_chat_open`, `site_chat_import`, `record_set` on `chats` (link to the page) |
 | UC14 share in | `share_received` → `chat_create` |
