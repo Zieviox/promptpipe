@@ -2,7 +2,7 @@
 // current app, in light and dark, on a phone-sized screen. Runs its own stand-in (port 7797, data
 // in build/ux-capture-data) with seeded chats, folders, tags, profiles and prompts.
 //
-//   node scripts/ux/capture.js [out-folder]     default: design/ux; needs Playwright
+//   node scripts/ux/capture.js [out-folder|-] [state,state]   default: design/ux, every state; needs Playwright
 //
 // PP_PLUGINS=<folder> as for standin.js. Prints each shot, and the ones that couldn't be taken.
 const { spawn } = require("child_process");
@@ -13,7 +13,8 @@ const { chromium, devices } = require("playwright");
 const ROOT = path.join(__dirname, "../..");
 const PORT = 7797;
 const DATA = path.join(ROOT, "build/ux-capture-data");
-const OUT = path.resolve(process.argv[2] || path.join(ROOT, "design/ux"));
+const OUT = path.resolve(process.argv[2] && process.argv[2] !== "-" ? process.argv[2] : path.join(ROOT, "design/ux"));
+const ONLY = process.argv[3] ? process.argv[3].split(",") : null; // capture only these states
 const REPO = process.env.PP_PLUGINS || path.join(ROOT, "../promptpipe-plugins");
 
 const REPLY = [
@@ -82,16 +83,16 @@ const SHOTS = [
   ["quick-start-list", async (p) => p.evaluate(() => openQuickStartList())],
   ["tour-setup", async (p) => p.evaluate(() => startTour("setup"))],
   ["tour-chat", async (p) => p.evaluate(() => startTour("chat"))],
-  ["settings-look", async (p) => { await p.evaluate(() => openSettings()); await p.waitForTimeout(300); await p.getByText("Look", { exact: true }).first().tap(); }],
-  ["settings-sites", async (p) => { await p.evaluate(() => openSettings()); await p.waitForTimeout(300); await p.getByText("Sites", { exact: true }).first().tap(); }],
-  ["settings-storage", async (p) => { await p.evaluate(() => openSettings()); await p.waitForTimeout(300); await p.getByText("Chats and storage", { exact: true }).first().tap(); }],
-  ["settings-import-export", async (p) => { await p.evaluate(() => openSettings()); await p.waitForTimeout(300); await p.getByText("Import and export", { exact: true }).first().tap(); }],
-  ["settings-local-api", async (p) => { await p.evaluate(() => openSettings()); await p.waitForTimeout(300); await p.getByText("Local API", { exact: true }).first().tap(); }],
-  ["settings-advanced", async (p) => { await p.evaluate(() => openSettings()); await p.waitForTimeout(300); await p.getByText("Advanced", { exact: true }).first().tap(); }],
-  ["settings-help", async (p) => { await p.evaluate(() => openSettings()); await p.waitForTimeout(300); await p.getByText("Help", { exact: true }).first().tap(); }],
+  ["settings-look", async (p) => { await p.evaluate(() => openSettings()); await p.waitForTimeout(300); await p.evaluate((label) => { const el = [...document.querySelectorAll("button, a, [role=button]")].find((e) => e.textContent.trim().startsWith(label) && e.getClientRects().length); if (!el) throw new Error("no item " + label); el.click(); }, "Look"); }],
+  ["settings-sites", async (p) => { await p.evaluate(() => openSettings()); await p.waitForTimeout(300); await p.evaluate((label) => { const el = [...document.querySelectorAll("button, a, [role=button]")].find((e) => e.textContent.trim().startsWith(label) && e.getClientRects().length); if (!el) throw new Error("no item " + label); el.click(); }, "Sites"); }],
+  ["settings-storage", async (p) => { await p.evaluate(() => openSettings()); await p.waitForTimeout(300); await p.evaluate((label) => { const el = [...document.querySelectorAll("button, a, [role=button]")].find((e) => e.textContent.trim().startsWith(label) && e.getClientRects().length); if (!el) throw new Error("no item " + label); el.click(); }, "Chats and storage"); }],
+  ["settings-import-export", async (p) => { await p.evaluate(() => openSettings()); await p.waitForTimeout(300); await p.evaluate((label) => { const el = [...document.querySelectorAll("button, a, [role=button]")].find((e) => e.textContent.trim().startsWith(label) && e.getClientRects().length); if (!el) throw new Error("no item " + label); el.click(); }, "Import and export"); }],
+  ["settings-local-api", async (p) => { await p.evaluate(() => openSettings()); await p.waitForTimeout(300); await p.evaluate((label) => { const el = [...document.querySelectorAll("button, a, [role=button]")].find((e) => e.textContent.trim().startsWith(label) && e.getClientRects().length); if (!el) throw new Error("no item " + label); el.click(); }, "Local API"); }],
+  ["settings-advanced", async (p) => { await p.evaluate(() => openSettings()); await p.waitForTimeout(300); await p.evaluate((label) => { const el = [...document.querySelectorAll("button, a, [role=button]")].find((e) => e.textContent.trim().startsWith(label) && e.getClientRects().length); if (!el) throw new Error("no item " + label); el.click(); }, "Advanced"); }],
+  ["settings-help", async (p) => { await p.evaluate(() => openSettings()); await p.waitForTimeout(300); await p.evaluate((label) => { const el = [...document.querySelectorAll("button, a, [role=button]")].find((e) => e.textContent.trim().startsWith(label) && e.getClientRects().length); if (!el) throw new Error("no item " + label); el.click(); }, "Help"); }],
   ["drawer-folder-open", async (p) => p.evaluate(() => (S.openFolders.add("food"), openDrawer()))],
-  ["dialog-confirm", async (p) => { p.evaluate(() => askConfirm("Delete the chat \u201cTrip ideas\u201d? It stays in git history.")); }],
-  ["dialog-text", async (p) => { p.evaluate(() => askText("Tag for this message", "", "Add")); }],
+  ["dialog-confirm", async (p) => { await p.evaluate(() => { window.__pending = askConfirm("Delete the chat \u201cTrip ideas\u201d? It stays in git history."); }); }],
+  ["dialog-text", async (p) => { await p.evaluate(() => { window.__pending = askText("Tag for this message", "", "Add"); }); }],
   ["toast-error", async (p) => p.evaluate(() => toast("Not sent: the page did not finish loading", "error"))],
   ["chat-failed", async (p) => p.evaluate(() => ((S.chat.failed = [{ you: "and the budget?", error: "DeepSeek refused the message: \"Content too long\"", at: new Date().toISOString(), page: 0 }]), render()))],
   ["chat-queued", async (p) => p.evaluate(() => ((S.chat.queued = [{ you: "also add a museum", at: new Date().toISOString() }, { you: "and a restaurant", at: new Date().toISOString() }]), render()))],
@@ -161,12 +162,13 @@ process.on("unhandledRejection", (e) => {
     if (S.tour !== undefined) S.tour = null;
     if (S.chat) { delete S.chat.failed; delete S.chat.queued; S.chat.turns = S.chat.turns.filter((t) => !t.pending); }
     document.querySelectorAll("dialog[open]").forEach((d) => d.close());
+    document.querySelectorAll(".ask-wrap, #toasts > *").forEach((el) => el.remove()); // the app's own dialogs, toasts
     render();
   });
   const failed = [];
   for (const scheme of ["light", "dark"]) {
     await page.emulateMedia({ colorScheme: scheme });
-    for (const [name, setup] of SHOTS) {
+    for (const [name, setup] of SHOTS.filter(([n]) => !ONLY || ONLY.includes(n))) {
       try {
         await reset();
         if (name !== "chat-empty") await page.evaluate(async () => { const c = S.chats.find((x) => x.meta.title === "Trip ideas"); if (c && S.chat?.path !== c.path) await openChat(c.path); });
@@ -175,11 +177,12 @@ process.on("unhandledRejection", (e) => {
         await page.screenshot({ path: path.join(OUT, `${name}-${scheme}.png`) });
         if (scheme === "light") console.log("shot " + name);
       } catch (e) {
-        if (scheme === "light") failed.push(name + ": " + String(e.message || e).split("\n")[0].slice(0, 140));
+        failed.push(scheme + " " + name + ": " + String(e.message || e).split("\n")[0].slice(0, 140));
       }
     }
   }
-  console.log(`\n${SHOTS.length - failed.length} of ${SHOTS.length} states captured (light and dark) in ${OUT}`);
+  const total = SHOTS.filter(([n]) => !ONLY || ONLY.includes(n)).length * 2;
+  console.log(`\n${total - failed.length} of ${total} screenshots taken (light and dark) in ${OUT}`);
   if (failed.length) console.log("Not captured:\n  " + failed.join("\n  "));
   if (errors.length) console.log("Page errors:\n  " + [...new Set(errors)].join("\n  "));
   await browser.close();

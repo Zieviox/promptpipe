@@ -120,7 +120,7 @@ Every goal a person can reach. Each becomes a driving port later. "→" is the r
 
 ## UX/UI reference
 
-`design/ux/` has a screenshot of every screen and state, light and dark, on a phone-sized screen
+`design/ux/` has a screenshot of every screen and state (63 states, 126 images), light and dark, on a phone-sized screen
 (412 × 915), made by `node scripts/ux/capture.js` from the current app in the stand-in with
 seeded chats, folders, tags, profiles and prompts. File names: `<state>-light.png`,
 `<state>-dark.png`.
@@ -136,6 +136,10 @@ seeded chats, folders, tags, profiles and prompts. File names: `<state>-light.pn
 | Settings | `settings`, `settings-look`, `settings-look-accent`, `settings-sites`, `settings-waiting`, `settings-storage`, `settings-folder`, `settings-git`, `settings-import-export`, `settings-local-api`, `settings-api-token`, `settings-api-how`, `settings-advanced`, `settings-storage-check`, `settings-core-log`, `settings-help` |
 | Help | `help-menu`, `help-mode`, `quick-start-list`, `tour-setup`, `tour-chat` |
 | Feedback | `dialog-confirm`, `dialog-text`, `toast-error` |
+
+The screenshots show today's app with its bugs too (the reply's table shows as raw `|` lines,
+#214). Where a requirement fixes something, the requirement wins over the screenshot. A mockup
+from you, when it comes, wins over both where they differ.
 
 Not in screenshots, kept as written:
 
