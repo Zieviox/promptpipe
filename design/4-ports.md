@@ -90,7 +90,7 @@ model, options and toggles, D8),
 | `file_write` | root, path, data, expected version → the new version, or an `Outside_Change` | A | D4, D7 |
 | `file_move` | root, from, to, expected version → the new version, or an `Outside_Change` | A | UC17, UC36 |
 | `file_delete` | root, path, expected version → done, or an `Outside_Change` | A | UC17 |
-| `file_list` | root, folder → names, types (file or folder), sizes, times | A | UC16, UC36 |
+| `file_list` | root, folder → names, whether each is a folder, sizes, times | A | UC16, UC36 |
 | `file_find` | root, query → matching files and lines | A | UC18 |
 | `catalogue_verify` | data, signature → `Catalogue`, or an error | A | S3 |
 | `plugin_list` | → installed copies, versions, changed-outside status | S, A | UC28, UC29, S4 |
@@ -106,7 +106,7 @@ write, move and delete: one mechanism for every file (D7).
 
 | Call | In → out | Callers | Use cases |
 |---|---|---|---|
-| `page_open` | address, type (`main` · `side`) → `Page` | S, A | UC9, UC12, UC13 |
+| `page_open` | address → `Page` | S, A | UC9, UC12, UC13 |
 | `page_close` | page → done | S, A | UC12 |
 | `page_navigate` | page, to (an address · `back` · `reload`) → done | S | UC12 |
 | `view_set` | page, or none → done (the AI page's region) | S | UC4, UC9, UC12 |

@@ -190,7 +190,7 @@ sees the listing; a write-only value never leaves the platform.
 | `order` | number | load order of runtime plugins |
 | `guide` | path | its guide (UC39) |
 
-**`Provider_Def`**: `type` (`"web"` · `"api"`), `accepts` (`{ types: list of MIME patterns, max:
+**`Provider_Def`**: (web or api is the plugin's tags, not repeated here) `accepts` (`{ types: list of MIME patterns, max:
 number }`, UC48); for web: `url`, `chat_urls` (patterns of a site chat's address), `selectors`
 (map: `input`, `send`, `stop`, `reply`, `user`, `thinking`, `model`, `error`, …), `model_picker`
 (`{ open, items }`), `options` (list of `{ name, selector, text }`), `settle_ms`, `stuck_ms`; for
@@ -238,14 +238,15 @@ function (the only writer).
   providers), `saved` (false for side requests), `job`, `at`, `progress`. The queue and the failed
   list are views of `sends` by status, not lists of their own (UC1–UC4, UC41, UC42.3).
 - **`Page`**: one open site page: `id`, `provider`, `url`, `title`, `state` (`"loading"` ·
-  `"ready"` · `"busy"` · `"failed"`), `type` (`"main"` · `"side"`, UC12), `error`. (Which send
-  uses a page is on the `Send`, not here: one direction only.)
+  `"ready"` · `"busy"` · `"failed"`), `error`. Which send uses a page, and so whether it is a
+  side request's page (the send's `saved` is false, UC12), is on the `Send`, not here.
 - **`Job`**: a request from another app: `id`, `profile`, `chat` (to continue, or none),
   `messages`, `stream`, `status` (UC41). (Its send points to it, not the other way.)
-- **`Ui`**: `sheets` (a stack of `{ type, id }`; Back takes the top one, R5), `drawer`,
+- **`Ui`**: `sheets` (a stack of `{ collection, id }`: a collection, or one record of it; a plugin's
+  own sheet by its name; Back takes the top one, R5), `drawer`,
   `site_view` (`{ open, page }`), `select` (`{ on, ids }`), `find` (the query), `help` (the ?
   mode), `tour` (`{ place, stop }`), `composer` (`{ expanded }`), `toasts` (list of
-  `{ id, text, type }`).
+  `{ id, text, error }`: `error` is the `Error` when the toast reports one).
 - **`Command`**: one action the person can take (screen data): `id`, `label`, `icon`, `key`,
   `when`, `run`. The one table menus, keys, help and the tour read.
 
