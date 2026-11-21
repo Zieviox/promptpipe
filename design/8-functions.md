@@ -405,6 +405,16 @@ connections (20), and the storage check and the start's first things that stage 
 The numbers are estimates per function; the build (stage 9) measures each module with `sloc.py`,
 and a module over its line returns here.
 
+## Measured in the build (stage 9)
+
+| Module | Budget | Measured | Note |
+|---|---|---|---|
+| runtime · settings and records | 90 | 207 | the generic operations, validation, the linked-or-own getters and saving with the change check; flat records (2026-11-21) took 20 lines off |
+| runtime · chats | 160 | 306 | the text form both ways ~95, Find's filters, folder moves with your order and pins, site chats, attachments, the chats folder (copying moved into `file_move`) |
+
+The budgets were optimistic (decided 2026-11-21: keep building, measure every module, re-estimate
+the total from real numbers; no packed lines, no cut features).
+
 ## Next
 
 Stage 9: the build, on the fresh `rewrite` branch in both repositories, one layer per stage:

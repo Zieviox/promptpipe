@@ -8,7 +8,9 @@ Field names are `snake_case`; record names are `Ada_Case` (one name in every lay
 names look the same either way). Every library sits behind an adapter, Odin's included; inside an
 adapter, the library (the adaptee) is used as it is, with its own names (U 2026-11-21).
 Shapes are plain JSON-like data: strings, numbers, booleans, lists, maps; records refer to each
-other by id, never by holding each other.
+other by id, never by holding each other. Every collection is one flat list; a child names its
+parent (a block its `profile`, a turn its `chat`), as in a database (decided 2026-11-21, in the
+build: it removed the nested-list code).
 
 ## Part 1. Records
 
@@ -81,6 +83,7 @@ in `folders.json`; moving or renaming a folder moves its record. Owner: the runt
 | Field | Type | Meaning |
 |---|---|---|
 | `id` | string | stable, so plugin data, sends and later branches (N5) can point to a turn |
+| `chat` | chat id | the chat it belongs to |
 | `at` | time | when it was sent |
 | `message` | string | what you typed (the "Your message" block) |
 | `attachments` | list of `Attachment` | UC48 |
@@ -141,11 +144,11 @@ App settings are keys like `chats.provider` (for new chats, UC9), `chats.profile
 `updates.bundle`, `import.clash`, `help.button`, `help.seen.<place>`. The full list is the schema,
 written with the function list.
 
-**`Profile`** (also the shape of a template): `id`, `name`, `blocks` (list of `Block`), `groups`
-(list of `Group`), `plugin_settings` (map plugin id → map key → value: only the values this profile
-sets; the rest are linked to the plugin's defaults, D8). UC22–UC25.
+**`Profile`** (also the shape of a template): `id`, `name`, `plugin_settings` (map plugin id → map key → value: only the values this profile
+sets; the rest are linked to the plugin's defaults, D8). Its blocks and groups are the `Block` and
+`Group` records that name it, in `Config.blocks` and `Config.groups`. UC22–UC25.
 
-**`Block`**: one line of a profile (UC23).
+**`Block`**: one line of a profile (UC23); it names its `profile`.
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -162,7 +165,7 @@ sets; the rest are linked to the plugin's defaults, D8). UC22–UC25.
 | `on` | boolean | the profile's default toggle |
 | `group` | group id or `""` | |
 
-**`Group`**: `id`, `name`, `on` (UC24).
+**`Group`**: `id`, `profile`, `name`, `on` (UC24).
 
 **`Connection`**: an API endpoint (UC40.6): `id`, `name`, `provider` (the api provider plugin),
 `base_url`, `model`, `credential` (the credential's name).
@@ -240,7 +243,8 @@ function (the only writer).
 | `catalogue` | list of `Catalogue_Entry` (with their source) |
 | `credentials` | list of `Credential` (the listing) |
 | `chats` | list of `Chat` without their turns (what `meta.json` holds) |
-| `chat` | the open `Chat` |
+| `turns` | list of `Turn` of the chats loaded (`loaded`: their ids) |
+| `chat_data` | list of `{ id, chat, plugin, data }` |
 | `drafts` | map chat id → `{ text, attachments }` (saved on the device, UC7) |
 | `sends` | list of `Send` (queued, on their way and failed alike) |
 | `pages` | list of `Page` |
