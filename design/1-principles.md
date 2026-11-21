@@ -12,6 +12,8 @@ They come first because they decide what counts as a good answer.
   (U 2026-11-21: "don't touch the code. Design from the requirements"). The design stages use
   `design/0-intent.md`, `design/2-requirements.md` and `design/ux/` only. Lessons the old app
   taught (site quirks, Android timing, bugs) are already requirements with their bug numbers.
+  The old code may be read to find functionality and layout, never to reuse its code or names
+  (U 2026-11-21).
 - **Requirements win over the screenshots** where they differ (U 2026-11-21); the screenshots win
   over anything else about look and feel. There is no separate mockup.
 - **No reuse of old code unless stuck** (U 2026-11-21), and then it is said in that stage's

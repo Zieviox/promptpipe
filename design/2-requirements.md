@@ -16,8 +16,8 @@ Requirements win over the screenshots (U 2026-11-21).
   2. The reply streams in live, for web and API providers (U 2026-11-20); then the plugins'
      after-reply hooks run on it, and the chat is saved. A message's trace shows what went out and
      what came back before the plugins changed it (F, seen in `chat-message-menu`).
-  3. The model's thinking is read and kept in full, above the reply ("Thought for Ns"), folded
-     or open as set in Settings (folded by default, as today) (F, U 2026-11-21).
+  3. The model's thinking is read and kept in full, above the reply ("Thought for Ns"); open while
+     the reply streams, folded once it's done (Q5) (F, U 2026-11-21).
   4. Several pages answer at once, shared by your chats, plugins' side requests and other apps'
      requests; how many is a setting (default 5), with a warning above 5 (each page uses memory,
      and many at once can look like a bot to the site); no hard maximum (F, U 2026-11-21).
@@ -27,7 +27,9 @@ Requirements win over the screenshots (U 2026-11-21).
   6. Waiting limits are optional: idle and total, in minutes, 0 = none (F).
 - **UC2 Send while a reply is coming**: the message waits in the chat's queue, shown under the
   chat; queued messages go in order and can be moved up, edited or removed (F).
+  While a reply is coming and the box is empty, Send becomes Stop; typing turns it back into Send, and the message queues (F, from the old app's code).
 - **UC3 Stop waiting**: gives up on the reply at once; the page is told to stop (F).
+  Esc does the same when nothing else is open (F, from the old app's code).
 - **UC4 Recover a failed send**: the failed message shows its reason with Check (keep what the
   page shows), Retry, Edit (back into the box) and Dismiss (F). When the error involves a site (a
   refusal, a human check, a page that didn't load, the page not behaving as the provider expects),
@@ -40,11 +42,13 @@ Requirements win over the screenshots (U 2026-11-21).
   part (F).
 - **UC7 Write long text**: a big message box; Enter sends when set (Shift+Enter a new line); text
   files go into the box, with no size limit and a warning on very large ones (F, U 2026-11-21).
-- **UC8 Read without losing your place**: replies never scroll the chat for you; "↓ 1 new" jumps
-  to the start of the new reply; "Stay at the bottom while a reply comes in" applies only if you
-  were already at the bottom (F).
+- **UC8 Read without losing your place**: the app never moves your scroll position: not for new
+  or growing replies, redraws, opening or closing sheets, or coming back to a chat (each place
+  comes back where you left it). New replies show a notice ("↓ 1 new") with a quick scroll to
+  the start of the reply (U 2026-11-21; the old "Stay at the bottom" setting is gone).
 - **UC9 Choose the provider**: the provider's name in the header (with its state dot) opens the
   provider menu: switch provider, open its site, log in once (F).
+  The header shows the provider, its model (marked as wanted until the page shows it), a state dot (replying, ready, idle) and a dot when the provider's plugin has an update; getting a provider shows the advice to use a separate account on the site (F, from the old app's code).
 - **UC10 Model and options**: the model list and the provider's options are read from the site
   ("Read the page again" re-reads them), saved for that provider, and set on the page before each
   message; "Choose on the site" when the list can't be read (F, seen in `models`).
@@ -57,11 +61,14 @@ Requirements win over the screenshots (U 2026-11-21).
   the address bar can be typed in and isn't overwritten while you type (#240, #251); reload; back
   inside the site (#243); sign-in pop-ups get their own view and are closed when done (#244);
   Back closes the site view when nothing is on top of it (#239).
+  Layout: back, "AI page · provider", the provider sheet's button; one item per page with its chat and state dot, close, and + for a new page; the address bar; a strip saying which chat the page is linked to; a page showing a site chat that isn't one of yours offers to bring it in (F, from the old app's code).
 - **UC13 The site's own chats**: list the site's sidebar chats, open one and continue it here,
   paste a chat link, link this chat to the open page, import a site chat's earlier messages, add
   the page's newest reply to this chat (F).
+  Also: decode the page's newest reply with the after-reply hooks, as a preview, without sending (F, from the old app's code).
 - **UC14 Share in**: text shared from another app (or "Send to promptpipe" on selected text)
   starts a new chat with it (F).
+  If the open chat has messages, a new chat starts; the shared text goes into the message box, not sent (F, from the old app's code).
 - **UC15 Chat through an API**: providers of type api call an AI API with a key from secure
   storage; OpenAI first, any other later, each as a plugin, and a new API needs no new APK
   (U 2026-11-20). Later: a reminder to turn on Memory when it's off for an API chat (N3).
@@ -69,11 +76,14 @@ Requirements win over the screenshots (U 2026-11-21).
 ### Chats
 
 - **UC16 New chat, the chats list**: pinned first, then by day, then folders (F).
+  Each chat shows whether it is being answered or has a reply you haven't seen; the search box filters the list, with tag chips under it, most used first (F, from the old app's code).
 - **UC17 Organise**: pin, move (drag, or "Move to"), rename, delete (the chat stays in the
   history), select several by long press; create, rename, delete folders (F).
+  Dragging a chat's grip moves it into a folder, onto Pinned (pins it) or to another place in the order; dragging one selected chat moves all the selected ones; a folder is renamed with its pencil and shows how many chats it holds (F, from the old app's code).
 - **UC18 Find**: text in every chat, with `#tag`, `in:folder`, `"exact phrase"`, `is:you`,
   `is:ai` (F); fast with thousands of chats, without reading every file in full each time (#212).
   The same search finds the app's commands and settings (F, seen in the shortcuts list).
+  Ctrl+K, Ctrl+F and F3 open it; a command or setting result says where it lives ("Settings › Look") and its shortcut, and picking it opens that place and briefly highlights the control (F, from the old app's code).
 - **UC19 Chat details**: title, chat tags, provider and model, the chat's history (F).
 - **UC20 Tags**: a chat tag goes on every message; a message tag on one; a tag ending in `#`
   counts up (`part#` → `part1`, `part2`) (F); whether the count runs within each chat or across all
@@ -84,6 +94,7 @@ Requirements win over the screenshots (U 2026-11-21).
 
 - **UC22 Profiles**: pick the active one; make one from a template (Plain, Writing feedback,
   Dialogue & Role play, Story & Prose); rename, duplicate, delete (F).
+  The profile list marks the active one (●), with Edit, Use, + New, Import, Export this, Export all; a renamed profile is still found by the chats that used its old name (F, from the old app's code).
 - **UC23 Blocks**: a profile is an ordered list of blocks plus its plugins' settings. Block
   types: System prompt (its own text, or linked from the prompt library), plugin (with an optional
   text block, and what it works on: the blocks above, your message, or picked blocks), Your
@@ -100,6 +111,7 @@ Requirements win over the screenshots (U 2026-11-21).
   it as Markdown, or delete it (F, seen in `prompt-page`).
 - **UC27 Export and import** profiles and the library (a profile also from pasted text); on a name clash: ask, keep both or replace,
   as set in Settings (F).
+  An exported profile holds its blocks, groups, plugin settings, the library prompts its linked blocks use, and the plugins it needs (not providers); importing shows what the file holds, whether the plugins are here, and on a name clash: keep both ("Name (2)"), replace or skip (F, from the old app's code).
 
 ### Plugins
 
@@ -107,12 +119,15 @@ Requirements win over the screenshots (U 2026-11-21).
   ("Plugin · provider · web", "Plugin · provider · api", "Plugin · theme", …), its source, whether
   the source is the official one, and whether one with the same name is installed; filtered by
   source and by type (U 2026-11-20; F, seen in `plugins-catalogue`).
+  The Profile tab shows a dot when one of its plugins has an update; each source shows how many plugins it offers, when it was checked, its switch, and remove (not the official one) (F, from the old app's code).
 - **UC29 Get and manage**: get a provider or plugin from the catalogue; a plugin's page with
   Update, Roll back, Remove, Copy; your copy replaces the app's, and which copy runs (built-in,
   updated, yours) is visible (F, U).
+  Getting a plugin whose name is already taken (another source, the app's own, yours) asks first; a new block plugin goes into the active profile, on; when your copy is older than the app's, the plugin page says so and offers to switch back (F, from the old app's code).
 - **UC30 Install other ways**: from a link, a zip, or the files of an AI's answer; add a source
   (a GitHub repository; it must have a catalogue, checked before it's added); copy the
   plugin-writing instructions for an AI (F).
+  An AI's answer is read as files: each code block belongs to the file named on the line before it (F, from the old app's code).
 - **UC31 Stay up to date**: Update all; an automatic check, off, daily or weekly as set (default
   daily), that fails quietly (a check you start says what happened); the release bundle as an
   opt-in fallback, also downloaded and installed by hand (F, U 2026-11-21; seen in
@@ -124,8 +139,8 @@ Requirements win over the screenshots (U 2026-11-21).
 ### Settings and help
 
 - **UC34 Look**: light or dark (or the system's), accent, UI scale, text size, themes (plugins),
-  quick actions under replies, stay at the bottom while a reply comes in, Enter sends, thinking
-  folded or open (F).
+  quick actions under replies, Enter sends (F).
+  Quick actions under replies: on the newest reply only (default), on every reply, or off; a tap shows or hides them on one reply. UI scale: Ctrl+= and Ctrl+- make it bigger or smaller, Ctrl+0 back to 100% (F, from the old app's code).
 - **UC35 Sites**: pages at once (default 5, a warning above 5), waiting limits (F).
 - **UC36 Chats and storage**: the chats folder is a `chats` subfolder of the app folder by default
   (U 2026-11-21); pick another by browsing the phone's folders or typing a path; move the chats
@@ -133,6 +148,7 @@ Requirements win over the screenshots (U 2026-11-21).
   default; all-files access; a storage check, step by step with the system's reason, copyable; git:
   commit on every save (on by default), author name and email, remote, token (a credential), push,
   pull, push after every commit, the list of all commits (F, U; seen in `settings-git`).
+  Chats kept in an earlier folder can be copied into the one in use (existing chats are never overwritten) (F, from the old app's code).
 - **UC37 Local API**: the address, the token (make a new one; kept in credentials), how apps
   use it, the folder for their chats (F, U).
 - **UC38 Advanced**: reset to first launch (chats, profiles, prompts and plugins stay); the app's
@@ -142,6 +158,7 @@ Requirements win over the screenshots (U 2026-11-21).
   with the welcome guide on the first start (pick a site, log in); each place's guide can be played
   again (▷), the quick start lists them with "Seen", and all can be shown again; the shortcuts list; the quick start; each plugin's guide and the plugin-writing
   guide open in the app (F).
+  Help mode: tapping something shows a card saying what it does, where it lives, and Do it. A guide lights up the control to use and moves on when it's used; if the control isn't on screen it offers Take me there instead of blocking; while a control is lit only it and the card take taps; Esc ends the guide. The welcome guide fills the screen: pick a site (installed if needed), then log in, with a card saying whether the page sees you logged in (F, from the old app's code).
 - **UC40 Credentials**:
   1. One store for any sensitive data (API keys, tokens, passwords, notes), with free tags
      (U 2026-11-20).
@@ -278,6 +295,7 @@ Requirements win over the screenshots (U 2026-11-21).
   scroll position (F, #249 to #252).
 - **R5** Back always closes what is on top (#239).
 - **R6** The core log can be read in the app (F).
+- **R7** The screen fits the visible area above the on-screen keyboard (F, from the old app's code).
 
 ### Q. Quality
 
@@ -286,9 +304,17 @@ Requirements win over the screenshots (U 2026-11-21).
 - **Q2** Touch first; every action has a button or a gesture; keyboard shortcuts for a hardware
   keyboard, as listed in `help-menu-keys` (Ctrl+Enter, Ctrl+K, Ctrl+B, Ctrl+F, Alt+↑/↓, Alt+S,
   Ctrl+M, F2, Ctrl+T, ↑ in an empty box, Ctrl+E, Ctrl+/, Ctrl+Shift+L, Ctrl+P, Ctrl+Shift+P,
-  Ctrl+Shift+R, Ctrl+comma, Ctrl+= and Ctrl+-, Ctrl+?) (F).
+  Ctrl+Shift+R, Ctrl+comma, Ctrl+= and Ctrl+- and Ctrl+0, Ctrl+N, F3, Ctrl+?) (F). Esc closes what is on
+  top, in order: a help card, help mode, a menu, a sheet, the chats list; with nothing open it
+  stops a reply that is coming (F, from the old app's code). Every command is in the command list
+  below.
 - **Q3** Accessible: every icon button has a label, alerts have their role, every theme has
   readable contrast.
+- **Q5** Everything is folded by default unless it's active (U 2026-11-21): thinking, a message's
+  trace, "Sent with", long messages, folders in the chats list, sections of a sheet. Active means
+  in use right now: the thinking of a reply that is still streaming, the folder of the open chat,
+  what you just unfolded. Anything can be unfolded by a tap and stays unfolded until you fold it
+  or leave.
 - **Q4** About 3,000 lines of clean, comfortable code for the app (core, platform, loader, page
   script, runtime plugins with the screen); the optional plugins ideally inside it too; no packed
   lines, no cut features; libraries behind adapters are not counted (U 2026-11-20).
@@ -316,7 +342,8 @@ Requirements win over the screenshots (U 2026-11-21).
 - **X1** A full remake from the design: only the intent and the UX/UI survive; old code is not
   reused unless stuck, and then it's reported (U 2026-11-20, 2026-11-21).
 - **X2** The design comes from the requirements and the screenshots, not from the code
-  (U 2026-11-21).
+  (U 2026-11-21). The old code may be read to find functionality and layout, never to reuse its
+  code or names (U 2026-11-21).
 - **X3** Both repositories are remade: the core, the platform, the loader, the page script and
   every plugin.
 - **X4** The old app stays usable until the new one passes every requirement; then the old code is
@@ -334,6 +361,44 @@ Requirements win over the screenshots (U 2026-11-21).
   now by giving every turn a stable id, so either form (a branch inside a chat, or a new chat
   starting from a turn) needs no change to the data format.
 
+## The command list
+
+Every command the person can run (from the old app's code, in the design's words). Menus, Find,
+the keys and help all read this one list (S2); plugins add theirs (`menu_items`).
+
+| Command | Place | Key |
+|---|---|---|
+| New chat | Chats | Ctrl+N |
+| Chats and folders | Chats | Ctrl+B |
+| Select chats; New folder | Chats | |
+| Previous chat / Next chat | Chats | Alt+↑ / Alt+↓ |
+| Show AI page | Chats | Alt+S |
+| Open a chat from the site | Chats | |
+| Choose model; Model and options | Provider sheet | Ctrl+M |
+| Link this chat to the open page; Import messages from the linked site chat; Add the page's newest reply; Decode the page's newest reply (preview) | Provider sheet | |
+| Chat details (name, tags, move, export) | Chat | F2 |
+| Add chat tag | Chat | Ctrl+T |
+| Copy the whole chat; Share or export the whole chat; Move chat to folder | Chat | |
+| Fold or unfold all thinking | Chat | Ctrl+/ |
+| Edit and resend last message | Message box | ↑ in an empty box |
+| Bigger or smaller message box | Message box | Ctrl+E |
+| Quick edit; Put a text file in the box; Put several text files in the box | Message box | |
+| Edit this profile | Profile | Ctrl+Shift+L |
+| Profiles: new, import, export | Profile | |
+| Next profile | Profile | Ctrl+P |
+| Each block of the active profile; Add a block | Settings › Plugins › Profile | |
+| Prompt library; New System prompt in the library | Settings | |
+| Each installed plugin's page; Get plugins; Add a source; Install from a file or link; Update plugins | Settings › Plugins › Catalogue | |
+| Plugins | Settings | Ctrl+Shift+P |
+| Reload plugins | Settings › Plugins | Ctrl+Shift+R |
+| Plugin guide | Settings › Plugins | |
+| Storage check; Git history | Settings › Chats and storage | |
+| Settings | Settings | Ctrl+comma |
+| Accent; Bigger UI; Smaller UI | Settings › Look | —; Ctrl+=; Ctrl+- |
+| Shortcuts and help | Help | Ctrl+? |
+| Quick start | Help | |
+| Find | everywhere | Ctrl+K, Ctrl+F, F3 |
+
 ## Where the earlier ids went
 
 A1–A8 → P1–P6 (A6 → UC29); B1–B13 → UC1–UC15; C1–C9 → UC11, UC22–UC27; D1–D13 → UC28–UC33,
@@ -343,7 +408,7 @@ R6, UC31, X5; L1–L4 → B1–B5; M1–M3 → W1–W3; O1–O6 → X1–X5, Q1,
 
 ## Decided in stage 2 (2026-11-21)
 
-The limits review: thinking folded or open as a setting; pages at once a setting with a warning,
+The limits review: (thinking folded or open as a setting, later replaced by Q5); pages at once a setting with a warning,
 no hard maximum; the automatic update check a setting; no size limit on text files or downloads;
 zips only guarded against zip bombs; any tab can be closed; side-request pages show as marked tabs.
 Your old content imported once; plugins and settings stay on shared storage with a hash check;

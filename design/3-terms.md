@@ -103,7 +103,8 @@ is computed (`value_get`, a pure function), never stored.
 | profile | `Config.active_profile` | `Chat.own.profile` |
 | model, options | `Config.provider_choices[provider]` | `Chat.own.model`, `Chat.own.options` |
 | a block's toggle | the profile's `Block.on` (or its group's `on`) | `Chat.own.toggles[block]` |
-| a plugin setting | the plugin's `Setting_Def.default` | `Profile.plugin_settings[plugin][key]` |
+| a provider plugin's setting | the plugin's `Setting_Def.default` | `Config.provider_choices[provider].settings[key]` (saved per provider, not per profile) |
+| another plugin's setting | the plugin's `Setting_Def.default` | `Profile.plugin_settings[plugin][key]` |
 | an app setting | the schema's `Setting_Def.default` | `Config.settings[key]` |
 
 ### Settings (saved, in the app folder)
@@ -117,14 +118,13 @@ is computed (`value_get`, a pure function), never stored.
 | `provider` | plugin id | for new chats (UC9) |
 | `profiles` | list of `Profile` | yours |
 | `templates` | list of `Profile` | your templates (the app's come with a runtime plugin) |
-| `provider_choices` | map plugin id → `{ model, options }` | the model and options saved for each provider (UC10) |
+| `provider_choices` | map plugin id → `{ model, options, settings }` | the model, options and plugin settings saved for each provider (UC10, D8) |
 | `connections` | list of `Connection` | UC40.6 |
 | `sources` | list of `Source` | UC30 |
 | `settings` | map setting key → value | only values you changed; the rest are linked to the schema's defaults (`Setting_Def`, D8), so nothing is stored twice (S3) |
 | `api_token_hash` | string | to check the local API token (the token itself is a credential, UC37) |
 
-App settings are keys like `look.mode`, `look.accent`, `look.scale`, `look.thinking` (folded or
-open), `sites.pages` (default 5), `sites.idle_min`, `sites.total_min`, `look.enter_sends`,
+App settings are keys like `look.mode`, `look.accent`, `look.scale`, `sites.pages` (default 5), `sites.idle_min`, `sites.total_min`, `look.enter_sends`,
 `git.commit` (on), `git.name`, `git.email`, `git.remote`, `git.auto_push`, `tags.counter_scope` (each chat, all chats), `api.folder`, `updates.check` (off, daily, weekly),
 `updates.bundle`, `import.clash`, `help.button`, `help.seen.<place>`. The full list is the schema,
 written with the function list.
@@ -246,7 +246,9 @@ function (the only writer).
 - **`Ui`**: `sheets` (a stack of `{ collection, id }`: a collection, or one record of it; a plugin's
   own sheet by its name; Back takes the top one, R5), `drawer`,
   `site_view` (`{ open, page }`), `selection` (`{ on, ids }`), `query` (Find's), `help` (the ?
-  mode), `tour` (`{ place, stop }`), `composer` (`{ expanded }`), `toasts` (list of
+  mode), `tour` (`{ place, stop }`), `composer` (`{ expanded }`), `unfolded` (the ids you unfolded, Q5),
+  `scroll` (map place → position, so each place comes back where you left it, UC8), `unseen`
+  (map chat → the first new reply's turn id, for "↓ 1 new", UC8), `toasts` (list of
   `{ id, text, error }`: `error` is the `Error` when the toast reports one).
 - **`Command`**: one action the person can take (screen data): `id`, `label`, `icon`, `key`,
   `when`, `handler`. The one table menus, keys, help and the tour read.

@@ -23,8 +23,8 @@ still open.
 - **Standard terms only**: the glossary in PLUGINS.md and standard programming terms; no invented
   words. `scripts/terms-check.py` stays at 0 (a retired word it flags is reworded, not exempted).
 - **Design from the requirements, not from the code**: the design stages use only `design/`
-  (intent, requirements, screenshots); the old code isn't opened. Lessons from it are already
-  requirements.
+  (intent, requirements, screenshots). The old code may be read to find functionality and layout
+  (U 2026-11-21), never to reuse its code or names; what it shows goes into the requirements first.
 - **Reuse first**: before adding a record, field, call, event, type, file, mechanism or setting,
   look for what already exists and use it; add only when using it would be counterproductive,
   decided by the standards in `design/1-principles.md` ("Reuse first"), and say which one decided.
