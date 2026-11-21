@@ -1,6 +1,6 @@
 ---
 name: remake
-description: The staged, supervised process for a full remake of promptpipe (or a large part of it) - assess, principles, requirements, terms, strategies, architecture and line budget, standards review, function list, UX/UI reference, then build layer by layer - where only the intent and the UX/UI survive and every stage stops for the user's approval. Use when asked to refactor, rewrite, remake or redesign the app or a layer of it, or to continue the remake in design/.
+description: The staged, supervised, inside-out process for a full remake of promptpipe (or a large part of it) - intent and UX/UI, principles, requirements, the application's model, ports, strategies, adapters and line budget, standards review, function list, then build layer by layer - where only the intent and the UX/UI survive and every stage stops for the user's approval. Use when asked to refactor, rewrite, remake or redesign the app or a layer of it, or to continue the remake in design/.
 ---
 
 # Full remake
@@ -34,21 +34,24 @@ still open.
 
 ## The stages
 
+Inside-out (Ports and Adapters): first what survives and what the app needs, then the wrappers
+that provide exactly that. Never start from the layers or the libraries.
+
 | # | Stage | Output | Checked by |
 |---|---|---|---|
-| 0 | **Assess**: duplicates (the clone-detection skill), lines of code per layer (`scripts/sloc.py`), every feature in use | `notes/duplicates-*.md`, numbers in the next files | — |
-| 1 | **Principles**: DRY, KISS, YAGNI (and their order when they conflict), functional core and imperative shell, stateless functions over plain data (DOD), adapters for libraries and platforms, events outside the main sequence and hooks inside it, errors as data, noun-first names, what survives the remake | `design/1-principles.md` | user |
-| 2 | **Requirements**: every feature and constraint with an id and its source (user decision with date, bug number, current feature); what is not built now (YAGNI); the main sequences | `design/2-requirements.md` | user |
-| 3 | **Terms**: the layers, naming rules (casing, noun_verb, records, constants, events, hooks, routes), the closed verb list, the nouns, the adapters, the screen words that change | `design/3-terms.md` | user, terms-check |
-| 4 | **Strategies**: structural ways to need less code for the same features, each with its standard name, what it replaces, an estimate and its cost; where the code is today | `design/4-strategies.md` | user |
-| 5 | **Architecture and line budget**: the shape and channels, what the strategies change, data ownership (one owner, record type, store and writer per type of data), the main sequences as call chains with events, the calls each side offers, a line budget per layer and module | `design/5-architecture.md` | user |
-| 6 | **Standards and review**: naming and code standards for each language in the style chosen (look them up: the language's own conventions, SemVer for versions, event naming, API naming), then a KISS and DRY pass over the whole design; fix the design, list what changed | `design/6-review.md` | user, clone-detection on the design's function names |
-| 7 | **Function list**: every function per layer and module with its job, inputs and outputs, pure or effect, and its line estimate; the totals fit the budget; every requirement id maps to functions | `design/7-functions.md` | user, budget sums, requirement coverage |
-| 8 | **UX/UI reference**: screenshots of every screen and state of the old app (stand-in and phone), the gestures and wording; this is the visual spec | `design/ux/` | user |
-| 9 | **Build**, one layer per stage on the `rewrite` branch: core → platform → loader → page script → runtime → screen → optional plugins. Each stage: write the code fresh from the function list, compile and test (`odin check`/tests for the core), size against the budget (`scripts/sloc.py`), terms-check, clone-detection, screenshots against stage 8 | code + a short stage note | user, all checks |
-| 10 | **Parity and switch**: every requirement checked on the phone; the old code removed in one change; guides and READMEs rewritten | release notes | user |
+| 0 | **Intent and UX/UI**: what the app is for; the actors outside it (who drives it, what it drives); every use case (goal, trigger, result); screenshots of every screen and state of the old app (`node scripts/ux/capture.js`), the gestures, keys and wording | `design/0-intent.md`, `design/ux/` | user |
+| 1 | **Principles**: DRY, KISS, YAGNI (and their order), functional core and imperative shell, stateless functions over plain data (DOD), Ports and Adapters, the dependency rule, role interfaces, the anti-corruption layer, events outside the main sequence and hooks inside it, errors as data, noun-first names, what survives | `design/1-principles.md` | user |
+| 2 | **Requirements**: the use cases plus the constraints (security, platforms, size, checks), each with an id and its source; what is not built now (YAGNI) | `design/2-requirements.md` | user |
+| 3 | **The application's model**: its records (data shapes, one owner each) and its words (layers, naming rules, verbs, nouns, events) | `design/3-terms.md` | user, terms-check |
+| 4 | **Ports**: one driving port per use case; driven ports named by role (`for_keeping_files`, `for_driving_pages`, …) from what the use cases need, each with only the calls one interaction needs and the plain data it exchanges | `design/4-ports.md` | user, every use case covered |
+| 5 | **Strategies**: structural ways to need less code for the same features (standard names, what each replaces, estimate, cost), checked against the ports | `design/5-strategies.md` | user |
+| 6 | **Adapters, layers, line budget**: each port mapped to the technology that provides it (a translator that only translates; library features no port needs are not wrapped), the layers and channels, data ownership, the main sequences as call chains with events, the budget in three lines per layer: application, ports, adapters | `design/6-architecture.md` | user |
+| 7 | **Standards and review**: naming and code standards for each language in the style chosen (look them up), then a KISS and DRY pass over the whole design; fix the design, list what changed | `design/7-review.md` | user, clone-detection on the design's function names |
+| 8 | **Function list**: every function per layer and module with its job, inputs and outputs, pure or effect, its port, and its line estimate; the totals fit the budget; every use case and requirement maps to functions | `design/8-functions.md` | user, budget sums, coverage |
+| 9 | **Build**, one layer per stage on the `rewrite` branch: application first (pure, tested without a phone), then the adapters: core → platform → loader → page script → screen → optional plugins. Each stage: written fresh from the function list, compiled and tested (`odin check` and tests for the core), sized against the budget (`scripts/sloc.py`), terms-check, clone-detection, screenshots against stage 0 | code + a short stage note | user, all checks |
+| 10 | **Parity and switch**: every use case and requirement checked on the phone; the old code removed in one change; guides and READMEs rewritten | release notes | user |
 
-A layer that goes over its budget goes back to stage 5 or 7 as a design problem.
+A layer that goes over its budget goes back to stage 6 or 8 as a design problem.
 
 ## Counting lines
 
