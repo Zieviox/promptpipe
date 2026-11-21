@@ -112,3 +112,40 @@ phone. Written against the APIs the old app already builds with (GeckoView 144, 
 
 **Reused because there's no other way** (reported, X1): the Bionic shim's three no-op pthread
 calls and its 64-aligned thread-local, and the build steps for linking Odin against the NDK.
+
+## The loader and the page side, 2026-11-21
+
+**Loader** (`promptpipe` `rewrite`: `app/src/main/assets/ui/index.html`, `loader.js`): routes each
+call (the application's in this page, the core's over `POST /call`, the platform's and `site_*`
+over the relay), carries events (the core's `/events` stream, the port's events; `job_changed`
+goes to the core's `POST /event`), holds the one `State` (`state_get`, `state_set(change)` then a
+redraw through `redraw_set`), loads plugins (runtime first by `order`; safe mode: built-in copies
+only; a failing runtime plugin of yours restarts in safe mode naming it; `.css` joins the page,
+`.js` runs in its own scope with its own `PP`, everything else and the `content_script` files are
+content for `content_read`), runs hooks (`chat_route`, `block_text`, `send_before`, `reply_after`
+for the plugins with a live block in the chat's profile; the rest for every plugin), and starts:
+`app_get` → plugins → `state_load` → `app_start_run` → draw. 197 lines (budget 180).
+
+Plugins register with `PP.plugin_set({ functions, calls, events, hooks })`: functions join `PP`
+under their names, calls join the application's part of the call table, events and hooks are
+listened to.
+
+**Page side**: in the APK, `ppext/` (manifest; `relay.js` on the app's own screen;
+`page.js` in site pages: joins the port, says hello, runs the scripts the app hands it with
+`script_run` (each returns stages; `PP.stages` live, `PP.defaults` the ones before it), answers
+`site_*`, reports `page_changed` with `ready` when the chat box shows); 70 lines (budget 40). In
+the plugins repo, `runtime-site` (the default routine as a content script, with Turndown 7.2.5 and
+turndown-plugin-gfm 1.0.2 in `vendor/`): `site_send`, `reply_read`, `reply_format`, `site_read`,
+`site_model_list`, `site_model_set`, `site_chat_list`, `site_report_build`, `ready_get`; the
+runtime's `provider_build` hands it (then the provider's own script) to each page. Tested in
+Chromium against a stand-in site (sending, streaming, a table read as GFM, a refusal, every turn).
+503 lines (budget 160): Prettier spreads its long object literals.
+
+**Running total so far** (lines of code): runtime 1,424, site 503, core 1,185, platform 959,
+loader 197, page script 70 = **4,338**, before the screen (budget 1,360).
+
+**Still to build**: the screen (`runtime-screen`, tags `runtime` and `ui`: schemas are in
+`runtime-records/schemas.json`; Preact 11.1.1 and htm 3.1.1 behind its adapter; markdown-it
+15.0.3; SortableJS 1.15.7), the optional plugins (Memory, Sub-chats, Base64, Page report, OpenAI,
+DeepSeek, Qwen, Ember, Paper), the old-content import (removable), the plugins repo's
+`catalogue.json` with hashes (signed on the phone), and the final note.
