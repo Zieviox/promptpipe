@@ -58,8 +58,8 @@ readable `.md` built from them. Owner: the runtime's chats module.
 | `title` | string | shown in the list and the header |
 | `created`, `updated` | time | |
 | `provider` | plugin id | the provider this chat uses |
-| `model` | string | the model last used |
-| `profile` | profile id | the profile last used |
+| `model` | string | the model this chat sends with next (each turn records what it went with) |
+| `profile` | profile id | the profile this chat sends with next |
 | `site_url` | string | the site chat this chat continues (UC13) |
 | `pinned` | boolean | UC17 |
 | `tags` | list of strings | chat tags, put on every new message (UC20) |
@@ -83,8 +83,10 @@ The folder is part of `file`, not a field of its own (not stored twice). The rea
 | `tags` | list of strings | message tags (UC20) |
 | `profile`, `model`, `page_url` | strings | what it went with |
 | `error` | string | why it ended badly, if it did (UC4) |
-| `notes` | list of strings | what plugins noted about it ("sent with 4") |
-| `data` | map plugin id → plugin's data | small per-turn data a plugin keeps; a plugin's data for the whole chat goes in `<plugin id>.json` |
+| `blocks` | list of strings | the names of the blocks that went out ("Sent with 4", UC25) |
+
+A plugin's data for a chat is in the chat's data folder, `<plugin id>.json`, keyed by turn when it
+needs to be: one place, not a field on every turn.
 
 **`Attachment`**: `id`, `name`, `type` (MIME type), `size`, `path` (inside the chat's data folder,
 `attachments/`). Part of a `Turn` or a draft.
@@ -164,11 +166,11 @@ sees the listing; a write-only value never leaves the platform.
 | Field | Type | Meaning |
 |---|---|---|
 | `id`, `name`, `version`, `description` | strings | `version` follows SemVer |
-| `tags` | list of strings | the type (UC42.1): none, `provider` + `web`/`api`, `theme`, `passive`, `runtime` (+ `ui`), `driver` |
+| `tags` | list of strings | the type (UC42.1): none, `provider` + `web`/`api`, `theme`, `passive`, `runtime` (+ `ui`) |
 | `min_app` | version | UC42.5 |
 | `pp` | number | the `PP` version it was made for (UC42.6) |
 | `files` | list of paths | **every** file of the plugin, in load order: the one list used to download, hash, copy and load it (`.js` and `.css` are loaded in this order, except the content script) |
-| `content_script` | path | the file that runs in the site page (web providers, drivers) |
+| `content_script` | path | the file that runs in the site page: a web provider's stages, or the default way of using a site (a runtime plugin's, UC42.7) |
 | `settings` | list of `Setting_Def` | its settings (UC32) |
 | `toggle` | `{ place: "header" · "toolbar", label }` | a toggle outside Quick edit (UC11) |
 | `provider` | `Provider_Def` | for providers |
@@ -209,27 +211,24 @@ function (the only writer).
 | `plugins` | list of `Plugin` |
 | `catalogue` | list of `Catalogue_Entry` (with their source) |
 | `credentials` | list of `Credential` (the listing) |
-| `chats` | list of `Chat_Head` |
+| `chats` | list of `Chat` without their turns (what `meta.json` holds) |
 | `chat` | the open `Chat` |
 | `drafts` | map chat id → `{ text, attachments }` |
-| `queue` | list of `Queue_Item` |
-| `failed` | list of `Failed_Item` |
-| `sends` | list of `Send` |
+| `sends` | list of `Send` (queued, on their way and failed alike) |
 | `pages` | list of `Page` |
 | `jobs` | list of `Job` |
 | `ui` | `Ui` |
 
-- **`Chat_Head`**: what the chats list needs, read from each `meta.json`: `id`, `file`, `title`,
-  `updated`, `pinned`, `tags`, `provider` (UC16, UC18).
-- **`Queue_Item`**: `id`, `chat`, `message`, `attachments`, `at` (UC2).
-- **`Failed_Item`**: `id`, `chat`, `message`, `attachments`, `error`, `at`, `page` (UC4).
-- **`Send`**: one message on its way: `id`, `chat` (none for side requests and jobs), `turn`,
-  `provider`, `page` (none for api providers), `saved` (false for side requests), `job`,
-  `started`, `progress` (UC1, UC3, UC41, UC42.3).
+- **`Send`**: one message from the moment you send it until it's saved or dismissed: `id`, `chat`
+  (none for side requests and jobs), `text`, `attachments`, `status` (`"queued"` · `"waiting"`
+  (for a free page) · `"sending"` · `"failed"`), `error`, `provider`, `page` (none for api
+  providers), `saved` (false for side requests), `job`, `at`, `progress`. The queue and the failed
+  list are views of `sends` by status, not lists of their own (UC1–UC4, UC41, UC42.3).
 - **`Page`**: one open site page: `id`, `provider`, `url`, `title`, `state` (`"loading"` ·
-  `"ready"` · `"busy"` · `"failed"`), `kind` (`"main"` · `"side"`, UC12), `send`, `error`.
+  `"ready"` · `"busy"` · `"failed"`), `kind` (`"main"` · `"side"`, UC12), `error`. (Which send
+  uses a page is on the `Send`, not here: one direction only.)
 - **`Job`**: a request from another app: `id`, `profile`, `chat` (to continue, or none),
-  `messages`, `stream`, `send`, `status` (UC41).
+  `messages`, `stream`, `status` (UC41). (Its send points to it, not the other way.)
 - **`Ui`**: `sheets` (a stack of `{ type, id }`; Back takes the top one, R5), `drawer`,
   `site_view` (`{ open, page }`), `select` (`{ on, ids }`), `find` (the query), `help` (the ?
   mode), `tour` (`{ place, stop }`), `composer` (`{ expanded }`), `toasts` (list of
@@ -241,8 +240,8 @@ function (the only writer).
 
 - **`Version`** (D7): what the core recorded when the app last wrote a file: `path`, `hash`
   (SHA-256), `at`. Every write says which version it expects; a mismatch is an `Outside_Change`.
-- **`Outside_Change`**: `path`, `what` (`"chat"` · `"chat_data"` · `"prompts"` · `"config"` ·
-  `"plugin"`), `ours` and `theirs` (their versions); answered once in the shared dialog: keep
+- **`Outside_Change`**: `path`, `ours` and `theirs` (their versions; what kind of file it is follows
+  from the path); answered once in the shared dialog: keep
   theirs, keep ours, keep both.
 - **`Envelope`**: every message between the screen, the core, the platform and a page:
   `type` (`"call"` · `"reply"` · `"event"`), `name`, `data`, `id`, `error`.
@@ -277,8 +276,8 @@ function (the only writer).
 | The Kotlin app | starts the core; pages and views; the repository, credentials, the phone's services | **platform** |
 | The app's own plugins | the application and the screen | **runtime** (tag `runtime`, "runtime plugins") |
 | What starts them | the state record, the plugin loader, events and hooks, `PP` | **loader** |
-| What runs in each site page | drives the page | **page script** |
-| A provider's additions in the page | the site's quirks | **content script** |
+| What runs in each site page | loads the code the app hands it, nothing else (S9) | **page script** |
+| Code that drives a site | the default way of using a site (a runtime plugin's), and a provider's stages for its site's quirks | **content script** |
 | Everything you see | a runtime plugin tagged `runtime` and `ui` | **screen** |
 
 "Platform" leaves "shell" its standard meanings (the effects layer, and the command shell).
@@ -289,7 +288,8 @@ function (the only writer).
   the module; the verb comes from the closed list.
 - **Casing** (decided 2026-11-20): `snake_case` for functions and data fields in every language
   and in JSON files. Records `Ada_Case`. Constants `UPPER_SNAKE` (`PAGES_DEFAULT`).
-- **Ports**: named by role, `for_` + what the application needs (`for_keeping_files`).
+- **The port**: one each way; the calls are named by the rules above, and their noun says what
+  they're about (`file_write`, `site_send`). No per-topic ports, no port names to learn (stage 4).
 - **Events**: past tense (`chat_saved`, `page_loaded`) or `_changed` (`reply_changed`).
 - **Hooks**: named by their place in a sequence, noun first: `send_before`, `reply_after`,
   `block_text`, `chat_route`, `turn_render`, `toggle_render`, `menu_items`.
@@ -298,7 +298,7 @@ function (the only writer).
 - **One name per call across layers**: a call keeps its name from the application through its port
   to its adapter and on the bus.
 
-### Verbs (closed list, decided 2026-11-20)
+### Verbs (closed list, decided 2026-11-20; `import`, `export`, `navigate`, `resolve`, `commit`, `push`, `pull` added 2026-11-21)
 
 | Verb | Meaning | Example |
 |---|---|---|
@@ -310,7 +310,7 @@ function (the only writer).
 | `load` / `save` | read and parse / format and write a record | `config_load`, `chat_save` |
 | `create` / `delete` | a standalone record and its storage | `chat_create`, `profile_delete` |
 | `add` / `remove` | into or out of a container | `block_add`, `tag_remove`, `plugin_remove` |
-| `move` / `rename` / `copy` | place, name, duplicate | `chat_move`, `plugin_copy` |
+| `move` / `rename` / `copy` | place, name, duplicate (`copy` only means duplicate; the clipboard is `clipboard_write`) | `chat_move`, `plugin_copy` |
 | `parse` / `format` | text to data / data to text, pure | `chat_parse`, `chat_format` |
 | `build` | assemble from parts, pure | `message_build` |
 | `validate` | the problems in data, pure | `manifest_validate` |
@@ -323,7 +323,11 @@ function (the only writer).
 | `send` | hand a message to a provider, page or the platform | `page_send` |
 | `fetch` | an HTTP request through the platform (any method) | `http_fetch` |
 | `run` | execute hooks, a job or a command | `hooks_run` |
-| `emit` / `on` / `off` | events | `event_emit` |
+| `emit` / `on` / `off` | events | `event_on` |
+| `import` / `export` | bring content in from a file or another place / send it out to one | `profile_import`, `chat_export` |
+| `navigate` | move a page to an address, back, or reload | `page_navigate` |
+| `resolve` | answer a pending choice | `failure_resolve`, `change_resolve` |
+| `commit` / `push` / `pull` | the repository's own terms (git) | `repo_commit`, `repo_push` |
 | `install` / `update` | software: put in / replace with a newer version | `plugin_install` |
 | `encode` / `decode` | change a representation | `base64_encode` |
 | `encrypt` / `decrypt` | only inside the credential store's adapter | |
@@ -339,14 +343,19 @@ The module nouns are the record names in lower case plus these: `app`, `file`, `
 (the chats' history repository; git is its adapter), `site` (the website a web provider drives),
 `option`, `model`, `http`, `version`, `bundle` (the release's zip of built-in plugins), `screen`
 and its parts (`sheet`, `drawer`, `menu`, `toast`, `dialog`, `item`), `theme`, `log`, `schema`
-(the list of `Setting_Def`).
+(the list of `Setting_Def`), `failure` (a failed send), `change` (an outside change, D7),
+`commit`, `view` (the site view), `content` (what's exported), `picker` (the system's file
+picker), `clipboard`, `url`, `vibration`, `bars` (the system bars), `storage`, `storage_access`,
+`service` (the background service), `api_token`, `chats_folder`, `chat_data`, `catalogue`,
+`record` (any record of a collection), `collection`, `popup` (a sign-in window a site opens),
+`report` (the page report), `share` (what another app shares in), `back` (the Back button).
 
-### Events (first list; the function list settles the full set)
+### Events
 
-`app_started`, `plugins_loaded`, `config_changed`, `chat_opened`, `chat_saved`, `turn_added`,
-`reply_changed`, `reply_finished`, `reply_failed`, `page_loaded`, `page_navigated`, `page_closed`,
-`pages_changed`, `job_received`, `plugin_installed`, `plugin_failed`, `bundle_installed`,
-`credential_changed`, `file_changed_outside`, `error_raised`.
+The nine in `4-ports.md`, each coming from the call contract: `page_changed`, `popup_changed`,
+`reply_changed`, `http_received`, `share_received`, `back_pressed`, `app_resumed`,
+`job_received`, `job_changed`. A record's changes are one `_changed` event with a state field,
+not one event per state. The screen needs no events: it draws the `State` after every change.
 
 ### Words that differ from the screenshots
 

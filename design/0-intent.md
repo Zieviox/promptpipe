@@ -168,7 +168,7 @@ Not in screenshots, kept as written:
 | 1 | Principles, adding Ports and Adapters, the dependency rule, role interfaces, the anti-corruption layer | `1-principles.md` revisited |
 | 2 | Requirements: the use cases plus the constraints (security, platforms, size, checks) | `2-requirements.md` revisited |
 | 3 | The application's model: its records (data) and its words | `3-terms.md` revisited |
-| 4 | Ports: one driving port per use case; driven ports named by role from what the use cases need, each with only the calls one interaction needs | `4-ports.md` |
+| 4 | The port and the calls: one port each way, one table of calls, the events, coverage of every use case | `4-ports.md` |
 | 5 | Strategies, checked against the ports | `5-strategies.md` revisited |
 | 6 | Adapters, layers and the line budget in three lines: application, ports, adapters | `6-architecture.md` redone |
 | 7 | Standards and a KISS/DRY review of the whole design | new |

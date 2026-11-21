@@ -153,7 +153,7 @@ Requirements win over the screenshots (U 2026-11-21).
 - **UC42 Extend the app**:
   1. One plugin format: a manifest whose tags say the type: none (a block plugin with a toggle),
      `provider` + `web` or `api`, `theme`, `passive` (menu entries only), `runtime` (part of the
-     app; + `ui` for the screen), `driver` (page commands for every provider) (U 2026-11-20).
+     app; + `ui` for the screen) (U 2026-11-20; the old `driver` type is gone, see 7).
   2. Hooks: add a block's text, change the message before sending, work on the reply after it,
      pick the profile and site chat (route), draw a turn or a toggle, add menu entries (F).
   3. Side requests: ask the provider something in a fresh, unsaved chat (F).
@@ -162,7 +162,10 @@ Requirements win over the screenshots (U 2026-11-21).
   6. `PP` is the only way in: named, versioned, documented; a plugin says which `PP` version it
      was made for, and no two plugins can break each other through shared names (#210).
   7. Web providers are mostly selectors, plus an optional content script for the site's quirks;
-     the page offers ready building blocks so a content script stays small (F).
+     the page offers ready building blocks so a content script stays small (F). The default way
+     of using a site (type, send, wait, read) is itself a content script in an updatable runtime
+     plugin, so it improves without a new APK; the APK's page script only loads the code it is
+     given (U 2026-11-21: replaces the `driver` type).
 
 - **UC48 Attach files** (added in stage 2, U 2026-11-21): attach files or images to a message
   (an attach button, sharing files in, pasting an image); they're kept in the app's hidden folder
@@ -239,6 +242,9 @@ Requirements win over the screenshots (U 2026-11-21).
   (#207, #208; decided 2026-11-21). The catalogue's signing key is made on the phone and kept
   there, with a copy in a password manager; the APK holds two public keys (main and backup)
   (#202; decided 2026-11-21).
+- **S9** Code runs in a site page only when the app hands it over through the platform's extension
+  port, never from the website itself; it is plugin code, checked like every plugin (S3, S4, D7);
+  credential values never reach it (U 2026-11-21).
 
 ### R. Reliability
 

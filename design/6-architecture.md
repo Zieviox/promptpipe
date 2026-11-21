@@ -1,5 +1,9 @@
 # 5. Architecture and line budget (pass 2)
 
+> **Superseded until revisited.** Written before the inside-out restart; parts of it no longer
+> hold (per-topic calls, old names, the old budget). Stage 6 redoes it. Use `4-ports.md` and
+> `3-terms.md` instead where they differ.
+
 Built on the decisions so far: all eleven strategies of `5-strategies.md`, libraries allowed
 behind adapters (pinned, not counted), the 3k covering the app with the optional plugins
 ideally inside it too, a full remake where only the intent and the UX/UI survive.

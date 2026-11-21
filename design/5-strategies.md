@@ -1,5 +1,9 @@
 # 4. Design strategies (pass 1 of the size work)
 
+> **Superseded until revisited.** Written before the inside-out restart; parts of it no longer
+> hold (per-topic calls, old names, the old budget). Stage 5 redoes it. Use `4-ports.md` and
+> `3-terms.md` instead where they differ.
+
 Goal (U 2026-11-20): every feature in `2-requirements.md`, in about **3,000 lines of clean,
 comfortable code**. That means normal spacing, one statement per line, a fixed maximum line width
 of about 100 characters (set by a formatter), and comments where they help. The size has to come

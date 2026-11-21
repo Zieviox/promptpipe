@@ -23,6 +23,25 @@ They come first because they decide what counts as a good answer.
 - **The language reference is current**: the Odin docs and library index for the compiler
   release in use (`sh scripts/odin-reference.sh`).
 
+## Reuse first (decided 2026-11-21)
+
+Before adding anything (a record, a field, a call, an event, a type, a file, a mechanism, a
+setting), look for what already exists that can do the job, and use it. Add something new only
+when using the existing thing would be counterproductive, and decide that by the standards in this
+file, saying which one decided it:
+
+- **Correctness and security** first: reuse that weakens a check or mixes trust levels is
+  counterproductive (S3, S9).
+- **Role interfaces**: reuse that makes a client depend on what it doesn't use is counterproductive.
+- **DRY**: reuse of the same knowledge is right; reuse of look-alike code that would change for
+  different reasons is not.
+- **KISS**: a reuse that needs more special cases than a small new addition would is counterproductive.
+- **YAGNI**: when nothing existing fits, the new addition covers today's use cases only.
+
+Examples already in the design: one set of record operations for every collection; one port each
+way; one change check for every file; one `Send` record for queued, sending and failed messages;
+the default way of using a site as an ordinary content script instead of a `driver` type.
+
 ## DRY, KISS, YAGNI
 
 - **DRY (Don't Repeat Yourself).** Every item of knowledge has one source: a data shape, a rule,
@@ -38,18 +57,20 @@ They come first because they decide what counts as a good answer.
 Order when they conflict: correctness and security first, then KISS, then DRY (a small, clear
 repetition beats a clever shared abstraction), then YAGNI decides what is built at all.
 
-## Inside-out: the application, its ports, its adapters
+## Inside-out: the application, its port, its adapters
 
 The standard shape is **Ports and Adapters** (hexagonal architecture, Alistair Cockburn, 2005):
 
 - **The application** is in the middle: the logic that makes the use cases happen (sending,
   profiles, chats and history, the queue, plugins and the catalogue, jobs). It knows nothing
   about Odin, Kotlin, GeckoView, JGit or the DOM.
-- **Driving ports** are how the outside starts something: one per use case in `0-intent.md`
-  (you through the screen, other apps through the local API, plugin authors through `PP`).
-- **Driven ports** are what the application needs from the outside, named by that need (a
-  **role**): for keeping files, for driving site pages, for the repository, for credentials, for
-  HTTP, for the phone's services. Cockburn names them the same way (`ForGettingTaxRates`).
+- **One port each way**, a message protocol (decided 2026-11-21): the outside calls the
+  application through one, the application calls the outside through the other, always with the
+  same envelope. A port may be a message protocol in Ports and Adapters; per-topic ports would only
+  be groups of names around the same mechanism.
+- **One table of calls is the contract** (`4-ports.md`): each call's name, data, events and who
+  answers it. The same data routes the calls, checks them at the boundary, answers "not supported
+  on this platform" (P5), and gives the stand-ins for testing.
 - **Every library goes through an adapter**, the languages' own libraries included (U 2026-11-21):
   Odin's `core:*` packages, the browser's APIs, Android's. Application code never calls a library
   directly, so no library's conventions or types leak into it.
@@ -63,8 +84,8 @@ Three rules make it work:
   Principle): the application defines its ports; adapters conform to them. What a "page" offers
   is decided by the use cases, never by what GeckoView happens to have.
 - **Role interfaces** (Martin Fowler; the Interface Segregation Principle, "no client should be
-  forced to depend on methods it does not use"): each port has only the calls one interaction
-  needs. A library feature that no port needs is not wrapped at all.
+  forced to depend on methods it does not use"): each use case uses only the calls it needs, and
+  the table shows which. A library feature that no call needs is not wrapped at all.
 - **The anti-corruption layer** (Eric Evans, *Domain-Driven Design*): an adapter translates the
   library's meaning into the application's words and nothing more ("the translator should just
   translate"). Its interface is entirely in the application's terms; the application never sees a
@@ -104,8 +125,9 @@ shell"):
 - **Events** are for everything outside the sequence: something happened and others may want to
   know (a reply grew, a page loaded, a plugin was installed). The observer pattern, as delegates
   in Unity and C# and signals in Godot. The emitter doesn't know the listeners; listeners can't
-  change its result; names are past tense (`page_loaded`) or `_changed` (`reply_changed`).
-  Driven ports report back through events (a page's progress, a download's end).
+  change its result; names are past tense (`job_received`) or `_changed` (`reply_changed`), one `_changed` event per
+  record with a state field rather than one event per state.
+  The outside reports back through events (a page's progress, a download's parts).
 - Events never replace a return value: if the caller needs the answer, it's a call.
 
 ## Errors are data
@@ -122,7 +144,6 @@ shell"):
   language (decided 2026-11-20). The noun is the module, so its functions sort together and
   autocomplete lists them after the noun. One noun per module, one verb per meaning (the closed
   verb list in the terms).
-- **Ports are named by role**, the same way: `for_keeping_files`, `for_driving_pages`.
 - **One name per job across every layer**: a call keeps its name from the application through the
   port to the adapter (`file_write` is `file_write` in the runtime, on the bus and in the core).
 - Only glossary words and standard programming terms; no invented words. A name that needs a

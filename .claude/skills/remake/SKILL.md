@@ -25,6 +25,13 @@ still open.
 - **Design from the requirements, not from the code**: the design stages use only `design/`
   (intent, requirements, screenshots); the old code isn't opened. Lessons from it are already
   requirements.
+- **Reuse first**: before adding a record, field, call, event, type, file, mechanism or setting,
+  look for what already exists and use it; add only when using it would be counterproductive,
+  decided by the standards in `design/1-principles.md` ("Reuse first"), and say which one decided.
+- **Self-review before every hand-off**: everything traces to a use case or requirement; nothing
+  is stored twice (no links in both directions, no derived value saved); one mechanism per job;
+  every name follows the rules (`python3 .claude/skills/remake/scripts/name-check.py` for the
+  call contract, terms-check for retired words). Fix what it finds before the user sees it.
 - **No reuse of old code unless stuck**, and then say so in the stage's review (what, from where,
   why). The old code is a read-only reference for behaviour and lessons.
 - **Honest numbers**: estimates come with a range; a target that isn't reachable is said, not
@@ -46,7 +53,7 @@ that provide exactly that. Never start from the layers or the libraries.
 | 1 | **Principles**: DRY, KISS, YAGNI (and their order), functional core and imperative shell, stateless functions over plain data (DOD), Ports and Adapters, the dependency rule, role interfaces, the anti-corruption layer, events outside the main sequence and hooks inside it, errors as data, noun-first names, what survives | `design/1-principles.md` | user |
 | 2 | **Requirements**: the use cases plus the constraints (security, platforms, size, checks), each with an id and its source; what is not built now (YAGNI) | `design/2-requirements.md` | user |
 | 3 | **The application's model**: its records (data shapes, one owner each) and its words (layers, naming rules, verbs, nouns, events) | `design/3-terms.md` | user, terms-check |
-| 4 | **Ports**: one driving port per use case; driven ports named by role (`for_keeping_files`, `for_driving_pages`, …) from what the use cases need, each with only the calls one interaction needs and the plain data it exchanges | `design/4-ports.md` | user, every use case covered |
+| 4 | **The port and the calls**: one port each way (a message protocol); one table of calls (name, data, events, who answers, who may call), grouped by who answers; the events; coverage of every use case | `design/4-ports.md` | user, `scripts/name-check.py`, every use case covered |
 | 5 | **Strategies**: structural ways to need less code for the same features (standard names, what each replaces, estimate, cost), checked against the ports | `design/5-strategies.md` | user |
 | 6 | **Adapters, layers, line budget**: each port mapped to the technology that provides it (a translator that only translates; library features no port needs are not wrapped), the layers and channels, data ownership, the main sequences as call chains with events, the budget in three lines per layer: application, ports, adapters | `design/6-architecture.md` | user |
 | 7 | **Standards and review**: naming and code standards for each language in the style chosen (look them up), then a KISS and DRY pass over the whole design; fix the design, list what changed | `design/7-review.md` | user, clone-detection on the design's function names |
