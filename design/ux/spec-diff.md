@@ -1,0 +1,216 @@
+# The UI spec against the remade screen (2026-11-22)
+
+`SPEC.md` (with `wireframe.html`) compared item by item with `runtime-screen` as built on the
+`rewrite` branch. Read-only: nothing was changed. The wireframe's look (spacing, icons, layout) is
+for the parity walk, which is paused; this compares what each screen has and does.
+
+**Built** = there and as the spec says. **Partly** = there, but different or incomplete.
+**Missing** = not there. **Later** = the spec itself holds it back.
+
+## Totals
+
+| | Built | Partly | Missing | Later |
+|---|---|---|---|---|
+| Items | 36 | 33 | 28 | 3 |
+
+The biggest gaps: **no button opens Settings** (only Ctrl+, or Find), the **guides** (passive
+instead of interactive, three of the four missing), **help mode** (only in the header, no
+explanations), **Find** (doesn't open the control, no settings in it), the **drawer** (no folder
+editing, no drop into folders, no Settings or Quick start buttons), the **Quick edit drawer** (no
+profile dropdown or renaming), and **icons** (text characters and an emoji instead of one line-icon
+family).
+
+## Rules for all of it
+
+| Spec | Screen | |
+|---|---|---|
+| 2. Redraws never reset scroll or state; the chat follows only at the bottom | Preact updates in place; stays at the bottom only when already there | Built |
+| 3. Phone first: every shortcut has a touch control | Most do; **Settings has no touch control at all** (Ctrl+, or Find) | Partly |
+| 5. Organize, never hide: unavailable shown as unavailable | Nothing hidden by platform; not checked screen by screen | Partly |
+| 6. Plain words | Follows the later rename ("blocks", "plugins"), not the spec's "rows"/"message plugins" | Partly (decision needed) |
+| 7. One line-icon family in the text colour, no emoji, sliders icon for Settings | Text characters (☰ ⌕ ⋮⋮ ↻ ⧉ ❝) and the 📌 emoji; no sliders icon | Missing |
+
+## Header
+
+| Spec | Screen | |
+|---|---|---|
+| Burger opens the chats drawer | Yes | Built |
+| Chat title opens the Chat sheet | Yes | Built |
+| Site pill `Site · Model ⌄` with a dropdown to switch site | Provider name, model and status dot; menu to switch, open the site, get providers | Built |
+| Find button | Yes | Built |
+| No ⋯ menu | None | Built |
+| At large UI scale the title shrinks first | The title shortens with "…"; not checked at large scales | Partly |
+
+## Find
+
+| Spec | Screen | |
+|---|---|---|
+| Searches chats and every function | Chats, commands and messages | Built |
+| …and every **setting** | Settings aren't in it | Missing |
+| Each result shows its path and shortcut | Place and key shown | Built |
+| Opens the screen **with the control highlighted** | Runs the command instead | Missing |
+| Ctrl+K and **F3** | Ctrl+K only | Partly |
+| Lists actions with no screen (Quick plugins, Bigger message box, text file, Edit this profile, Select chats, New folder) | All of these are commands, so they're found | Built |
+
+## Chats drawer
+
+| Spec | Screen | |
+|---|---|---|
+| One list: Pinned header, folders and chats together | Yes | Built |
+| Search chats and `#tag`, tag chips | Yes | Built |
+| + New chat, + Folder with an **inline** create box | New chat; New folder opens a dialog | Partly |
+| Per row: pin button, drag handle | Yes (pin is an emoji) | Built |
+| Folder row: **edit icon (rename, delete; delete moves its chats out, confirm)**, count, chevron | Chevron and "+ new chat here"; no edit, no count | Missing |
+| Pinned section collapsible, always there, a drop target (drop = pin) | Shown only when something is pinned; not collapsible; not a drop target | Missing |
+| Drop on a folder = into it; between rows = reorder or take out; folders reorder; several selected move together | Reorder at the top level only | Partly |
+| Multi-select from a header button **or long-press**; tap a folder to select its chats | Select button only; no long-press, no folder select | Partly |
+| Select bar: Pin or Unpin, Move…, Delete (confirm), Done | Pin, Move, Delete (no confirm, no Unpin), Done | Partly |
+| Status per chat: "Replying…" and "Reply ready" (dot) | "answering…" and a "new" badge | Partly |
+| **Settings pill bottom left** (sliders icon, update badge) | None | Missing |
+| **Quick start button** next to Settings | None | Missing |
+
+## Chat sheet
+
+| Spec | Screen | |
+|---|---|---|
+| Rename, tags, Pin to top | Yes | Built |
+| Copy the whole chat (Markdown), Share or export | Yes | Built |
+| Move to folder (a screen) | Yes | Built |
+| Sub-chats | Yes, when Sub-chats is installed | Built |
+| History | The chat's commits | Built |
+| "Versions and branches" row | — | Later |
+
+## Chats running in parallel
+
+| Spec | Screen | |
+|---|---|---|
+| A background reply never moves the view; a dot | Yes ("new" badge) | Built |
+| "Reply ready" **tappable toast** | No toast | Missing |
+| Site per chat; a new chat uses the **last** site | Per chat; a new chat uses the default provider setting | Partly |
+| Switching site in a chat with replies **asks** (new conversation, Memory carries context) | Switches without asking | Missing |
+
+## Replies
+
+| Spec | Screen | |
+|---|---|---|
+| Thin collapse "Thought for N s · **sent with N**" expanding to the thinking, the "Sent with" list and "Show the full text" | "Thought for N s" opens the thinking; "Sent with" and the full text are in the ⋯ sheet | Partly |
+| Action row collapsible in place: Copy, Quote, Send again, **Select text**, tags | Copy, Quote, Send again, More, tags; no Select text | Partly |
+| `#N` count when collapsed | Not shown | Missing |
+| Setting: newest only / every / collapsed | Yes | Built |
+| Your messages: **Copy, Edit** | Copy and Edit in the ⋯ sheet, not on the message | Partly |
+| Auto-scroll only at the bottom, plus **"Jump to latest"** | "↓ 1 new" only | Partly |
+
+## Message bar and Quick edit
+
+| Spec | Screen | |
+|---|---|---|
+| "Quick edit and add" button opens a **bottom drawer** | Opens a sheet from the bottom | Built |
+| Title = the **chat's** profile name, **tap to rename** (inline field + Save); subtitle "Quick edit · tap the name to rename" | Profile name as the title; no renaming there | Partly |
+| **Profile dropdown at the top**, "This chat's profile · tap to switch" | Not there (switching is in Profiles) | Missing |
+| Rows on/off, drag handle **and arrows** | Switches and drag; no arrows | Partly |
+| "Your message" movable, no switch | Yes | Built |
+| "Edit profile" pill | A row, not a pill | Built |
+| Add to your message: Text file, Several text files | Yes, plus Attach files | Built |
+| Bigger box button in the bar, Ctrl+E, text kept | Yes | Built |
+
+## Profiles
+
+| Spec | Screen | |
+|---|---|---|
+| Ordered rows; "Your message" anywhere | Yes | Built |
+| Drag **and arrows** | Drag only | Partly |
+| **Inline dropdown**: scrollable list, Edit on each row, + New, Import…, Export this, Export all; active profile bar with Edit | A Profiles sheet with the list, templates, import and export | Partly |
+| The same dropdown in the editor switches which profile is edited | Not there | Missing |
+| Import and export of profiles and system prompts | Yes | Built |
+| Name clash: default keep both; a question with **"don't ask again"**; Ask / Keep both / Replace in Settings | The setting and the question; no "don't ask again" | Partly |
+
+## Plugins
+
+| Spec | Screen | |
+|---|---|---|
+| Tabs **Profile \| Library** | "Profile and installed \| Catalogue" | Partly |
+| Update dots and badges | None | Missing |
+| Update all | Yes | Built |
+| Library filter chips: All, AI sites, Message plugins, Themes, Tools | None (a filter exists in the code, not on screen) | Missing |
+| Plugin page: **update**, roll back, remove (**confirm**) | Roll back and remove (no confirm); no update for one plugin | Partly |
+| Several sources, Official by default, third-party warning | Yes (with the key trusted once) | Built |
+| Name clash across sources asked | Not handled | Missing |
+| Install from a **file** or a link | From a link (incl. a zip link) or an AI's answer; not from a file | Partly |
+| **Plugin guide screen**: the guide, "Copy instructions for AI", "Install the result" | The guide opens from Help; installing an answer is a separate sheet; no copy button | Partly |
+| "Make my copy" | "Copy to edit" exists | Later (but built) |
+
+## Settings
+
+| Spec | Screen | |
+|---|---|---|
+| Sections: Plugins, System prompts, Look, Sites, Chats and storage, Import and export, Local API, Advanced, Help | All there ("Prompt library" for System prompts; plus Git and Credentials) | Built |
+| Look: light or dark, accent, **UI scale 90/100/115/130%**, quick actions | All there; scale is a number (5% steps) | Partly |
+| Sites: **Max replies at once**, default 5, warning and unlock up to 10 | "Pages at once", default 5, no limit or warning | Partly (decision needed) |
+| Advanced: Reset to first launch **with confirm**; data stays | Reset without confirm | Partly |
+
+## Site view
+
+| Spec | Screen | |
+|---|---|---|
+| Tabs synced with the chat view, state dots, + new tab | Yes | Built |
+| Editable address, reload | Yes (and back) | Built |
+| **"Open in PromptPipe"** for tabs not linked to a chat | Not there (the "On the site" sheet can open site chats) | Missing |
+| **"Linked to chat" with Open chat** | Says "Linked to …" as text, no button | Partly |
+
+## Long messages
+
+| Spec | Screen | |
+|---|---|---|
+| Long = over **8 lines or 600 characters** | Over 6 lines or 500 characters | Partly |
+| About 6 lines fading out | Yes | Built |
+| A **"Show more ⌄" / "Show less ⌃"** line under it | Tap the message to open it; no line | Missing |
+
+## Versions and branches
+
+| Spec | Screen | |
+|---|---|---|
+| Reply versions with "< 2/3 >", branches on Edit and resend, sibling files, Memory on the shown path | "Edit and resend" replaces the message | Later (the spec says after the release) |
+
+## Quick start guides
+
+| Spec | Screen | |
+|---|---|---|
+| **Four** guides, three steps each, each the **first time** you visit that place | Three guides (4, 2, 1 steps); only the welcome one starts by itself | Partly |
+| **Interactive**: you do the real action and it moves on | Passive: Next and Skip | Missing |
+| Skip step, Skip guide, **Back**, **dots** | Skip and Next only | Partly |
+| **Welcome full screen**: pick a site, log in **inside the site view** with a card that turns green when the chat box shows; "I am logged in" fallback | Not there | Missing |
+| "Say hello" with the **starter profile list** | Not there | Missing |
+| Chat list guide (pin, select, search) | Not there | Missing |
+| Plugins guide (Library, Update all, sources with the trust warning) | Not there | Missing |
+| Blocking by identity (only the lit control is tappable); "That control is not on this screen" with **Take me there** | Nothing blocked; no "Take me there" | Missing |
+| Replay: Settings › Help › Quick start (Seen/New, show all again) | Yes | Built |
+| Replay from the drawer, the help-mode bar, Find, the Plugins header | Find only | Partly |
+
+## Help mode
+
+| Spec | Screen | |
+|---|---|---|
+| "?" in the header (setting, on by default) | Yes | Built |
+| "?" on **every** screen: every sheet header, the drawer, Find, Quick edit, the site view | Header only | Missing |
+| Bar "Help mode. Tap anything to see what it does." | "Tap anything to learn what it does" | Built |
+| Card: name, **plain explanation**, Where, shortcut | Name, where and key; no explanation | Partly |
+| **"Got it"** and **"Do it"** | Neither (Done closes help mode) | Missing |
+| Done or Esc leaves | Yes | Built |
+| Drag and long-press blocked in help mode | Not blocked | Missing |
+| **One-line explanation per control**, kept with the control's definition | None | Missing |
+| Desktop: a "?" on hover | None | Missing |
+
+## On hold in the spec
+
+Roleplay, Characters and Tavern cards; site recommendations; folders for profiles and prompts;
+export variants: not built, as the spec says.
+
+## What decides the order (for when the screen work resumes)
+
+1. **Reaching things**: a Settings button (the drawer's pill), Quick start in the drawer, confirms
+   on Delete, Remove and Reset. Small, and today Settings can't be reached by touch.
+2. **The spec's own order**: header, Find (open the control, settings in it), drawer (folders,
+   pins, select), chat sheet; then Quick edit; profiles; plugins; settings; site view.
+3. **Help mode and the guides**, which need a one-line explanation for every control (data next to
+   each command) before they can work as the spec says.
+4. **Icons**: one line-icon family, which touches every screen, so it goes in with the parity walk.
