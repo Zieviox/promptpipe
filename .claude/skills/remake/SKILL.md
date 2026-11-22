@@ -109,6 +109,10 @@ below is a rule from then on.
   old one, build it, take the same screenshot of the new one in Chromium (same size, same stand-in
   data), put them side by side for the user, and tick the list. Budget the screen from that list,
   not from the use cases.
+- **Stage 0 gathers every UX source, not only screenshots.** The UI spec and the interactive
+  wireframe (`design/ux/SPEC.md`, `design/ux/wireframe.html`) existed but weren't in `design/`, so
+  the screen was designed without them. Ask the user for specs, wireframes, mock-ups and design
+  decisions before stage 0 ends, and list each one in `0-intent.md`.
 - **The old data is imported from real files.** Fixtures written by hand pass tests and miss the
   real shapes. Make the fixtures with the old app's own writers (its code, run on sample data), or
   ask the user for a few real files (with private text replaced), and test the import on the phone
