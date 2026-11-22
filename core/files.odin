@@ -262,7 +262,7 @@ tree_copy :: proc(from, to: string, overwrite: bool) -> int {
 	return copied
 }
 
-// One file copied in 1 MB pieces, so a large one (a git pack) is never in memory whole.
+// One file copied in 1 MB chunks, so a large one (a git pack) is never in memory whole.
 file_copy :: proc(from, to: string) -> bool {
 	src, open_err := os.open(from)
 	if open_err != nil do return false
@@ -271,12 +271,12 @@ file_copy :: proc(from, to: string) -> bool {
 	dst, create_err := os.create(to)
 	if create_err != nil do return false
 	defer os.close(dst)
-	piece := make([]byte, 1024 * 1024, heap())
-	defer delete(piece, heap())
+	chunk := make([]byte, 1024 * 1024, heap())
+	defer delete(chunk, heap())
 	for {
-		n, read_err := os.read(src, piece)
+		n, read_err := os.read(src, chunk)
 		if n > 0 {
-			if _, write_err := os.write(dst, piece[:n]); write_err != nil do return false
+			if _, write_err := os.write(dst, chunk[:n]); write_err != nil do return false
 		}
 		if read_err == io.Error.EOF || (read_err == nil && n == 0) do return true
 		if read_err != nil do return false

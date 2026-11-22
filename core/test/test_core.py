@@ -75,7 +75,7 @@ try:
     open(os.path.join(old, "history", "Trip.md"), "w").write("# Trip")
     r = call("file_move", {"root": "device", "from": old, "to_root": "app", "to": ".promptpipe/backups/old-app-shared", "copy": True, "overwrite": False})
     copy = os.path.join(app, ".promptpipe", "backups", "old-app-shared", "history")
-    check("a folder is copied whole, hidden ones and big files included, in pieces",
+    check("a folder is copied whole, hidden ones and big files included, in chunks",
           r["data"]["copied"] == 1 and open(os.path.join(copy, ".git", "pack"), "rb").read() == big
           and open(os.path.join(copy, "Trip.md")).read() == "# Trip")
     folders = call("chats_folder_get", {})["data"]
