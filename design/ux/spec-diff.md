@@ -11,7 +11,7 @@ for the parity walk, which is paused; this compares what each screen has and doe
 
 | | Built | Partly | Missing | Later |
 |---|---|---|---|---|
-| Items | 36 | 29 | 22 | 3 |
+| Items | 34 | 34 | 23 | 3 |
 
 Decided after the comparison (2026-11-22): the spec is UX only (the words are the settled terms),
 and its Quick start guides are skipped. The biggest gaps: **no button opens Settings** (only
@@ -52,6 +52,7 @@ family).
 | Opens the screen **with the control highlighted** | Runs the command instead | Missing |
 | Ctrl+K and **F3** | Ctrl+K only | Partly |
 | Lists actions with no screen (Quick plugins, Bigger message box, text file, Edit this profile, Select chats, New folder) | All of these are commands, so they're found | Built |
+| Empty state: **Recent** (last searches or actions) plus Try | Try only | Missing |
 
 ## Chats drawer
 
@@ -60,13 +61,13 @@ family).
 | One list: Pinned header, folders and chats together | Yes | Built |
 | Search chats and `#tag`, tag chips | Yes | Built |
 | + New chat, + Folder with an **inline** create box | New chat; New folder opens a dialog | Partly |
-| Per row: pin button, drag handle | Yes (pin is an emoji) | Built |
+| Per row: pin button, drag handle | Yes (pin is an emoji); the pin button always pins, there's no Unpin on the row | Partly |
 | Folder row: **edit icon (rename, delete; delete moves its chats out, confirm)**, count, chevron | Chevron and "+ new chat here"; no edit, no count | Missing |
 | Pinned section collapsible, always there, a drop target (drop = pin) | Shown only when something is pinned; not collapsible; not a drop target | Missing |
 | Drop on a folder = into it; between rows = reorder or take out; folders reorder; several selected move together | Reorder at the top level only | Partly |
 | Multi-select from a header button **or long-press**; tap a folder to select its chats | Select button only; no long-press, no folder select | Partly |
 | Select bar: Pin or Unpin, Move…, Delete (confirm), Done | Pin, Move, Delete (no confirm, no Unpin), Done | Partly |
-| Status per chat: "Replying…" and "Reply ready" (dot) | "answering…" and a "new" badge | Partly |
+| Status per chat: "Replying…" and "Reply ready" (dot) | "answering…" and a "new" badge. No settled term covers these, so by the naming rule the spec's labels apply | Partly |
 | **Settings pill bottom left** (sliders icon, update badge) | None | Missing |
 | **Quick start button** next to Settings | None | Missing |
 
@@ -100,6 +101,7 @@ family).
 | Setting: newest only / every / collapsed | Yes | Built |
 | Your messages: **Copy, Edit** | Copy and Edit in the ⋯ sheet, not on the message | Partly |
 | Auto-scroll only at the bottom, plus **"Jump to latest"** | "↓ 1 new" only | Partly |
+| (Rule 2) Opening a chat lands at its newest message | The "at the bottom" flag isn't reset when another chat opens, so a chat opened while scrolled up elsewhere may not land at the bottom (found by Prism) | Partly |
 
 ## Message bar and Quick edit
 
@@ -110,7 +112,8 @@ family).
 | **Profile dropdown at the top**, "This chat's profile · tap to switch" | Not there (switching is in Profiles) | Missing |
 | Rows on/off, drag handle **and arrows** | Switches and drag; no arrows | Partly |
 | "Your message" movable, no switch | Yes | Built |
-| "Edit profile" pill | A row, not a pill | Built |
+| "Edit profile" **pill next to the title**, in reach without scrolling | A row at the bottom of the sheet | Partly |
+| The profile belongs to the **chat**: switching sets the open chat's profile, new chats start with it (wireframe v38) | A chat can have its own profile, but "Use this profile" and Ctrl+P change the default for new chats, not the open chat's (found by Prism) | Partly |
 | Add to your message: Text file, Several text files | Yes, plus Attach files | Built |
 | Bigger box button in the bar, Ctrl+E, text kept | Yes | Built |
 
@@ -134,7 +137,8 @@ family).
 | Update all | Yes | Built |
 | Library filter chips: All, AI sites, Message plugins, Themes, Tools | None (a filter exists in the code, not on screen) | Missing |
 | Plugin page: **update**, roll back, remove (**confirm**) | Roll back and remove (no confirm); no update for one plugin | Partly |
-| Several sources, Official by default, third-party warning | Yes (with the key trusted once) | Built |
+| Several sources, Official by default | Yes; the default one is labelled "Promptpipe's own", not "Official" | Built |
+| Third-party warning: only add repos from people you trust; plugins are code and can read your chats | Asks to trust the source's key; says its owner can update what you install from it, but not that plugins can read your chats | Partly |
 | Name clash across sources asked | Not handled | Missing |
 | Install from a **file** or a link | From a link (incl. a zip link) or an AI's answer; not from a file | Partly |
 | **Plugin guide screen**: the guide, "Copy instructions for AI", "Install the result" | The guide opens from Help; installing an answer is a separate sheet; no copy button | Partly |
@@ -144,7 +148,7 @@ family).
 
 | Spec | Screen | |
 |---|---|---|
-| Sections: Plugins, System prompts, Look, Sites, Chats and storage, Import and export, Local API, Advanced, Help | All there ("Prompt library" for System prompts; plus Git and Credentials) | Built |
+| Sections: Plugins, System prompts, Look, Sites, Chats and storage, Import and export, Local API, Advanced, Help | All there ("Prompt library" for System prompts; plus Git and Credentials). "Chats and storage" still mentions Git in its line though Git has its own group | Built |
 | Look: light or dark, accent, **UI scale 90/100/115/130%**, quick actions | All there; scale is a number (5% steps) | Partly |
 | Sites: Max replies at once, default 5, warning and unlock up to 10 | "Pages at once" (the settled name), default 5; the stage 2 decision is a warning and no hard maximum, and the warning isn't shown yet | Partly |
 | Advanced: Reset to first launch **with confirm**; data stays | Reset without confirm | Partly |
@@ -205,3 +209,36 @@ export variants: not built, as the spec says.
 3. **Help mode**, which needs a one-line explanation for every control (data next to each
    command) before it can work as the spec says.
 4. **Icons**: one line-icon family, which touches every screen, so it goes in with the parity walk.
+
+## Merged from Prism's second pass (2026-11-22)
+
+Prism's `rewrite-ux-diff` (written before the Quick start guides were skipped) was checked against
+the code and merged into the tables above: Find's Recent chips, Unpin on a row, the status labels,
+opening a chat at its newest message, the Edit profile pill, the per-chat profile, the
+third-party warning's wording, the default source's label, Git mentioned twice.
+
+Where the two passes disagreed, the code settled it: there is **no install from a file** (only a
+link or a pasted answer), so that row stays Partly.
+
+Corrections to Prism's term map (its section 0; `design/3-terms.md` is on the promptpipe repo's
+design branch, `ccr-bb40c4f5-cvvj2n`): the app's own plugins are tagged **`runtime`** (not
+`core`; "App part" → runtime plugin), and the `driver` type is gone (the default site routine is
+the `runtime-site` plugin). The rest of the map is right.
+
+**Questions for Gtex** from Prism's pass:
+
+1. **Long messages**: the spec's 8 lines or 600 characters with a "Show more ⌄ / Show less ⌃"
+   line (Prism's suggestion: a bubble you must know to tap is easy to miss), or keep 6 and 500?
+2. **Extras the spec never had** (keep or drop): swipe across a reply (right quotes, left copies;
+   it may fight the chat's scrolling on some phones), message search with "phrase", #tag,
+   in:folder, is:you, Attach files, the failed-send actions, the send queue's Move up / Edit /
+   Remove, the Git and Credentials groups, themes as plugins.
+3. **First-run log-in help**: the spec's full-screen welcome with log-in inside the site view was
+   part of the Quick start guides, now skipped. Prism calls it the biggest first-run gap (a new
+   user isn't told to log in on the provider's own page). Does it wait for the guides' overhaul?
+4. **The spec's starter list** is out of date (the app ships Plain, Writing feedback, Dialogue &
+   Role play, Story & Prose): update the spec, not the app.
+
+Prism's risk on versions and branches stands: until they're built, "Edit and resend" replaces the
+message and "Send again" adds a new turn, which is what branching is meant to fix.
+
