@@ -147,6 +147,8 @@ class Pages(private val app: App) {
     fun page_close(id: String): Any? {
         val page = pages.remove(id) ?: return null
         page_lost(page)
+        page.status = "closed"
+        changed_send(page)
         app.main_run {
             page.session.close()
             Screen.activity?.views_attach()
