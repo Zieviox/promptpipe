@@ -72,6 +72,11 @@ licence. Inside the app: functions over plain data, no classes, no state outside
   replies only arrive at the end (`sessions_wake`). A `lateinit` page session isn't there for a
   moment after the page is listed (`page.started`). Before dropping old platform code, find why
   it was there (`git log -S`): the old app's oddities were often fixes.
+  In the app's GeckoView, `requestAnimationFrame` only fires when something else asks for a
+  frame: never put the screen's redraw (or anything that must run while you just watch) behind
+  it; the redraw uses a short timer. When something works in Chromium but not on the phone,
+  measure on the phone (the reply's Live updates counts what the page sent, the app got and the
+  screen drew) before changing code.
 
 ## Checks before handing over
 
