@@ -168,7 +168,7 @@ family).
 
 | Spec | Screen | |
 |---|---|---|
-| Long = over **8 lines or 600 characters** | Over 6 lines or 500 characters | Partly |
+| Long = over **8 lines or 600 characters** (decided: the spec's) | Over 6 lines or 500 characters | Partly |
 | About 6 lines fading out | Yes | Built |
 | A **"Show more ⌄" / "Show less ⌃"** line under it | Tap the message to open it; no line | Missing |
 
@@ -227,7 +227,9 @@ design branch, `ccr-bb40c4f5-cvvj2n`): the app's own plugins are tagged **`runti
 `core`; "App part" → runtime plugin), and the `driver` type is gone (the default site routine is
 the `runtime-site` plugin). The rest of the map is right.
 
-**Questions for Gtex** from Prism's pass:
+**Questions for Gtex** from Prism's pass, **answered 2026-11-22** (see `0-intent.md`): 1 the spec's
+numbers and line; 2 keep all the extras; 3 the log-in help waits for the guides' overhaul, the
+Plugin guide screen stays; 4 the spec was updated.
 
 1. **Long messages**: the spec's 8 lines or 600 characters with a "Show more ⌄ / Show less ⌃"
    line (Prism's suggestion: a bubble you must know to tap is easy to miss), or keep 6 and 500?

@@ -198,8 +198,21 @@ the one line-icon family, how sheets, pills and rows look, matched to the wirefr
 side by side in screenshots); the words are the design's settled terms (`3-terms.md`: "block", "plugin", "Pages at
 once"), never the spec's ("rows", "message plugins", "Max replies at once"). The spec's
 **Quick start guides are skipped**: the app keeps its own guides until they get an overhaul of
-their own. Where the spec and a later recorded decision differ in behaviour, the later decision
+their own (the first-run welcome and log-in help wait for that overhaul too); the **Plugin guide
+screen stays in scope** ("Copy instructions for AI", "Install the result"), it isn't a Quick start
+guide. Where the spec and a later recorded decision differ in behaviour, the later decision
 wins (e.g. "Pages at once" has a warning and no hard maximum, decided in stage 2, not the spec's
 unlock up to 10); anything else that differs is asked before building. Recorded on 2026-11-22; the
 screen work itself is paused until Gtex says to resume.
+
+Decided (2026-11-22, Gtex), from the comparison's questions:
+1. **Long messages** follow the spec: long = over 8 lines or 600 characters, about 6 lines shown
+   fading out, with a "Show more ⌄" / "Show less ⌃" line under it.
+2. **The extras the spec never had stay** (they came after the mock-up): swipe across a reply,
+   message search with "phrase", #tag, in:folder, is:you, Attach files, the failed-send actions,
+   the send queue's Move up / Edit / Remove, the Git and Credentials groups, themes as plugins.
+3. **The first-run welcome and log-in help wait** for the guides' overhaul; the Plugin guide screen
+   is kept.
+4. **The spec's starter list was updated** to the templates the app ships (Plain, Writing
+   feedback, Dialogue & Role play, Story & Prose).
 
