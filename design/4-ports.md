@@ -120,7 +120,7 @@ write, move and delete: one mechanism for every file (D7).
 | `vibration_start` | → done | S | UC1 |
 | `bars_set` | colours → done | S | UC34 |
 | `storage_access_open` | → done (the system's file access screen) | S | UC36 |
-| `app_get` | → version, platform, the calls it answers, safe mode | S, A | P5, UC38 |
+| `app_get` | → version, platform, the calls it answers, safe mode, `app_folder`, `free_bytes` (free space on shared storage, for the old app's backup) | S, A | P5, UC38 |
 | `app_start` | mode (`normal` · `safe`) → done | S | UC33 |
 | `app_close` | → done (to the background) | S | UC38 |
 | `service_stop` | → done | S | UC38 |

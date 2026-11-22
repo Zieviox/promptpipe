@@ -339,3 +339,30 @@ Left as they are (in the skill's `accepted.md`): the core's JSON readers, the ph
 delete rules, the HTTP read loops, the send queue's loops, the record lookups, sheets that look
 alike, Kotlin import lists. 37 tests and the core's checks pass.
 
+## The first run on the phone, 2026-11-22
+
+Built and installed on the phone (Android 16, a Samsung A15). What it found, and the fixes:
+
+- **Install refused** ("problem parsing the package"): the phone had 336 MB free. Not the APK.
+- **Crash at start**: the screen's link check waited on GeckoView's main thread
+  (`GeckoResult.poll`), which GeckoView forbids. It now answers at once. A crash is now written to
+  `Download/promptpipe-crash.txt`.
+- **The site view never showed**: the screen sent its place in pixels, the platform read
+  fractions. The contract's `view_set` row now names the fields (`l`, `t`, `r`, `b`, fractions).
+- **Pages never updated** (no address, title or ready state; closed tabs stayed): nothing listened
+  to `page_changed`. The pool keeps its pages from it now, and a closed page is reported.
+- **The old chats didn't come in**: the backup read the whole old folder (git history included)
+  into the screen and sent it as one zip; the core refuses a request over 64 MB, so the import
+  stopped each time. Now the core copies the folder itself, file by file in 1 MB pieces, into
+  `.promptpipe/backups/old-app-shared` (a folder, not a zip: deviation from X5's "zipped", since
+  copying needs no zip writer in the core and goes on where it stopped), only when the phone has
+  room for it plus 500 MB; otherwise the import goes ahead without a backup and says why. The
+  import shows a report of what it brought in. A chat file written by the old app's own code is
+  now a test fixture (`test/fixtures/old-chat.md`).
+- Gradle could not find the pinned GeckoView (a version from memory): the build uses the cached
+  one, as the old build did.
+- **The screen is watered down**: paused at your request; the parity walk comes next.
+
+Every message between the layers was checked against the contract (app to platform, app to core,
+app to page): the two above were the only mismatches.
+
