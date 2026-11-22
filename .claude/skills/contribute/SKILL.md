@@ -67,6 +67,11 @@ licence. Inside the app: functions over plain data, no classes, no state outside
   `.get()`): answer at once, or do the work on `app.workers`; `x in map` on a `ConcurrentHashMap`
   checks values, so use `containsKey`; in `build.gradle.kts`, `java` means Gradle's extension, so
   import `java.util.*` classes; GeckoView and views only on the main thread (`app.main_run`).
+  GeckoView turns a session inactive when its view isn't showing, and Gecko throttles inactive
+  pages: hidden site pages must be set active again after every view change and on resume, or
+  replies only arrive at the end (`sessions_wake`). A `lateinit` page session isn't there for a
+  moment after the page is listed (`page.started`). Before dropping old platform code, find why
+  it was there (`git log -S`): the old app's oddities were often fixes.
 
 ## Checks before handing over
 
