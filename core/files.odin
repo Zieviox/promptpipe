@@ -7,6 +7,7 @@ package ppcore
 
 import "core:crypto/hash"
 import "core:encoding/base64"
+import "core:io"
 import "core:encoding/hex"
 import "core:encoding/json"
 import "core:fmt"
@@ -252,14 +253,34 @@ file_move :: proc(d: Object) -> (string, Error) {
 tree_copy :: proc(from, to: string, overwrite: bool) -> int {
 	if !os.is_dir(from) {
 		if !overwrite && os.exists(to) do return 0
-		data, err := os.read_entire_file(from, context.allocator)
-		if err != nil || text_write(to, data) != nil do return 0
+		if !file_copy(from, to) do return 0
 		return strings.has_suffix(to, ".md") ? 1 : 0
 	}
 	copied := 0
 	entries, _ := os.read_all_directory_by_path(from, context.allocator)
 	for e in entries do copied += tree_copy(join(from, e.name), join(to, e.name), overwrite)
 	return copied
+}
+
+// One file copied in 1 MB pieces, so a large one (a git pack) is never in memory whole.
+file_copy :: proc(from, to: string) -> bool {
+	src, open_err := os.open(from)
+	if open_err != nil do return false
+	defer os.close(src)
+	folder_make(to[:max(0, strings.last_index_byte(to, '/'))])
+	dst, create_err := os.create(to)
+	if create_err != nil do return false
+	defer os.close(dst)
+	piece := make([]byte, 1024 * 1024, heap())
+	defer delete(piece, heap())
+	for {
+		n, read_err := os.read(src, piece)
+		if n > 0 {
+			if _, write_err := os.write(dst, piece[:n]); write_err != nil do return false
+		}
+		if read_err == io.Error.EOF || (read_err == nil && n == 0) do return true
+		if read_err != nil do return false
+	}
 }
 
 file_delete :: proc(d: Object) -> (string, Error) {

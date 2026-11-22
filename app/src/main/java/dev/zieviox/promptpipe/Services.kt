@@ -87,6 +87,7 @@ class Services(private val app: App) {
             .put("app_folder", app.core.app_dir.path).put("port", App.PORT)
             .put("all_files", android.os.Environment.isExternalStorageManager())
             .put("device", Build.MODEL)
+            .put("free_bytes", android.os.StatFs(android.os.Environment.getExternalStorageDirectory().path).availableBytes)
     }
 
     companion object {

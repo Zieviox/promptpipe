@@ -68,6 +68,16 @@ try:
     ids = {p["id"]: p["copy"] for p in call("plugin_list", {})["data"]}
     check("the list says which copy runs", ids == {"base64": "built_in", "rot13": "updated"})
     check("the plugin's files are served from the copy that runs", http("/plugins/rot13/main.js")[1] == "x")
+    old = os.path.join(tmp, "old", "PromptPipe")
+    os.makedirs(os.path.join(old, "history", ".git"))
+    big = os.urandom(3 * 1024 * 1024)
+    open(os.path.join(old, "history", ".git", "pack"), "wb").write(big)
+    open(os.path.join(old, "history", "Trip.md"), "w").write("# Trip")
+    r = call("file_move", {"root": "device", "from": old, "to_root": "app", "to": ".promptpipe/backups/old-app-shared", "copy": True, "overwrite": False})
+    copy = os.path.join(app, ".promptpipe", "backups", "old-app-shared", "history")
+    check("a folder is copied whole, hidden ones and big files included, in pieces",
+          r["data"]["copied"] == 1 and open(os.path.join(copy, ".git", "pack"), "rb").read() == big
+          and open(os.path.join(copy, "Trip.md")).read() == "# Trip")
     folders = call("chats_folder_get", {})["data"]
     check("the core names the default chats folder", folders["default"] == os.path.join(app, "chats"))
     check("an unsigned catalogue is refused", call("catalogue_verify", {"data": "{}", "signature": "A" * 86 + "=="})["error"]["code"] == "permission_denied")
