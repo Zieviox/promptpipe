@@ -221,7 +221,7 @@ class Pages(private val app: App) {
     fun list(): JSONArray = JSONArray().also { a -> pages.values.forEach { a.put(it.json()) } }
 
     companion object {
-        fun load_allowed(uri: String, base: String): GeckoResult<AllowOrDeny> =
-            GeckoResult.fromValue(if (uri.startsWith(base) || uri.startsWith("about:") || uri.startsWith("data:")) AllowOrDeny.ALLOW else AllowOrDeny.DENY)
+        fun load_allowed(uri: String, base: String): Boolean =
+            uri.startsWith(base) || uri.startsWith("about:") || uri.startsWith("data:")
     }
 }

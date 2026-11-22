@@ -29,9 +29,10 @@ object Screen {
         navigationDelegate = object : GeckoSession.NavigationDelegate {
             // Links on the screen open in the phone's browser, never inside the app.
             override fun onLoadRequest(session: GeckoSession, request: GeckoSession.NavigationDelegate.LoadRequest): GeckoResult<AllowOrDeny> {
+                // Decided at once: GeckoView calls this on the main thread, where waiting isn't allowed.
                 val allowed = Pages.load_allowed(request.uri, app.core.base)
-                if (allowed.poll() == AllowOrDeny.DENY) app.main.post { activity?.url_open(request.uri) }
-                return allowed
+                if (!allowed) app.main.post { activity?.url_open(request.uri) }
+                return GeckoResult.fromValue(if (allowed) AllowOrDeny.ALLOW else AllowOrDeny.DENY)
             }
         }
         contentDelegate = object : GeckoSession.ContentDelegate {
