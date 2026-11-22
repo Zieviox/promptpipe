@@ -383,3 +383,14 @@ open). Each step: build, test in Chromium with the stand-in core, screenshot wit
   remaining hits are in the skills' own lists of old words and `build.sh` ("tool").
 - Not run: anything on the phone since the first run. The next build is the check.
 
+
+## Later: asked for, not now (2026-11-22)
+
+- **An unanswered "Changed outside the app" survives closing the app** (Gtex: "I prefer if it
+  saves across closing but it's not a priority"). Today the open questions live only in the
+  State; they'd be saved with the app's files and asked again at the next start.
+- **Attachments sent to the sites**: no provider plugin uploads them yet. Until one does, the app
+  reports it (provider.accepts) instead of sending without them.
+- **The guides' overhaul** (quick start, log-in help), and **versions and branches** (after the
+  release).
+- What `ux/spec-diff.md` still lists as open.
