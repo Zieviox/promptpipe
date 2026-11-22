@@ -122,9 +122,14 @@ A web provider is mostly data: where the site is and how to find its parts.
   },
   "model_picker": { "open": [".model-name"], "items": ["[role=option]"] },
   "options": [{ "name": "Search", "selector": "button", "text": "Search" }],
+  "accepts": { "types": [], "max": 0 },
   "settle_ms": 2000
 }
 ```
+
+`accepts` says which attachments the plugin really sends (MIME patterns like `image/*`, and how
+many). Leave `max` at 0 until your `site_send` (or `chat_send`) uploads them: the app then tells
+the user at once that this provider can't take attachments, instead of sending without them.
 
 Each selector list is tried in order. The app's own routine (`runtime-site`) types, sends, waits
 and reads the reply as Markdown; a content script replaces only what the site needs. It runs in
