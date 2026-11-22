@@ -144,7 +144,7 @@ single stages of it (UC42.7).
 
 | Event | From | Data | Listened to by |
 |---|---|---|---|
-| `page_changed` | platform (with what the page script reports) | page, status (`loading` · `ready`: the chat box shows · `busy` · `failed`), popup (a sign-in window open or closed, #244), url, title, error (an `Error`: no connection, address not found, certificate refused) | application (UC12, #241) |
+| `page_changed` | platform (with what the page script reports) | page, status (`loading` · `ready`: the chat box shows · `busy` · `failed` · `closed`: the page is gone), popup (a sign-in window open or closed, #244), url, title, error (an `Error`: no connection, address not found, certificate refused) | application (UC12, #241) |
 | `reply_changed` | page script | page, text and thinking so far, status (`streaming` · `finished` · `failed`), error (an `Error`) | application (UC1, UC1.5) |
 | `http_received` | platform | request, the part received | application, plugins (UC15) |
 | `share_received` | platform | text or files | application (UC14, UC48) |
