@@ -1,10 +1,12 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
 }
 
 // The release key's file and password, kept outside the project (scripts/keys_make.sh writes them);
 // -PreleaseProperties=… for another place.
-val releaseProperties = java.util.Properties().apply {
+val releaseProperties = Properties().apply {
     val home = System.getProperty("user.home")
     val path = (findProperty("releaseProperties") as String?) ?: "$home/.promptpipe/release.properties"
     val file = File(path)
