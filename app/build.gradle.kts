@@ -13,7 +13,8 @@ val releaseProperties = Properties().apply {
     if (file.exists()) file.inputStream().use { load(it) }
 }
 
-// The browser engine's version is pinned (S8); -PgeckoviewVersion=… picks another for a test.
+// The browser engine's version: scripts/build.sh passes the one Gradle has cached, or Mozilla's
+// newest release; the fallback here is only for a bare Gradle run.
 val geckoviewVersion = (findProperty("geckoviewVersion") as String?) ?: "144.0.20251020130000"
 
 android {

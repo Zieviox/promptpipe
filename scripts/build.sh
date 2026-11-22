@@ -22,6 +22,17 @@ GRADLE=$(command -v gradle || ls -d /root/gradle-*/bin/gradle 2>/dev/null | sort
 [ -x "$GRADLE" ] || { echo "Gradle not found."; exit 1; }
 command -v ld.lld >/dev/null || { echo "lld is missing (Arch: pacman -S lld)."; exit 1; }
 [ -f debug.keystore ] || echo "Note: no debug.keystore here, so a test build won't install over the old app."
+# GeckoView: the newest one Gradle already downloaded (~100 MB), else Mozilla's newest release.
+# GECKOVIEW=<version> picks one; GECKOVIEW=latest asks Mozilla.
+GVCACHE="${GRADLE_USER_HOME:-$HOME/.gradle}/caches/modules-2/files-2.1/org.mozilla.geckoview/geckoview"
+GV="$GECKOVIEW"
+[ -z "$GV" ] && [ -d "$GVCACHE" ] && GV=$(ls "$GVCACHE" | sort -V | tail -1)
+if [ -z "$GV" ] || [ "$GV" = latest ]; then
+    GV=$(curl -fsSL https://maven.mozilla.org/maven2/org/mozilla/geckoview/geckoview/maven-metadata.xml \
+        | sed -n 's:.*<release>\(.*\)</release>.*:\1:p')
+fi
+[ -n "$GV" ] || { echo "Couldn't find a GeckoView version; set GECKOVIEW=<version>."; exit 1; }
+echo "geckoview $GV"
 
 echo "== 1/4 built-in plugins"
 python3 scripts/plugins_copy.py
@@ -40,7 +51,7 @@ case "$(llvm-readelf -lW "$OUT" | grep TLS)" in *0x40|*0x80|*0x100) ;; *) echo "
 
 echo "== 4/4 the APK"
 TASK=$([ "$TYPE" = release ] && echo assembleRelease || echo assembleDebug)
-"$GRADLE" "$TASK" --console=verbose -PversionName="$NAME" -PversionCode="$CODE"
+"$GRADLE" "$TASK" --console=verbose -PgeckoviewVersion="$GV" -PversionName="$NAME" -PversionCode="$CODE"
 cp "app/build/outputs/apk/$TYPE/app-$TYPE.apk" "build/promptpipe-$NAME.apk"
 [ -d /sdcard/Download ] && cp "build/promptpipe-$NAME.apk" /sdcard/Download/promptpipe.apk
 echo "done: build/promptpipe-$NAME.apk"
