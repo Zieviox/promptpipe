@@ -22,6 +22,7 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         if (getProcessName() != packageName) return
+        crash_record_set()
         app = this
         runtime = GeckoRuntime.create(this, GeckoRuntimeSettings.Builder().consoleOutput(true).build())
         core = Core(this)
@@ -31,6 +32,26 @@ class App : Application() {
         Repo(this)
         Services(this)
         core.start()
+    }
+
+    // A crash is written to Download/promptpipe-crash.txt (readable from Termux or a file manager)
+    // before Android shows "keeps stopping", since only Android can read another app's logs.
+    private fun crash_record_set() {
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+            val report = buildString {
+                val version = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (e: Throwable) { "?" }
+                append("promptpipe $version crashed at ${java.util.Date()} on thread ${thread.name}\n")
+                append("Android ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT}), ${android.os.Build.MODEL}\n\n")
+                append(android.util.Log.getStackTraceString(error))
+            }
+            val places = listOf(
+                java.io.File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS), "promptpipe-crash.txt"),
+                java.io.File(getExternalFilesDir(null), "promptpipe-crash.txt"),
+            )
+            for (file in places) if (try { file.writeText(report); true } catch (e: Throwable) { false }) break
+            previous?.uncaughtException(thread, error)
+        }
     }
 
     // Run on the main thread and wait for the answer (GeckoView and views want the main thread).
