@@ -366,3 +366,20 @@ Built and installed on the phone (Android 16, a Samsung A15). What it found, and
 Every message between the layers was checked against the contract (app to platform, app to core,
 app to page): the two above were the only mismatches.
 
+## The screen against the spec and the wireframe, 2026-11-22
+
+After the first phone run showed a watered-down screen, the screen was rebuilt in four steps
+against `ux/SPEC.md` and `ux/wireframe.html` (`ux/spec-diff.md` has the list and what's still
+open). Each step: build, test in Chromium with the stand-in core, screenshot with
+`scripts/screens.js`, compare side by side with the wireframe's own screenshots, fix the gaps.
+
+- Help mode keeps one line per command in the command table (`HELP` in `commands.js`); controls
+  that aren't commands carry `data-help`, icon buttons name their command with `data-command`.
+- "Show the page" opens the chat's provider page when none is open (it used to say "Get a
+  provider first" with a provider set, one reason the site view seemed missing on the phone).
+- The site view's layout follows the wireframe; the native page sits under the site bar
+  (`region_get`), over the screen's placeholder card.
+- Checks: 42 plugin tests pass (help mode added), the core's checks pass, the terms check's
+  remaining hits are in the skills' own lists of old words and `build.sh` ("tool").
+- Not run: anything on the phone since the first run. The next build is the check.
+

@@ -2,14 +2,48 @@
 
 `SPEC.md` (with `wireframe.html`) compared item by item with `runtime-screen` as built on the
 `rewrite` branch. Read-only: nothing was changed. This compares what each screen has and does.
-**The look matters too** (Gtex, 2026-11-22): when the screen work resumes, each screen is also
-matched to the wireframe visually (layout, spacing, sizes, colours, icons) and shown side by side
-in screenshots; that comparison isn't in these tables yet.
+**The look matters too** (Gtex, 2026-11-22): each screen is also matched to the wireframe visually
+(layout, spacing, sizes, colours, icons) and shown side by side in screenshots.
 
 **Built** = there and as the spec says. **Partly** = there, but different or incomplete.
 **Missing** = not there. **Later** = the spec itself holds it back.
 
-## Totals
+## Where it stands after the screen work (2026-11-22)
+
+The tables below are the comparison **before** the screen work; they're kept as the record of
+what was missing. The screen was then rebuilt in four steps against `SPEC.md` and the wireframe,
+each screen checked side by side with the wireframe in screenshots (`scripts/screens.js` in the
+plugins repo):
+
+1. **Visual base**: the wireframe's line icons (one family, `icons.json`), its component styles.
+2. **Header, Find, drawer, chat sheet**: Find with settings, Recent, F3, and the control lit up;
+   the drawer with + Folder inline, folder edit, Pinned (collapsible, a drop target), drops into
+   folders, long-press select, select bar with Unpin and a confirm, Settings and Quick start at
+   the bottom, "Replying…" and "Reply ready"; the chat sheet.
+3. **Replies, message bar, Quick edit, profiles**: "Thought for N s · sent with N", the action
+   row with Select text and `#N`, Copy and Edit on your messages, Show more / Show less at 8 lines
+   or 600 characters, Jump to latest, a chat always opening at its newest message; Quick edit with
+   the profile dropdown, renaming in the title, arrows and the Edit profile pill; the profile
+   belongs to the chat; switching provider in a chat with replies asks; the tappable "Reply
+   ready" toast.
+4. **Plugins, Settings, site view, help mode**: tabs Profile | Library with chips and update
+   badges, update and remove (confirm) per plugin, the trust warning, install from a file, the
+   Plugin guide screen; Settings icons, badges, UI scale 90/100/115/130, confirms on Reset; the
+   site view laid out as the wireframe with Open in PromptPipe and Linked to chat · Open chat; help
+   mode with a "?" in every sheet, the drawer and the site view, one line per command kept in the
+   command table, the card with Got it and Do it, drags and holds blocked, the hover "?".
+
+**Still open** (none of them on the wireframe's screens):
+
+| Spec | Screen |
+|---|---|
+| Sites: a warning when Pages at once goes over 5 | The number only |
+| Profile name clash: "don't ask again" on the question | The question and the setting only |
+| A plugin with the same id in two sources: asked which | Not handled |
+| Rule 5, unavailable shown as unavailable, checked screen by screen | Not walked yet |
+| At large UI scale the title shrinks first | Not checked at 130% |
+
+## Totals (before the screen work)
 
 | | Built | Partly | Missing | Later |
 |---|---|---|---|---|
