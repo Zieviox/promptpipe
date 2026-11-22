@@ -78,6 +78,9 @@ try:
     check("a folder is copied whole, hidden ones and big files included, in chunks",
           r["data"]["copied"] == 1 and open(os.path.join(copy, ".git", "pack"), "rb").read() == big
           and open(os.path.join(copy, "Trip.md")).read() == "# Trip")
+    r = call("file_move", {"root": "device", "from": old, "to_root": "device", "to": os.path.join(old, "history", "history"), "copy": True})
+    check("a folder is never copied into itself (the old app's nested history)",
+          r.get("error", {}).get("code") == "invalid_argument" and not os.path.exists(os.path.join(old, "history", "history")))
     folders = call("chats_folder_get", {})["data"]
     check("the core names the default chats folder", folders["default"] == os.path.join(app, "chats"))
     check("an unsigned catalogue is refused", call("catalogue_verify", {"data": "{}", "signature": "A" * 86 + "=="})["error"]["code"] == "permission_denied")

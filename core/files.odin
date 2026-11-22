@@ -226,6 +226,11 @@ file_move :: proc(d: Object) -> (string, Error) {
 	to, to_err := path_verify(text_get(d, "to_root", root), text_get(d, "to"))
 	if to_err.code != "" do return "", to_err
 	if flag_get(d, "copy") {
+		// A copy into its own folder would copy itself again at every level (the old app's
+		// chats folder chooser did this, 2026-11-07).
+		if to == from || strings.has_prefix(to, strings.concatenate({from, "/"}, context.temp_allocator)) {
+			return "", {"invalid_argument", "a folder can't be copied into itself"}
+		}
 		copied := tree_copy(from, to, flag_get(d, "overwrite"))
 		return fmt.tprintf(`{{"copied":%d}}`, copied), {}
 	}
@@ -250,7 +255,12 @@ file_move :: proc(d: Object) -> (string, Error) {
 	return `{"done":true}`, {}
 }
 
-tree_copy :: proc(from, to: string, overwrite: bool) -> int {
+// Folders deeper than this are left out: a backstop for a copy that reaches itself by another
+// spelling of the same path (/sdcard and /storage/emulated/0).
+COPY_DEPTH :: 64
+
+tree_copy :: proc(from, to: string, overwrite: bool, depth := 0) -> int {
+	if depth > COPY_DEPTH do return 0
 	if !os.is_dir(from) {
 		if !overwrite && os.exists(to) do return 0
 		if !file_copy(from, to) do return 0
@@ -258,7 +268,10 @@ tree_copy :: proc(from, to: string, overwrite: bool) -> int {
 	}
 	copied := 0
 	entries, _ := os.read_all_directory_by_path(from, context.allocator)
-	for e in entries do copied += tree_copy(join(from, e.name), join(to, e.name), overwrite)
+	for e in entries {
+		if join(from, e.name) == to do continue // the copy itself, met while copying
+		copied += tree_copy(join(from, e.name), join(to, e.name), overwrite, depth + 1)
+	}
 	return copied
 }
 
