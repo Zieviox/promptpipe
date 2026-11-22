@@ -193,7 +193,9 @@ libraries behind adapters, the 3k scope); each stage revisits its file and keeps
 `design/ux/wireframe.html` (the interactive wireframe; open it in a browser) are part of the UX/UI
 that survives, next to the old app's screenshots in `design/ux/` and `2b-behaviour.md`. The
 screen's parity walk (remake stage 9b/10) goes through them screen by screen. Decided (2026-11-22, Gtex): they are a reference for **UX only** (what each screen has, does and
-looks like); the words are the design's settled terms (`3-terms.md`: "block", "plugin", "Pages at
+looks like; **the visual look matters as much as the features**: layout, spacing, sizes, colours,
+the one line-icon family, how sheets, pills and rows look, matched to the wireframe and checked
+side by side in screenshots); the words are the design's settled terms (`3-terms.md`: "block", "plugin", "Pages at
 once"), never the spec's ("rows", "message plugins", "Max replies at once"). The spec's
 **Quick start guides are skipped**: the app keeps its own guides until they get an overhaul of
 their own. Where the spec and a later recorded decision differ in behaviour, the later decision

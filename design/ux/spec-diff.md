@@ -1,8 +1,10 @@
 # The UI spec against the remade screen (2026-11-22)
 
 `SPEC.md` (with `wireframe.html`) compared item by item with `runtime-screen` as built on the
-`rewrite` branch. Read-only: nothing was changed. The wireframe's look (spacing, icons, layout) is
-for the parity walk, which is paused; this compares what each screen has and does.
+`rewrite` branch. Read-only: nothing was changed. This compares what each screen has and does.
+**The look matters too** (Gtex, 2026-11-22): when the screen work resumes, each screen is also
+matched to the wireframe visually (layout, spacing, sizes, colours, icons) and shown side by side
+in screenshots; that comparison isn't in these tables yet.
 
 **Built** = there and as the spec says. **Partly** = there, but different or incomplete.
 **Missing** = not there. **Later** = the spec itself holds it back.

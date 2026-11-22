@@ -57,7 +57,9 @@ licence. Inside the app: functions over plain data, no classes, no state outside
 - **No version from memory**: look it up (the registry, the old working build) before pinning it.
 - **The screen**: compare with the UI spec and wireframe (`design/ux/SPEC.md`, `wireframe.html`),
   the screenshots in `design/ux/` and `design/2b-behaviour.md`. They are a reference for UX only:
-  the words are the settled terms, and the spec's Quick start guides are skipped (2026-11-22). Every
+  the words are the settled terms, and the spec's Quick start guides are skipped (2026-11-22).
+  **The look matters as much as the features**: match the wireframe's layout, spacing, sizes,
+  colours and icons, and show the new screen beside the wireframe's in screenshots. Every
   element, label, gesture and state of the screen you touch is still there. Take the same
   screenshot in Chromium (`test/test_screen.js` shows how) and look at both.
 - **Platform traps** (the platform can't be compiled or run here, so read for these):
