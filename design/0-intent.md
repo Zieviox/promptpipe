@@ -186,3 +186,14 @@ Not in screenshots, kept as written:
 
 Decisions already made carry over (the remake rules, the terms, `snake_case`, the catalogue,
 libraries behind adapters, the 3k scope); each stage revisits its file and keeps what still fits.
+
+## The UI spec and the wireframe (added 2026-11-22)
+
+`design/ux/SPEC.md` (the UI redesign spec, Gtex's decisions of 2026-11-07 and 2026-11-08) and
+`design/ux/wireframe.html` (the interactive wireframe; open it in a browser) are part of the UX/UI
+that survives, next to the old app's screenshots in `design/ux/` and `2b-behaviour.md`. The
+screen's parity walk (remake stage 9b/10) goes through them screen by screen. Where they differ
+from later decisions (for example the spec's "rows" against the "block" of the rename of
+2026-11-20, or the sections it puts on hold), ask before building. Recorded on 2026-11-22; the
+screen work itself is paused until Gtex says to resume.
+
