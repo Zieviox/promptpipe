@@ -77,6 +77,9 @@ licence. Inside the app: functions over plain data, no classes, no state outside
   it; the redraw uses a short timer. When something works in Chromium but not on the phone,
   measure on the phone (the reply's Live updates counts what the page sent, the app got and the
   screen drew) before changing code.
+  A site page can load anew by itself (a reload, the site's own navigation): whatever the
+  platform hands a page (its scripts) must be handed again at every hello, not only after the
+  platform's own load.
 
 ## Checks before handing over
 
