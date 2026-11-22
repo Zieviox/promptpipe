@@ -107,7 +107,9 @@ below is a rule from then on.
   written from the requirements' summary instead of from the old screens. For each screen and
   state in `design/ux/` and `2b-behaviour.md`: list every element, label, gesture and state of the
   old one, build it, take the same screenshot of the new one in Chromium (same size, same stand-in
-  data), put them side by side for the user, and tick the list. Budget the screen from that list,
+  data), put them side by side for the user, and tick the list. The look counts as much as the
+  features: layout, spacing, sizes, colours and icons are matched to the wireframe, not only the
+  elements. Budget the screen from that list,
   not from the use cases.
 - **Stage 0 gathers every UX source, not only screenshots.** The UI spec and the interactive
   wireframe (`design/ux/SPEC.md`, `design/ux/wireframe.html`) existed but weren't in `design/`, so
