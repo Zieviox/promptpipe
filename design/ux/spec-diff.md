@@ -11,10 +11,11 @@ for the parity walk, which is paused; this compares what each screen has and doe
 
 | | Built | Partly | Missing | Later |
 |---|---|---|---|---|
-| Items | 36 | 33 | 28 | 3 |
+| Items | 36 | 29 | 22 | 3 |
 
-The biggest gaps: **no button opens Settings** (only Ctrl+, or Find), the **guides** (passive
-instead of interactive, three of the four missing), **help mode** (only in the header, no
+Decided after the comparison (2026-11-22): the spec is UX only (the words are the settled terms),
+and its Quick start guides are skipped. The biggest gaps: **no button opens Settings** (only
+Ctrl+, or Find), **help mode** (only in the header, no
 explanations), **Find** (doesn't open the control, no settings in it), the **drawer** (no folder
 editing, no drop into folders, no Settings or Quick start buttons), the **Quick edit drawer** (no
 profile dropdown or renaming), and **icons** (text characters and an emoji instead of one line-icon
@@ -27,7 +28,7 @@ family).
 | 2. Redraws never reset scroll or state; the chat follows only at the bottom | Preact updates in place; stays at the bottom only when already there | Built |
 | 3. Phone first: every shortcut has a touch control | Most do; **Settings has no touch control at all** (Ctrl+, or Find) | Partly |
 | 5. Organize, never hide: unavailable shown as unavailable | Nothing hidden by platform; not checked screen by screen | Partly |
-| 6. Plain words | Follows the later rename ("blocks", "plugins"), not the spec's "rows"/"message plugins" | Partly (decision needed) |
+| 6. Plain words | The settled terms ("blocks", "plugins"); the spec is UX only (decided 2026-11-22) | Built |
 | 7. One line-icon family in the text colour, no emoji, sliders icon for Settings | Text characters (☰ ⌕ ⋮⋮ ↻ ⧉ ❝) and the 📌 emoji; no sliders icon | Missing |
 
 ## Header
@@ -145,7 +146,7 @@ family).
 |---|---|---|
 | Sections: Plugins, System prompts, Look, Sites, Chats and storage, Import and export, Local API, Advanced, Help | All there ("Prompt library" for System prompts; plus Git and Credentials) | Built |
 | Look: light or dark, accent, **UI scale 90/100/115/130%**, quick actions | All there; scale is a number (5% steps) | Partly |
-| Sites: **Max replies at once**, default 5, warning and unlock up to 10 | "Pages at once", default 5, no limit or warning | Partly (decision needed) |
+| Sites: Max replies at once, default 5, warning and unlock up to 10 | "Pages at once" (the settled name), default 5; the stage 2 decision is a warning and no hard maximum, and the warning isn't shown yet | Partly |
 | Advanced: Reset to first launch **with confirm**; data stays | Reset without confirm | Partly |
 
 ## Site view
@@ -173,18 +174,8 @@ family).
 
 ## Quick start guides
 
-| Spec | Screen | |
-|---|---|---|
-| **Four** guides, three steps each, each the **first time** you visit that place | Three guides (4, 2, 1 steps); only the welcome one starts by itself | Partly |
-| **Interactive**: you do the real action and it moves on | Passive: Next and Skip | Missing |
-| Skip step, Skip guide, **Back**, **dots** | Skip and Next only | Partly |
-| **Welcome full screen**: pick a site, log in **inside the site view** with a card that turns green when the chat box shows; "I am logged in" fallback | Not there | Missing |
-| "Say hello" with the **starter profile list** | Not there | Missing |
-| Chat list guide (pin, select, search) | Not there | Missing |
-| Plugins guide (Library, Update all, sources with the trust warning) | Not there | Missing |
-| Blocking by identity (only the lit control is tappable); "That control is not on this screen" with **Take me there** | Nothing blocked; no "Take me there" | Missing |
-| Replay: Settings › Help › Quick start (Seen/New, show all again) | Yes | Built |
-| Replay from the drawer, the help-mode bar, Find, the Plugins header | Find only | Partly |
+Skipped (decided 2026-11-22, Gtex): the app keeps its own guides until they get an overhaul of
+their own; the spec's guides are not part of this comparison.
 
 ## Help mode
 
@@ -211,6 +202,6 @@ export variants: not built, as the spec says.
    on Delete, Remove and Reset. Small, and today Settings can't be reached by touch.
 2. **The spec's own order**: header, Find (open the control, settings in it), drawer (folders,
    pins, select), chat sheet; then Quick edit; profiles; plugins; settings; site view.
-3. **Help mode and the guides**, which need a one-line explanation for every control (data next to
-   each command) before they can work as the spec says.
+3. **Help mode**, which needs a one-line explanation for every control (data next to each
+   command) before it can work as the spec says.
 4. **Icons**: one line-icon family, which touches every screen, so it goes in with the parity walk.

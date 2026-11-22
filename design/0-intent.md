@@ -192,8 +192,12 @@ libraries behind adapters, the 3k scope); each stage revisits its file and keeps
 `design/ux/SPEC.md` (the UI redesign spec, Gtex's decisions of 2026-11-07 and 2026-11-08) and
 `design/ux/wireframe.html` (the interactive wireframe; open it in a browser) are part of the UX/UI
 that survives, next to the old app's screenshots in `design/ux/` and `2b-behaviour.md`. The
-screen's parity walk (remake stage 9b/10) goes through them screen by screen. Where they differ
-from later decisions (for example the spec's "rows" against the "block" of the rename of
-2026-11-20, or the sections it puts on hold), ask before building. Recorded on 2026-11-22; the
+screen's parity walk (remake stage 9b/10) goes through them screen by screen. Decided (2026-11-22, Gtex): they are a reference for **UX only** (what each screen has, does and
+looks like); the words are the design's settled terms (`3-terms.md`: "block", "plugin", "Pages at
+once"), never the spec's ("rows", "message plugins", "Max replies at once"). The spec's
+**Quick start guides are skipped**: the app keeps its own guides until they get an overhaul of
+their own. Where the spec and a later recorded decision differ in behaviour, the later decision
+wins (e.g. "Pages at once" has a warning and no hard maximum, decided in stage 2, not the spec's
+unlock up to 10); anything else that differs is asked before building. Recorded on 2026-11-22; the
 screen work itself is paused until Gtex says to resume.
 
