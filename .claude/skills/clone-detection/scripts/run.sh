@@ -23,7 +23,7 @@ if [ ! -x "$JSCPD/node_modules/.bin/jscpd" ]; then
 fi
 # --formats-exts replaces jscpd's defaults, so every format is listed; Odin is read as Go (closest syntax).
 "$JSCPD/node_modules/.bin/jscpd" $ROOTS \
-  --ignore "**/node_modules/**,**/.git/**,**/assets/plugins/**,**/build/**" \
+  --ignore "**/node_modules/**,**/.git/**,**/assets/plugins/**,**/build/**,**/vendor/**,**/test/**,**/catalogue.json" \
   --formats-exts "go:odin;javascript:js;kotlin:kt;python:py;bash:sh;css:css;c:c" \
   --min-tokens 30 --min-lines 3 --reporters json --output "$OUT/jscpd" --silent >/dev/null
 python3 "$HERE/show-jscpd.py" "$OUT/jscpd/jscpd-report.json" | tee "$OUT/1-jscpd.txt" | head -60
