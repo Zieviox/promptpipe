@@ -20,6 +20,8 @@ class Page(val id: String, var provider: JSONObject) {
     var title = ""
     var status = "loading"
     var hello = CompletableFuture<JSONObject>()
+    // Done once the page's scripts are handed over; a new one at every load of the page.
+    @Volatile var scripts = CompletableFuture<Unit>()
     val waiting = ConcurrentHashMap<String, CompletableFuture<JSONObject>>()
     // Listed a moment before its session starts (on the main thread).
     val started get() = ::session.isInitialized
@@ -81,18 +83,40 @@ class Pages(private val app: App) {
             changed_send(page, "the page did not finish loading: $url")
             throw Refusal("unavailable", "the page did not finish loading: $url")
         }
-        call_send(page, "script_run", JSONObject().put("provider", page.provider), 30_000)
+        scripts_hand(page)
+    }
+
+    // The page's scripts (the default routine, then the provider's own): at the first load and
+    // again whenever the page loads anew (a reload, the site's own navigation, a crash), since a
+    // new page starts with none.
+    private fun scripts_hand(page: Page) {
+        try {
+            call_send(page, "script_run", JSONObject().put("provider", page.provider), 30_000)
+            page.scripts.complete(Unit)
+        } catch (e: Refusal) {
+            page.scripts.completeExceptionally(e)
+            throw e
+        }
     }
 
     private fun page_message(page: Page, m: JSONObject, port: WebExtension.Port) {
         when (m.optString("type")) {
             "hello" -> {
+                val again = page.hello.isDone
                 page.port = port
                 page.url = m.optString("url")
                 page.title = m.optString("title")
                 page.status = "ready"
+                if (again || page.scripts.isDone) page.scripts = CompletableFuture()
                 page.hello.complete(m)
                 changed_send(page)
+                if (again) app.workers.execute {
+                    try {
+                        scripts_hand(page)
+                    } catch (e: Refusal) {
+                        changed_send(page, "the page reloaded and its scripts couldn't be handed over: ${e.message}")
+                    }
+                }
             }
             "reply" -> page.waiting.remove(m.optString("id"))?.complete(m)
             "event" -> {
@@ -136,6 +160,12 @@ class Pages(private val app: App) {
         val page = page_get(data.optString("page"))
         val total = data.optJSONObject("limits")?.optDouble("total_min", 0.0) ?: 0.0
         val timeout = if (name == "site_send" && total == 0.0) 7 * 86_400_000L else if (total > 0) (total * 60_000).toLong() + 60_000 else 120_000L
+        // A page that just reloaded gets its scripts back first.
+        try {
+            page.scripts.get(30, TimeUnit.SECONDS)
+        } catch (e: Exception) {
+            throw Refusal("unavailable", "the AI page reloaded and isn't ready again yet; try again in a moment")
+        }
         if (name == "site_send" || name == "site_model_set") page.status = "busy"
         try {
             val r = call_send(page, name, data, timeout)
