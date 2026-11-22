@@ -129,7 +129,7 @@ class MainActivity : Activity() {
             page_views[page.id] = view
             root.addView(view, FrameLayout.LayoutParams(-1, -1))
         }
-        for (id in page_views.keys.toList()) if (id !in app.pages.pages) {
+        for (id in page_views.keys.toList()) if (!app.pages.pages.containsKey(id)) {
             page_views.remove(id)?.let { it.releaseSession(); root.removeView(it) }
         }
         place()
