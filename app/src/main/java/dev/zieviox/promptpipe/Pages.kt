@@ -21,6 +21,8 @@ class Page(val id: String, var provider: JSONObject) {
     var status = "loading"
     var hello = CompletableFuture<JSONObject>()
     val waiting = ConcurrentHashMap<String, CompletableFuture<JSONObject>>()
+    // Listed a moment before its session starts (on the main thread).
+    val started get() = ::session.isInitialized
 
     fun json(): JSONObject = JSONObject().put("id", id).put("provider", provider.optString("id"))
         .put("url", url).put("title", title).put("status", status)
@@ -183,7 +185,7 @@ class Pages(private val app: App) {
     }
 
     // Coming back to the app: reopen any page whose engine is gone.
-    fun revive() = pages.values.filter { !it.session.isOpen }.forEach { p -> app.workers.execute { page_start(p, "was stopped by Android") } }
+    fun revive() = pages.values.filter { it.started && !it.session.isOpen }.forEach { p -> app.workers.execute { page_start(p, "was stopped by Android") } }
 
     fun changed_send(page: Page, error: String? = null) {
         val data = page.json().put("page", page.id).put("popup", popup != null)

@@ -109,6 +109,7 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         app.pages.revive()
+        sessions_wake()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -125,7 +126,7 @@ class MainActivity : Activity() {
 
     // One view per page, each on its own surface; called when pages open or close.
     fun views_attach() {
-        for (page in app.pages.pages.values) if (page.id !in page_views) {
+        for (page in app.pages.pages.values) if (page.started && page.id !in page_views) {
             val view = GeckoView(this).apply { setSession(page.session) }
             page_views[page.id] = view
             root.addView(view, FrameLayout.LayoutParams(-1, -1))
@@ -147,7 +148,18 @@ class MainActivity : Activity() {
         if (moved) (page?.let { page_views[it.id] } ?: screen_view).requestFocus()
     }
 
+    // GeckoView turns a session inactive when its view isn't showing, and Gecko then throttles
+    // the page's timers: a hidden page's reply would only come in at the end (no live thinking or
+    // writing). So every page, and the screen, is made active again whenever the views change
+    // and when the app comes back (the old app did the same since 0.5.8).
+    fun sessions_wake() {
+        for (page in app.pages.pages.values) if (page.started && page.session.isOpen) page.session.setActive(true)
+        Screen.session.setActive(true)
+    }
+
     private fun place() {
+        sessions_wake()
+        root.post { sessions_wake() } // after GeckoView's own change on attach or layout
         val w = root.width - root.paddingLeft - root.paddingRight
         val h = root.height - root.paddingTop - root.paddingBottom
         val r = region
