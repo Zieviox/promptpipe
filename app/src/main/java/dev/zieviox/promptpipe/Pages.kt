@@ -38,7 +38,7 @@ class Pages(private val app: App) {
         app.port.handlers.apply {
             put("page_open") { d -> page_open(d.optString("url"), d.optJSONObject("provider") ?: JSONObject()) }
             put("page_close") { d -> page_close(d.optString("page")) }
-            put("page_navigate") { d -> page_navigate(d.optString("page"), d.optString("to")) }
+            put("page_navigate") { d -> page_navigate(d.optString("page"), d.optString("to"), d.optBoolean("wait")) }
             put("view_set") { d -> app.main_run { Screen.activity?.view_set(pages[d.optString("page")], d.optJSONObject("region")) }; null }
         }
     }
@@ -188,8 +188,15 @@ class Pages(private val app: App) {
         return null
     }
 
-    fun page_navigate(id: String, to: String): Any? {
+    // `wait`: an address loaded and the page ready again, its scripts handed over, before this
+    // returns (a send moving the page to its chat's conversation first).
+    fun page_navigate(id: String, to: String, wait: Boolean = false): Any? {
         val page = page_get(id)
+        if (wait && to != "back" && to != "reload") {
+            page_load(page, to)
+            changed_send(page)
+            return null
+        }
         app.main_run {
             when (to) {
                 "back" -> page.session.goBack()
