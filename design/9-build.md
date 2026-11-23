@@ -435,9 +435,10 @@ To do when the fixing resumes, in this order:
    text itself is only in the drawer the card opens (`.ant-drawer`, half height, with
    `button.ant-drawer-close[aria-label=Close]`): `.qwen-chat-thinking-and-sources-content-
    thinking-container`, one `.qwen-chat-thinking-status-card` per step with its
-   `.qwen-markdown`. To do: the Stop selector; live step titles; the full thinking as Gtex
-   chooses (asked: a, titles live and the drawer opened briefly at the end; b, the drawer kept
-   open only while the site view isn't shown; c, titles only).
+   `.qwen-markdown`. To do: the Stop selector; live step titles; and the full thinking live
+   (Gtex chose b): the plugin opens the drawer only while the site view isn't showing that page,
+   closes it with its Close button the moment the site view opens (the screen tells the page),
+   and never opens it while you're looking; read at the end the same way.
 9. (Later: the look, screen by screen against the wireframe, with before and after pictures.)
 10. Notices (errors and toasts) close with a tap instead of waiting out their time; one with a
     button (Undo, Redo, Reply ready) closes when its button or the rest of it is tapped.
