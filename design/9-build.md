@@ -455,3 +455,26 @@ Was to do when the fixing resumed, in this order:
     buttons (Gtex wary of clutter).
 
 Later (asked for, not now): see "Later: asked for, not now" above.
+
+## Proposal: branches that match the site (2026-11-23, for Gtex's approval)
+
+Gtex: "I need the branching on the app to match the source site." Today an edit replaces a
+message in the app and sends a new one on the site, so the two drift apart. As the spec described
+for later (ux/SPEC.md: reply versions "< 2/3 >", branches on Edit, Memory on the shown path):
+
+- **The model.** Each message keeps its `parent` (the message it follows), so a chat is a tree;
+  the chat keeps which version is shown at each fork. Nothing is replaced or lost: an edit is a
+  new version next to the old one, "Send again" a new reply version.
+- **On screen.** A message or reply with versions shows "‹ 2/3 ›"; switching shows that version and
+  what follows it. Everything else (Memory, exports, the chat file) uses the shown path; the chat
+  file keeps the other versions too.
+- **On the site, kept in step.** Editing in the app edits that message on the site (Qwen's own
+  edit, which makes the same branch there); Send again uses the site's Regenerate; switching
+  versions in the app switches them on the site before the next send, so the site continues the
+  same branch. Messages are matched by their site references (a reply's id is kept since today;
+  your messages' ids need a look at Qwen's page).
+- **Adding the site's messages** reads the version the site shows; switching versions brings in
+  others as they're shown.
+
+Needed first: a page report from a Qwen chat where a message was edited (it shows "< 1/2 >"), to
+see Qwen's edit, version and regenerate controls. Questions for Gtex: see the conversation.
