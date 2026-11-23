@@ -391,6 +391,9 @@ open). Each step: build, test in Chromium with the stand-in core, screenshot wit
   State; they'd be saved with the app's files and asked again at the next start.
 - **Attachments sent to the sites**: no provider plugin uploads them yet. Until one does, the app
   reports it (provider.accepts) instead of sending without them.
+- **A backup option** (Gtex, 2026-11-23): everything the app keeps, saved to one file and
+  restored from it.
+- **The look**: every screen against the wireframe, with before and after pictures.
 - **The guides' overhaul** (quick start, log-in help), and **versions and branches** (after the
   release).
 - What `ux/spec-diff.md` still lists as open.
@@ -420,16 +423,22 @@ To do when the fixing resumes, in this order:
    index lock's rename).
 3. The imported copies of the old app's nested history folders still sit in the chats folder
    (paths longer than Android allows): offer to remove them.
-4. Chats saved with only new messages while they loaded empty (the pattern bug, fixed): a
-   "restore from history" if any chat is affected (asked Gtex which).
-5. Remove the Select text button under replies once selection is native everywhere (offered).
+4. (Settled: no chat was affected; the chats loaded back. A backup option goes to Later.)
+5. Remove the Select text button under replies (Gtex: yes).
 6. Quick edit shows Edit twice (the "Edit profile" pill and Edit beside the profile dropdown).
-7. Where a permanent Undo button goes, for actions without an Undo toast (asked Gtex).
-8. Live thinking on Qwen: the plugin no longer clicks the card; if today's Qwen only puts the
-   thinking on the page while its panel is open, Qwen replies show no live thinking. A page
-   report taken while Qwen thinks settles it (asked Gtex).
-9. The look, screen by screen against the wireframe, with before and after pictures: Gtex to
-   say which screens bother them most.
+7. (Settled: no permanent Undo button for now; the toasts and Find, as now.)
+8. Qwen, from Gtex's page reports (2026-11-23): Stop is `button.stop-button` (aria-label Stop;
+   the plugin's `#stop-message-button` is gone, so Stop was never seen); your messages are
+   `p.user-message-content` (long ones folded with an Expand button, full text on the page);
+   in the reply only a status card shows the current step's title
+   (`.qwen-chat-thinking-status-card-title-text`, "Thinking completed" at the end); the thinking
+   text itself is only in the drawer the card opens (`.ant-drawer`, half height, with
+   `button.ant-drawer-close[aria-label=Close]`): `.qwen-chat-thinking-and-sources-content-
+   thinking-container`, one `.qwen-chat-thinking-status-card` per step with its
+   `.qwen-markdown`. To do: the Stop selector; live step titles; the full thinking as Gtex
+   chooses (asked: a, titles live and the drawer opened briefly at the end; b, the drawer kept
+   open only while the site view isn't shown; c, titles only).
+9. (Later: the look, screen by screen against the wireframe, with before and after pictures.)
 10. Notices (errors and toasts) close with a tap instead of waiting out their time; one with a
     button (Undo, Redo, Reply ready) closes when its button or the rest of it is tapped.
 11. One place for all logs (Gtex: "a global place for all logs"), one list, newest first, each
@@ -437,7 +446,8 @@ To do when the fixing resumes, in this order:
     closing the app: the notices shown (errors marked; a missed one can be read later), failed
     sends and their reasons, history (git) errors, imports' reports, the site pages' events
     (reloaded, crashed, not ready), the core's log (logs/core.log) and the platform's crash
-    record (Download/promptpipe-crash.txt). Reached from the chat list (a mark while it holds
-    an unread error), from Find, and from Settings › Advanced (where the core log used to be).
+    record (Download/promptpipe-crash.txt). Reached from Find and Settings › Advanced (where the
+    core log used to be); an unread error puts a dot on the drawer's Settings button. No new
+    buttons (Gtex wary of clutter).
 
 Later (asked for, not now): see "Later: asked for, not now" above.
