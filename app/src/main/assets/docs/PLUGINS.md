@@ -130,6 +130,11 @@ A web provider is mostly data: where the site is and how to find its parts.
 A message plugin that adds to what's sent can also take its part off again with a `sent_unwrap`
 hook (text in, text out): adding a site's messages to a chat uses it to show your own text.
 
+Versions of a message (branches): a provider names, as selectors found inside a reply,
+`regenerate` (its Regenerate button: Send again uses it), and `version_prev` / `version_next` (its
+version arrows: the app switches the site to the version it shows before the next message). A
+reply is found by its reference on the page (the id around it), kept with each message.
+
 A provider that takes files names its upload input in `selectors.upload` (and, if the site shows
 one while files upload, `selectors.uploading`): the default routine puts the files there before
 typing.
