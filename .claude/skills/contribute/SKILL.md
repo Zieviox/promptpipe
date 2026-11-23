@@ -66,6 +66,10 @@ licence. Inside the app: functions over plain data, no classes, no state outside
   (HTML to Markdown); the screen shows any text only through `markdown_render`. Errors reach people
   only through `error_words` (plain words; the technical text goes under Details). A second way to
   do any of these is a bug, even when it looks quicker.
+- **Stand-ins behave exactly like the real thing.** A test stand-in that's more forgiving than the
+  real component hides bugs (the stand-in core matched `*.json`, the real one didn't, and chats
+  loaded empty on the phone). When a call's rule matters, check it against the real core too
+  (`core/test/test_core.py`), and write the rule into its contract (`design/4-ports.md`).
 - **Nothing waits without a limit, nothing fails silently.** Every wait has a time limit and a
   visible state ("Checking the page…"); every failure says what happened and what to do.
 - **Platform traps** (the platform can't be compiled or run here, so read for these):
