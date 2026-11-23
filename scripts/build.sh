@@ -40,7 +40,7 @@ python3 scripts/plugins_copy.py
 echo "== 2/4 the core (Odin, android arm64)"
 mkdir -p build app/src/main/jniLibs/arm64-v8a
 export ODIN_ANDROID_NDK="$NDK"
-odin build core -target:linux_arm64 -subtarget:android -build-mode:object -out:build/ppcore.o -o:speed
+odin build core -target:linux_arm64 -subtarget:android -build-mode:object -no-entry-point -out:build/ppcore.o -o:speed
 OUT=app/src/main/jniLibs/arm64-v8a/libppcore.so
 clang --target=aarch64-linux-android29 --sysroot="$TOOLS/sysroot" \
     -resource-dir="$(ls -d "$TOOLS"/lib/clang/* | head -1)" --rtlib=compiler-rt --unwindlib=none \

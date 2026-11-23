@@ -36,7 +36,28 @@ heap :: proc() -> runtime.Allocator {
 	return runtime.heap_allocator()
 }
 
-main :: proc() {
+// Android: the core is a program the app starts, not a NativeActivity, and Odin's Android target
+// only runs `main` through `core:sys/android/native_app_glue` (it refuses a plain `main`). So it's
+// built with -no-entry-point, and core/android/shim.c's C `main` (a name Odin keeps for itself)
+// calls `pp_core_main`, which starts Odin's runtime as Odin's own entry point does
+// (base:runtime's entry_unix.odin), then runs the core. Elsewhere: `main`.
+when ODIN_PLATFORM_SUBTARGET == .Android {
+	@(export, link_name = "pp_core_main")
+	android_entry :: proc "c" (argc: i32, argv: [^]cstring) -> i32 {
+		runtime.args__ = argv[:argc]
+		context = runtime.default_context()
+		runtime._startup_runtime()
+		core_run()
+		runtime._cleanup_runtime()
+		return 0
+	}
+} else {
+	main :: proc() {
+		core_run()
+	}
+}
+
+core_run :: proc() {
 	args := os.args[1:]
 	S.port = 7790
 	for i := 0; i + 1 < len(args); i += 2 {
