@@ -19,6 +19,8 @@ class Page(val id: String, var provider: JSONObject) {
     var url = ""
     var title = ""
     var status = "loading"
+    // Whether the page has somewhere to go back to (Back in the site view goes there first).
+    @Volatile var can_back = false
     var hello = CompletableFuture<JSONObject>()
     // Done once the page's scripts are handed over; a new one at every load of the page.
     @Volatile var scripts = CompletableFuture<Unit>()
@@ -27,7 +29,7 @@ class Page(val id: String, var provider: JSONObject) {
     val started get() = ::session.isInitialized
 
     fun json(): JSONObject = JSONObject().put("id", id).put("provider", provider.optString("id"))
-        .put("url", url).put("title", title).put("status", status)
+        .put("url", url).put("title", title).put("status", status).put("can_back", can_back)
 }
 
 class Pages(private val app: App) {
@@ -235,6 +237,10 @@ class Pages(private val app: App) {
     private fun navigation_build(page: Page) = object : GeckoSession.NavigationDelegate {
         override fun onLocationChange(session: GeckoSession, url: String?, perms: MutableList<GeckoSession.PermissionDelegate.ContentPermission>, user: Boolean) {
             page.url = url ?: page.url
+            changed_send(page)
+        }
+        override fun onCanGoBack(session: GeckoSession, canGoBack: Boolean) {
+            page.can_back = canGoBack
             changed_send(page)
         }
         override fun onNewSession(session: GeckoSession, uri: String): GeckoResult<GeckoSession> {
