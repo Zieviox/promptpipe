@@ -22,17 +22,36 @@ GRADLE=$(command -v gradle || ls -d /root/gradle-*/bin/gradle 2>/dev/null | sort
 [ -x "$GRADLE" ] || { echo "Gradle not found."; exit 1; }
 command -v ld.lld >/dev/null || { echo "lld is missing (Arch: pacman -S lld)."; exit 1; }
 [ -f debug.keystore ] || echo "Note: no debug.keystore here, so a test build won't install over the old app."
-# GeckoView: the newest one Gradle already downloaded (~100 MB), else Mozilla's newest release.
-# GECKOVIEW=<version> picks one; GECKOVIEW=latest asks Mozilla.
-GVCACHE="${GRADLE_USER_HOME:-$HOME/.gradle}/caches/modules-2/files-2.1/org.mozilla.geckoview/geckoview"
+# GeckoView, version 160 or newer (double-tap to select a word in a text box came in 160; long
+# press in a text box's empty part was fixed in 162). The newest one Gradle already downloaded
+# (~100 MB) when it's new enough, else Mozilla's newest: release, else beta, else nightly, the
+# first that is 160+. GECKOVIEW=<version> picks one (GECKOVIEW_ARTIFACT=geckoview-beta or
+# geckoview-nightly with it); GECKOVIEW=latest always asks Mozilla.
+GV_MIN=160
+GVCACHES="${GRADLE_USER_HOME:-$HOME/.gradle}/caches/modules-2/files-2.1/org.mozilla.geckoview"
 GV="$GECKOVIEW"
-[ -z "$GV" ] && [ -d "$GVCACHE" ] && GV=$(ls "$GVCACHE" | sort -V | tail -1)
-if [ -z "$GV" ] || [ "$GV" = latest ]; then
-    GV=$(curl -fsSL https://maven.mozilla.org/maven2/org/mozilla/geckoview/geckoview/maven-metadata.xml \
-        | sed -n 's:.*<release>\(.*\)</release>.*:\1:p')
+GVA="${GECKOVIEW_ARTIFACT:-geckoview}"
+major() { echo "${1%%.*}"; }
+if [ -z "$GV" ]; then
+    for a in geckoview geckoview-beta geckoview-nightly; do
+        [ -d "$GVCACHES/$a" ] || continue
+        v=$(ls "$GVCACHES/$a" | sort -V | tail -1)
+        if [ -n "$v" ] && [ "$(major "$v")" -ge "$GV_MIN" ] && { [ -z "$GV" ] || [ "$(printf '%s\n%s\n' "$GV" "$v" | sort -V | tail -1)" = "$v" ]; }; then
+            GV="$v"; GVA="$a"
+        fi
+    done
 fi
-[ -n "$GV" ] || { echo "Couldn't find a GeckoView version; set GECKOVIEW=<version>."; exit 1; }
-echo "geckoview $GV"
+if [ -z "$GV" ] || [ "$GV" = latest ]; then
+    GV=""
+    for a in geckoview geckoview-beta geckoview-nightly; do
+        v=$(curl -fsSL "https://maven.mozilla.org/maven2/org/mozilla/geckoview/$a/maven-metadata.xml" \
+            | sed -n 's:.*<release>\(.*\)</release>.*:\1:p')
+        if [ -n "$v" ] && [ "$(major "$v")" -ge "$GV_MIN" ]; then GV="$v"; GVA="$a"; break; fi
+        [ -z "$GV" ] && [ -n "$v" ] && echo "  $a's newest is $v (older than $GV_MIN)"
+    done
+fi
+[ -n "$GV" ] || { echo "Couldn't find a GeckoView $GV_MIN or newer; set GECKOVIEW=<version> (and GECKOVIEW_ARTIFACT)."; exit 1; }
+echo "geckoview $GV ($GVA)"
 
 echo "== 1/4 built-in plugins"
 python3 scripts/plugins_copy.py
@@ -55,7 +74,7 @@ case "$(llvm-readelf -lW "$OUT" | grep TLS)" in *0x40|*0x80|*0x100) ;; *) echo "
 
 echo "== 4/4 the APK"
 TASK=$([ "$TYPE" = release ] && echo assembleRelease || echo assembleDebug)
-"$GRADLE" "$TASK" --console=verbose -PgeckoviewVersion="$GV" -PversionName="$NAME" -PversionCode="$CODE"
+"$GRADLE" "$TASK" --console=verbose -PgeckoviewVersion="$GV" -PgeckoviewArtifact="$GVA" -PversionName="$NAME" -PversionCode="$CODE"
 cp "app/build/outputs/apk/$TYPE/app-$TYPE.apk" "build/promptpipe-$NAME.apk"
 [ -d /sdcard/Download ] && cp "build/promptpipe-$NAME.apk" /sdcard/Download/promptpipe.apk
 echo "done: build/promptpipe-$NAME.apk"

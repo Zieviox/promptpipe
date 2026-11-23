@@ -15,7 +15,9 @@ val releaseProperties = Properties().apply {
 
 // The browser engine's version: scripts/build.sh passes the one Gradle has cached, or Mozilla's
 // newest release; the fallback here is only for a bare Gradle run.
-val geckoviewVersion = (findProperty("geckoviewVersion") as String?) ?: "144.0.20251020130000"
+val geckoviewVersion = (findProperty("geckoviewVersion") as String?) ?: "160.0"
+// geckoview, geckoview-beta or geckoview-nightly (scripts/build.sh picks one with version 160+).
+val geckoviewArtifact = (findProperty("geckoviewArtifact") as String?) ?: "geckoview"
 
 android {
     namespace = "dev.zieviox.promptpipe"
@@ -75,7 +77,7 @@ android {
 }
 
 dependencies {
-    implementation("org.mozilla.geckoview:geckoview:$geckoviewVersion")
+    implementation("org.mozilla.geckoview:$geckoviewArtifact:$geckoviewVersion")
     implementation("org.eclipse.jgit:org.eclipse.jgit:5.13.3.202401111512-r")
 }
 
