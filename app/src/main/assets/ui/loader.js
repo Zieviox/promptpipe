@@ -139,9 +139,10 @@
   // ---------- the State ----------
 
   const state_get = () => state;
-  const state_set = (change) => {
+  // quiet: a change nothing on screen shows (a keystroke in the message box, which shows itself).
+  const state_set = (change, quiet = false) => {
     state = change(state);
-    redraw(state);
+    if (!quiet) redraw(state);
     return state;
   };
 
