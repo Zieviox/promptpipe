@@ -77,7 +77,7 @@ model, options and toggles, D8),
 
 | Call | In → out | Callers | Use cases |
 |---|---|---|---|
-| `file_read` | root, path or pattern → files, each with its revision and whether it changed outside the app | A | UC16 and every saved record |
+| `file_read` | root, path or pattern ("*" = any characters within one path part, never a "/": `chats/*/meta.json`, `chats/abc/*.json`) → files, each with its revision and whether it changed outside the app | A | UC16 and every saved record |
 | `file_write` | root, path, data, expected revision → the new revision, or an `Outside_Change` | A | D4, D7 |
 | `file_move` | root, from, to (and `to_root`), expected revision; `copy` (keep the original) and `overwrite` (off: only what isn't there yet) → the new revision, or an `Outside_Change`; a copy says how many chats it copied | A | UC17, UC36 |
 | `file_delete` | root, path, expected revision → done, or an `Outside_Change` | A | UC17 |
