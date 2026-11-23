@@ -80,6 +80,11 @@ licence. Inside the app: functions over plain data, no classes, no state outside
   A site page can load anew by itself (a reload, the site's own navigation): whatever the
   platform hands a page (its scripts) must be handed again at every hello, not only after the
   platform's own load.
+  An Odin update can change its Android target: read Odin's own sources (`odin root`, then
+  `core/sys/android`, `core/os/*_android.odin`, `base/runtime/entry_unix.odin`) instead of
+  guessing. The core starts through `pp_core_main` (Odin keeps `main` for NativeActivity apps),
+  and `build.sh` links the object itself, so libraries Odin's bindings name (`system:android`)
+  go on its link line; `llvm-nm -u build/ppcore.o` lists what's needed.
 
 ## Checks before handing over
 

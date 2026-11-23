@@ -41,10 +41,14 @@ echo "== 2/4 the core (Odin, android arm64)"
 mkdir -p build app/src/main/jniLibs/arm64-v8a
 export ODIN_ANDROID_NDK="$NDK"
 odin build core -target:linux_arm64 -subtarget:android -build-mode:object -no-entry-point -out:build/ppcore.o -o:speed
+# The object is linked here, not by Odin, so the system libraries Odin's bindings name
+# (`foreign import ... "system:<name>"`) are added by hand: android (core:os reads /android_asset
+# through it since Odin 2026-11) and log. To see what else a new Odin needs:
+# llvm-nm -u build/ppcore.o, and look each name up in Odin's core/sys/android.
 OUT=app/src/main/jniLibs/arm64-v8a/libppcore.so
 clang --target=aarch64-linux-android29 --sysroot="$TOOLS/sysroot" \
     -resource-dir="$(ls -d "$TOOLS"/lib/clang/* | head -1)" --rtlib=compiler-rt --unwindlib=none \
-    -fuse-ld=lld -fno-emulated-tls -fPIE -pie -O2 -o "$OUT" build/ppcore.o core/android/shim.c -lm -llog
+    -fuse-ld=lld -fno-emulated-tls -fPIE -pie -O2 -o "$OUT" build/ppcore.o core/android/shim.c -lm -llog -landroid
 
 echo "== 3/4 the core's thread-local segment must be 64-aligned for Android"
 case "$(llvm-readelf -lW "$OUT" | grep TLS)" in *0x40|*0x80|*0x100) ;; *) echo "TLS underaligned"; exit 1;; esac
