@@ -62,6 +62,12 @@ licence. Inside the app: functions over plain data, no classes, no state outside
   colours and icons, and show the new screen beside the wireframe's in screenshots. Every
   element, label, gesture and state of the screen you touch is still there. Take the same
   screenshot in Chromium (`test/test_screen.js` shows how) and look at both.
+- **One text path, one error path.** Site text comes in only through the page's `markdown_get`
+  (HTML to Markdown); the screen shows any text only through `markdown_render`. Errors reach people
+  only through `error_words` (plain words; the technical text goes under Details). A second way to
+  do any of these is a bug, even when it looks quicker.
+- **Nothing waits without a limit, nothing fails silently.** Every wait has a time limit and a
+  visible state ("Checking the page…"); every failure says what happened and what to do.
 - **Platform traps** (the platform can't be compiled or run here, so read for these):
   GeckoView calls delegates on the main thread, and nothing there may wait (`GeckoResult.poll`,
   `.get()`): answer at once, or do the work on `app.workers`; `x in map` on a `ConcurrentHashMap`
