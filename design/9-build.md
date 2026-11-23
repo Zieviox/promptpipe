@@ -414,7 +414,10 @@ Fiori, TanStack, Smashing Magazine):
 Not taken (Gtex): a visually hidden status for screen readers. Hidden UI is worse UX here;
 whatever is announced is also shown.
 
-To do when the fixing resumes, in this order:
+Done 2026-11-23 (Gtex: "Go, do all"): 1, 2 (a lock left by a save cut short is removed; the cause
+is told in Logs), 3 (Settings › Chats and storage), 5, 6, 8, 10, 11. Untried on the phone.
+
+Was to do when the fixing resumed, in this order:
 
 1. The four conventions above, in the screen.
 2. "Saved, but not added to the history: Exception caught during execution of add command" still
