@@ -5,6 +5,7 @@ import org.eclipse.jgit.lib.PersonIdent
 import org.eclipse.jgit.storage.file.WindowCacheConfig
 import org.eclipse.jgit.transport.URIish
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
+import org.eclipse.jgit.treewalk.CanonicalTreeParser
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -49,10 +50,29 @@ class Repo(private val app: App) {
 
     @Synchronized
     fun repo_commit(d: JSONObject): Any? = repo_open(d.getString("folder")).use { git ->
+        val tree = File(d.getString("folder"))
         val paths = d.optJSONArray("paths") ?: JSONArray()
-        for (i in 0 until paths.length()) git.add().addFilepattern(paths.getString(i)).call()
-        git.add().setUpdate(true).addFilepattern(".").call()
-        if (git.status().call().isClean) return@use JSONObject.NULL
+        // Only the files this save touched (a deleted one recorded as deleted): never a walk over the
+        // whole folder, which was slow and failed on paths longer than Android allows (the old app's
+        // nested history folders: "Exception caught during execution of add command").
+        var staged = 0
+        for (i in 0 until paths.length()) {
+            val path = paths.getString(i)
+            if (path.isBlank() || path.startsWith(".promptpipe/repo")) continue
+            if (File(tree, path).exists()) git.add().addFilepattern(path).call()
+            else git.rm().setCached(true).addFilepattern(path).call()
+            staged += 1
+        }
+        if (staged == 0) return@use JSONObject.NULL
+        // Nothing new against the last commit (staged, compared without walking the folder): no commit.
+        val head = git.repository.resolve("HEAD^{tree}")
+        if (head != null) {
+            val unchanged = git.repository.newObjectReader().use { reader ->
+                val last = CanonicalTreeParser().apply { reset(reader, head) }
+                git.diff().setCached(true).setOldTree(last).call().isEmpty()
+            }
+            if (unchanged) return@use JSONObject.NULL
+        }
         val who = PersonIdent(d.optString("name").ifBlank { "promptpipe" }, d.optString("email").ifBlank { "promptpipe@localhost" })
         val id = git.commit().setMessage(d.optString("message", "update")).setAuthor(who).setCommitter(who).call().name.take(7)
         if (d.optBoolean("auto_push") && d.optString("remote").isNotBlank()) {
