@@ -131,6 +131,7 @@ answers, or the calls it uses) · **Lines**.
 | `picker_open` | the system's file picker | types, many → files | E | `picker_open` | 7 |
 | `url_open`, `storage_access_open` | a link in the browser; the all-files access screen | → done | E | `url_open`, `storage_access_open` | 5 |
 | `vibration_start`, `bars_set` | a short tick; the bars' colours and icons | → done | E | `vibration_start`, `bars_set` | 8 |
+| `keyboard_set` | whether a selection reaches the keyboard start first (every GeckoView's keyboard link; `Keyboard.kt`) | ordered → done | E | `keyboard_set`, `view_build` | 45 |
 | `app_get`, `app_start`, `app_close` | version, platform, its calls, safe mode; restart (normal or safe); to the background | → … | E | `app_*` | 10 |
 | `service_start` / `service_stop` | the background service and its notification (R2) | → done | E | `service_stop` | 15 |
 

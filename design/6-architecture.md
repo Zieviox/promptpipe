@@ -59,7 +59,7 @@ the library used as it is. Library features no call needs are not wrapped.
 | platform | the port to the screen and the pages | GeckoView's WebExtension messaging (`connectNative` from the built-in extension's content script; the app's own address is in its match list) |
 | platform | `repo_*`, `commit_list` | JGit |
 | platform | `credential_*`, `http_fetch`, `http_received` | Android Keystore (AES-GCM key) for the values; `HttpURLConnection` for requests, streamed, with the credential added only for its hosts (S7) |
-| platform | `clipboard_*`, `content_export`, `share_received`, `picker_open`, `url_open`, `vibration_start`, `bars_set`, `storage_access_open` | Android's services and intents |
+| platform | `clipboard_*`, `content_export`, `share_received`, `picker_open`, `url_open`, `vibration_start`, `bars_set`, `keyboard_set`, `storage_access_open` | Android's services and intents; GeckoView's keyboard link |
 | platform | `app_get`, `app_start`, `app_close`, `service_stop` | the activity and a foreground service |
 | page script | `site_*` | the site's DOM, through the content scripts the app hands it; Turndown with its GFM plugin for the reply as Markdown |
 | screen | drawing | the DOM through Preact with htm (components are plain functions with no state of their own; the `State` is the only state), markdown-it for replies, SortableJS for reordering (after a drop the move is put back and applied to the `State`, so Preact stays the only one changing the page) |

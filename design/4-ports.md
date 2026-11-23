@@ -123,6 +123,7 @@ write, move and delete: one mechanism for every file (D7).
 | `url_open` | url → done | S | UC9, UC39 |
 | `vibration_start` | → done | S | UC1 |
 | `bars_set` | colours → done | S | UC34 |
+| `keyboard_set` | ordered (a selection reaches the keyboard start first: HeliBoard and other AOSP keyboards delete nothing on a bottom-to-top one otherwise) → done | S | UC7 |
 | `storage_access_open` | → done (the system's file access screen) | S | UC36 |
 | `app_get` | → version, platform, the calls it answers, safe mode, `app_folder`, `free_bytes` (free space on shared storage, for the old app's backup) | S, A | P5, UC38 |
 | `app_start` | mode (`normal` · `safe`) → done | S | UC33 |
