@@ -127,6 +127,9 @@ A web provider is mostly data: where the site is and how to find its parts.
 }
 ```
 
+A message plugin that adds to what's sent can also take its part off again with a `sent_unwrap`
+hook (text in, text out): adding a site's messages to a chat uses it to show your own text.
+
 `accepts` says which attachments the plugin really sends (MIME patterns like `image/*`, and how
 many). Leave `max` at 0 until your `site_send` (or `chat_send`) uploads them: the app then tells
 the user at once that this provider can't take attachments, instead of sending without them.
@@ -150,7 +153,10 @@ return { error_find, site_send };
 
 Stages: `site_send`, `site_read`, `site_model_list`, `site_model_set`, `site_chat_list`,
 `error_find` (a refusal or a human check: text, or `{ el, text }`), `report_build` (your own page
-report). `PP.defaults` holds the stages as they were before your script, `PP.stages` as they are
+report), `site_shown` (the site view shows or hides your page, `{ shown }`, told before it's shown:
+close what you opened over the chat), `site_back` (Back in the site view: close a panel of the
+site's that's open over the chat and answer `{ closed: true }`, else the site view closes).
+`PP.view_shown()` says whether you're being looked at: never open anything over the chat then. `PP.defaults` holds the stages as they were before your script, `PP.stages` as they are
 now; `PP.pause(ms)` waits. When a site changes, **Copy page report** (the provider's sheet) gives
 whoever fixes the plugin an outline of the page.
 
