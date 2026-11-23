@@ -101,7 +101,7 @@ write, move and delete: one mechanism for every file (D7).
 |---|---|---|---|
 | `page_open` | url, provider (its `Provider_Def` and the content scripts to hand the page, S9) → `Page` | S, A | UC9, UC12, UC13 |
 | `page_close` | page → done | S, A | UC12 |
-| `page_navigate` | page, to (a url · `back` · `reload`) → done | S | UC12 |
+| `page_navigate` | page, to (a url · `back` · `reload`), wait (boolean, optional: a url loaded and the page ready again with its scripts before it answers) → done | S | UC12, UC1 |
 | `view_set` | page, or none; region `{ l, t, r, b }`: the site view's place as fractions (0 to 1) of the screen's area, left, top, right, bottom → done | S | UC4, UC9, UC12 |
 | `http_fetch` | request (url, method, headers, body, credential name, streaming, file to save to) → response; parts as `http_received` events | A, P | UC15, UC29–UC31 |
 | `credential_create` | fields, value → credential | S | UC40 |
