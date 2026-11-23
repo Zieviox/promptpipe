@@ -430,5 +430,10 @@ To do when the fixing resumes, in this order:
    report taken while Qwen thinks settles it (asked Gtex).
 9. The look, screen by screen against the wireframe, with before and after pictures: Gtex to
    say which screens bother them most.
+10. Notices (errors and toasts) close with a tap instead of waiting out their time; one with a
+    button (Undo, Redo, Reply ready) closes when its button or the rest of it is tapped.
+11. A log of past notices, so a missed one can be read later: newest first, errors marked, the
+    time, and the technical details where there are any; kept across closing the app; reached
+    from the chat list (with a mark when it holds an unread error) and from Find; with Clear.
 
 Later (asked for, not now): see "Later: asked for, not now" above.
