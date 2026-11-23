@@ -49,8 +49,25 @@ class Repo(private val app: App) {
     }
 
     @Synchronized
-    fun repo_commit(d: JSONObject): Any? = repo_open(d.getString("folder")).use { git ->
+    fun repo_commit(d: JSONObject): Any? = try {
+        commit_run(d)
+    } catch (e: Refusal) {
+        throw e
+    } catch (e: Exception) {
+        // JGit wraps the reason ("Exception caught during execution of add command"): every cause
+        // goes into the message, for the log.
+        throw Refusal("internal", causes_get(e))
+    }
+
+    private fun causes_get(e: Throwable): String =
+        generateSequence(e) { it.cause }.take(5).mapNotNull { it.message ?: it.javaClass.simpleName }.distinct().joinToString(" ← ")
+
+    private fun commit_run(d: JSONObject): Any? = repo_open(d.getString("folder")).use { git ->
         val tree = File(d.getString("folder"))
+        // A save cut short (the app killed mid-commit) leaves the index locked, and every save after
+        // it fails. Saves here never overlap (this is synchronized), so an old lock is left over.
+        val lock = File(git.repository.directory, "index.lock")
+        if (lock.exists() && System.currentTimeMillis() - lock.lastModified() > 10_000) lock.delete()
         val paths = d.optJSONArray("paths") ?: JSONArray()
         // Only the files this save touched (a deleted one recorded as deleted): never a walk over the
         // whole folder, which was slow and failed on paths longer than Android allows (the old app's
