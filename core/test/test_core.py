@@ -81,6 +81,15 @@ try:
     r = call("file_move", {"root": "device", "from": old, "to_root": "device", "to": os.path.join(old, "history", "history"), "copy": True})
     check("a folder is never copied into itself (the old app's nested history)",
           r.get("error", {}).get("code") == "invalid_argument" and not os.path.exists(os.path.join(old, "history", "history")))
+    # A chat's own files by a pattern with "*" inside a part (how a chat's messages are loaded).
+    one = os.path.join(app, "chats", ".promptpipe", "chats", "abc")
+    os.makedirs(one, exist_ok=True)
+    for f in ("meta.json", "turns.json", "memory.json", "notes.txt"):
+        open(os.path.join(one, f), "w").write("{}")
+    got = sorted(f["path"].split("/")[-1] for f in call("file_read", {"root": "chats", "pattern": ".promptpipe/chats/abc/*.json"})["data"])
+    check("\"*\" inside a path part matches (a chat's messages load after a restart)", got == ["memory.json", "meta.json", "turns.json"])
+    got = [f["path"] for f in call("file_read", {"root": "chats", "pattern": ".promptpipe/chats/*/meta.json"})["data"]]
+    check("\"*\" as a whole part still matches", ".promptpipe/chats/abc/meta.json" in got and all(p.endswith("/meta.json") for p in got))
     folders = call("chats_folder_get", {})["data"]
     check("the core names the default chats folder", folders["default"] == os.path.join(app, "chats"))
     check("an unsigned catalogue is refused", call("catalogue_verify", {"data": "{}", "signature": "A" * 86 + "=="})["error"]["code"] == "permission_denied")

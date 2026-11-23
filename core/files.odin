@@ -129,7 +129,8 @@ data_format :: proc(data: []byte, encoding: string) -> string {
 	return quote(encoding == "base64" ? base64.encode(data) : string(data))
 }
 
-// One file by path, or every file matching a pattern ("*" stands for one path part).
+// One file by path, or every file matching a pattern: "*" stands for any characters within one path
+// part ("chats/*/meta.json", "chats/abc/*.json"), never a "/".
 file_read :: proc(d: Object) -> (string, Error) {
 	root, encoding := text_get(d, "root"), text_get(d, "encoding")
 	pattern := text_get(d, "pattern", text_get(d, "path"))
@@ -159,19 +160,37 @@ file_read :: proc(d: Object) -> (string, Error) {
 	return strings.to_string(b), {}
 }
 
+// Whether a name matches one pattern part, "*" standing for any characters ("*.json", "lod*.md").
+part_match :: proc(part, name: string) -> bool {
+	pieces := strings.split(part, "*", context.temp_allocator)
+	if !strings.has_prefix(name, pieces[0]) do return false
+	at := len(pieces[0])
+	for piece, i in pieces[1:] {
+		if i == len(pieces) - 2 {
+			return len(name) - at >= len(piece) && strings.has_suffix(name, piece)
+		}
+		found := strings.index(name[at:], piece)
+		if found < 0 do return false
+		at += found + len(piece)
+	}
+	return at == len(name)
+}
+
 pattern_expand :: proc(root, pattern: string) -> []string {
 	found: [dynamic]string
 	append(&found, "")
 	for part in strings.split(pattern, "/") {
 		next: [dynamic]string
 		for base in found {
-			if part != "*" {
+			if !strings.contains(part, "*") {
 				append(&next, base == "" ? part : join(base, part))
 				continue
 			}
 			full, _ := path_verify(root, base)
 			entries, _ := os.read_all_directory_by_path(full, context.allocator)
-			for e in entries do append(&next, base == "" ? e.name : join(base, e.name))
+			for e in entries do if part_match(part, e.name) {
+				append(&next, base == "" ? e.name : join(base, e.name))
+			}
 		}
 		found = next
 	}
