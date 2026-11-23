@@ -11,7 +11,11 @@
   let provider = null;
 
   const send = (message) => port && port.postMessage(message);
+  // Whether the app's site view is showing this page now (the screen says so with `site_shown`):
+  // a provider never opens anything over the chat while you're looking.
+  let shown = false;
   const helpers = {
+    view_shown: () => shown,
     event_send: (name, data) => send({ type: "event", name, data }),
     pause: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     cancelled: () => cancelled,
@@ -35,6 +39,10 @@
     try {
       if (m.name === "script_run") reply.data = script_run(m.data);
       else if (m.name === "site_stop") (cancelled = true), (reply.data = {});
+      else if (m.name === "site_shown") {
+        shown = !!(m.data && m.data.shown);
+        reply.data = stages.site_shown ? (await stages.site_shown(m.data, provider)) || {} : {};
+      }
       else {
         const stage = stages[m.name];
         if (!stage) throw Object.assign(new Error(`${m.name} isn't in this page's scripts`), { code: "unimplemented" });
