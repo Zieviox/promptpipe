@@ -394,3 +394,21 @@ open). Each step: build, test in Chromium with the stand-in core, screenshot wit
 - **The guides' overhaul** (quick start, log-in help), and **versions and branches** (after the
   release).
 - What `ux/spec-diff.md` still lists as open.
+
+## Chat screen conventions, from a UI/UX search (2026-11-23)
+
+Agreed with Gtex, to follow from now on (sources in the conversation: web.dev, Apple HIG, SAP
+Fiori, TanStack, Smashing Magazine):
+
+1. Text selection is Android's own: no custom gestures on text (no double tap, no swipes on
+   replies); long press stays the platform's.
+2. While text is selected, nothing scrolls or redraws under it; the chat follows the bottom only
+   when you're already there and never pulls you back.
+3. The message box changes size only when its text changes (never on every redraw), so the
+   conversation doesn't jump.
+4. Buttons (Undo, Redo) stay out of areas that announce changes.
+
+Not taken (Gtex): a visually hidden status for screen readers. Hidden UI is worse UX here;
+whatever is announced is also shown.
+
+To do when the fixing resumes: 1 to 4 above in the screen.
