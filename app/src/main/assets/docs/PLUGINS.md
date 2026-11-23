@@ -130,6 +130,10 @@ A web provider is mostly data: where the site is and how to find its parts.
 A message plugin that adds to what's sent can also take its part off again with a `sent_unwrap`
 hook (text in, text out): adding a site's messages to a chat uses it to show your own text.
 
+A provider that takes files names its upload input in `selectors.upload` (and, if the site shows
+one while files upload, `selectors.uploading`): the default routine puts the files there before
+typing.
+
 `accepts` says which attachments the plugin really sends (MIME patterns like `image/*`, and how
 many). Leave `max` at 0 until your `site_send` (or `chat_send`) uploads them: the app then tells
 the user at once that this provider can't take attachments, instead of sending without them.
