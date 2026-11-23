@@ -432,8 +432,12 @@ To do when the fixing resumes, in this order:
    say which screens bother them most.
 10. Notices (errors and toasts) close with a tap instead of waiting out their time; one with a
     button (Undo, Redo, Reply ready) closes when its button or the rest of it is tapped.
-11. A log of past notices, so a missed one can be read later: newest first, errors marked, the
-    time, and the technical details where there are any; kept across closing the app; reached
-    from the chat list (with a mark when it holds an unread error) and from Find; with Clear.
+11. One place for all logs (Gtex: "a global place for all logs"), one list, newest first, each
+    entry with its time, kind and details, filterable by kind, with Copy and Clear, kept across
+    closing the app: the notices shown (errors marked; a missed one can be read later), failed
+    sends and their reasons, history (git) errors, imports' reports, the site pages' events
+    (reloaded, crashed, not ready), the core's log (logs/core.log) and the platform's crash
+    record (Download/promptpipe-crash.txt). Reached from the chat list (a mark while it holds
+    an unread error), from Find, and from Settings › Advanced (where the core log used to be).
 
 Later (asked for, not now): see "Later: asked for, not now" above.
