@@ -86,7 +86,7 @@ class MainActivity : Activity() {
         super.onCreate(state)
         window.setDecorFitsSystemWindows(false)
         root = FrameLayout(this)
-        screen_view = GeckoView(this).apply { setSession(Screen.session) }
+        screen_view = view_build(this, Screen.session)
         root.addView(screen_view, FrameLayout.LayoutParams(-1, -1))
         root.setOnApplyWindowInsetsListener { view, insets -> insets_set(view, insets) }
         root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> place() }
@@ -127,7 +127,7 @@ class MainActivity : Activity() {
     // One view per page, each on its own surface; called when pages open or close.
     fun views_attach() {
         for (page in app.pages.pages.values) if (page.started && page.id !in page_views) {
-            val view = GeckoView(this).apply { setSession(page.session) }
+            val view = view_build(this, page.session)
             page_views[page.id] = view
             root.addView(view, FrameLayout.LayoutParams(-1, -1))
         }
@@ -186,7 +186,7 @@ class MainActivity : Activity() {
         popup_view?.let { it.releaseSession(); root.removeView(it) }
         popup_view = session?.let { s ->
             s.open(app.runtime)
-            GeckoView(this).apply { setSession(s); root.addView(this, FrameLayout.LayoutParams(-1, -1)) }
+            view_build(this, s).apply { root.addView(this, FrameLayout.LayoutParams(-1, -1)) }
         }
     }
 

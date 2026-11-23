@@ -17,7 +17,7 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
 // The phone's services, each a few lines around Android: the clipboard, sharing and saving files,
-// the file picker, links, a short tick, the bars' colours, all-files access, and the app itself.
+// the file picker, links, a short tick, the bars' colours, how selections reach the keyboard, all-files access, and the app itself.
 class Services(private val app: App) {
     private val activity get() = Screen.activity ?: throw Refusal("unavailable", "the app isn't on screen")
 
@@ -30,6 +30,7 @@ class Services(private val app: App) {
             put("url_open") { d -> app.main_run { activity.url_open(d.getString("url")) }; null }
             put("vibration_start") { _ -> vibration_start(); null }
             put("bars_set") { d -> app.main_run { bars_set(d) }; null }
+            put("keyboard_set") { d -> Keyboard.ordered = d.optBoolean("ordered", true); null }
             put("storage_access_open") { _ -> app.main_run { access_open() }; null }
             put("app_get") { _ -> app_get() }
             put("app_start") { d -> Screen.open(if (d.optString("mode") == "safe") "&safe=1" else ""); null }
