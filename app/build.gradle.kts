@@ -66,6 +66,11 @@ android {
     packaging {
         resources.excludes += listOf("META-INF/*", "plugin.properties", "about.html")
         jniLibs.useLegacyPackaging = true
+        // The app runs on arm64 only (the core is built for it alone). abiFilters above only
+        // applies when the APK is packed; excluded here, GeckoView's engine for the other three
+        // processor types is never merged and stripped either (each over 100 MB on the phone's
+        // disk during a build).
+        jniLibs.excludes += listOf("lib/armeabi-v7a/**", "lib/x86/**", "lib/x86_64/**")
     }
 }
 
