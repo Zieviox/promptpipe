@@ -411,4 +411,24 @@ Fiori, TanStack, Smashing Magazine):
 Not taken (Gtex): a visually hidden status for screen readers. Hidden UI is worse UX here;
 whatever is announced is also shown.
 
-To do when the fixing resumes: 1 to 4 above in the screen.
+To do when the fixing resumes, in this order:
+
+1. The four conventions above, in the screen.
+2. "Saved, but not added to the history: Exception caught during execution of add command" still
+   shows on the phone after the fix that stopped walking the folder: show JGit's underlying cause
+   in the message, then fix from it (suspected: the chats folder on shared storage refusing the
+   index lock's rename).
+3. The imported copies of the old app's nested history folders still sit in the chats folder
+   (paths longer than Android allows): offer to remove them.
+4. Chats saved with only new messages while they loaded empty (the pattern bug, fixed): a
+   "restore from history" if any chat is affected (asked Gtex which).
+5. Remove the Select text button under replies once selection is native everywhere (offered).
+6. Quick edit shows Edit twice (the "Edit profile" pill and Edit beside the profile dropdown).
+7. Where a permanent Undo button goes, for actions without an Undo toast (asked Gtex).
+8. Live thinking on Qwen: the plugin no longer clicks the card; if today's Qwen only puts the
+   thinking on the page while its panel is open, Qwen replies show no live thinking. A page
+   report taken while Qwen thinks settles it (asked Gtex).
+9. The look, screen by screen against the wireframe, with before and after pictures: Gtex to
+   say which screens bother them most.
+
+Later (asked for, not now): see "Later: asked for, not now" above.
