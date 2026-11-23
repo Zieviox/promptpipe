@@ -476,5 +476,10 @@ for later (ux/SPEC.md: reply versions "< 2/3 >", branches on Edit, Memory on the
 - **Adding the site's messages** reads the version the site shows; switching versions brings in
   others as they're shown.
 
-Needed first: a page report from a Qwen chat where a message was edited (it shows "< 1/2 >"), to
+Built 2026-11-23 (Gtex sent the report, taken as approval; Send again = the site's Regenerate):
+the tree, the path shown, "‹ n/m ›", Send again by Regenerate, the site switched to the shown
+versions before a message. Still to do: edits on the site itself (Qwen's own edit), when a page
+report shows its controls; until then an edit goes there as a new message.
+
+Was needed first: a page report from a Qwen chat where a message was edited (it shows "< 1/2 >"), to
 see Qwen's edit, version and regenerate controls. Questions for Gtex: see the conversation.

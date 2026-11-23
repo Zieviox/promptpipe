@@ -104,6 +104,8 @@ write, move and delete: one mechanism for every file (D7).
 | `page_navigate` | page, to (a url · `back` · `reload`), wait (boolean, optional: a url loaded and the page ready again with its scripts before it answers) → done | S | UC12, UC1 |
 | `site_shown` | page, shown (boolean: the site view shows this page now) → done; the page script keeps it (`PP.view_shown()`), then a provider's `site_shown` stage closes what it opened over the chat; told before the page is shown | S | UC12 |
 | `site_back` | page → closed (boolean: a panel of the site's over the chat was closed; if not, Back closes the site view) | S | UC12 |
+| `site_regenerate` | page, site_ref (string: the reply's reference on the page), limits → as `site_send`: reply, thinking, site_ref (the new version's), url, model | S | branches |
+| `site_version_set` | page, want (string: the reference to show), refs (list of strings: the versions' references) → done (boolean) | S | branches |
 | `view_set` | page, or none; region `{ l, t, r, b }`: the site view's place as fractions (0 to 1) of the screen's area, left, top, right, bottom → done | S | UC4, UC9, UC12 |
 | `http_fetch` | request (url, method, headers, body, credential name, streaming, file to save to) → response; parts as `http_received` events | A, P | UC15, UC29–UC31 |
 | `credential_create` | fields, value → credential | S | UC40 |
