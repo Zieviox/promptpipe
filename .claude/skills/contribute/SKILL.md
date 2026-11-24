@@ -48,6 +48,12 @@ licence. Inside the app: functions over plain data, no classes, no state outside
 - **Names**: snake_case; functions `noun_verb` with a verb from the closed list in
   `design/3-terms.md`; records `Ada_Case`; the design's terms first, then the standard term; no
   invented words (`python3 scripts/terms-check.py` stays at 0).
+- **What's settled is in all the design notes, not one.** Before calling a name, a word, a screen
+  or a behaviour undecided, or proposing a new one, search every note: `0-intent.md`,
+  `2-requirements.md`, `2b-behaviour.md`, `3-terms.md`, `4-ports.md`, `8-functions.md`, `9-build.md`
+  (with its approved proposals) and `ux/SPEC.md`. Reading only `3-terms.md` once called the queue,
+  branches, Quick edit and Look "undecided" when they'd been settled for days. Say where each
+  settled thing comes from; only the user reopens it.
 - **Errors are data** (`{ code, message }`, gRPC codes), said in plain words with what to do.
 - **Hooks inside the send sequence, events outside it.**
 - **A cross-layer change updates the contract first**: the call's row in `design/4-ports.md`
