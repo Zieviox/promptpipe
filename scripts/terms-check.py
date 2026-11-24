@@ -19,13 +19,19 @@ The words (see README "Words" for the full table):
   background pages    site view tabs -> pages
   saved prompts       the System prompt plugin -> the prompt library (linked prompt blocks)
 Lines that mention "legacy" are migration code reading old saved data, and may use old names.
+
+Then the names against the list itself (design/3-terms.md, beside the code): every function's
+verb is in the closed verb list and its other words are in the list; events are the seven; setting
+keys and saved Turn fields are in the list; the port contract's calls likewise (as name-check.py).
+Names waiting for a decision are in design/terms-pending.md: reported, not failed. Anything else
+fails, so a new name that breaks the list can't come in.
 """
-import os, re, sys
+import json, os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLUGINS = os.environ.get("PP_PLUGINS") or os.path.join(os.path.dirname(ROOT), "promptpipe-plugins")
 EXT = (".js", ".json", ".md", ".py", ".css", ".odin", ".kt", ".sh", ".html")
-SKIP_DIRS = {".git", "build", "node_modules", "notes", "docs", ".gradle"}
+SKIP_DIRS = {".git", "build", "node_modules", "notes", "docs", ".gradle", "vendor", "design"}  # design/ records the old words on purpose (the name pass); vendor/ is others' code
 SKIP_PATHS = {os.path.join("app", "src", "main", "assets", "plugins")}  # made by copy-plugins.py from the plugins repo
 SKIP_FILES = {"BUGS.md", "terms-check.py", "migration-check.js"}  # the migration check holds old saved data on purpose
 
@@ -92,6 +98,90 @@ def main():
                 for n, line in items:
                     print(f"    {n}: {line}")
     print(f"\n{total} old words left")
-    sys.exit(1 if total else 0)
+    broken = names_check(show)
+    sys.exit(1 if total or broken else 0)
+
+# ---------- the names against the list (design/3-terms.md) ----------
+
+DEFS = [re.compile(r"^(?:export\s+)?(?:const|let)\s+([a-z][a-z0-9_]*)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[a-z_]+)\s*=>"),
+        re.compile(r"^(?:async\s+)?function\s+([a-z][a-z0-9_]*)\s*\("),
+        re.compile(r"^\s*(?:private\s+|internal\s+|override\s+)*fun\s+([a-z][a-z0-9_]*)\s*\("),
+        re.compile(r"^([a-z][a-z0-9_]*)\s*::\s*proc")]
+
+def names_check(show):
+    design = os.path.join(ROOT, "design")
+    terms = open(os.path.join(design, "3-terms.md"), encoding="utf-8").read()
+    pending_path = os.path.join(design, "terms-pending.md")
+    pending = set(re.findall(r"`([a-z][a-z0-9_.]*)`", open(pending_path, encoding="utf-8").read())) if os.path.exists(pending_path) else set()
+    table = terms[terms.index("### Verbs"):terms.index("Not used, to keep")]
+    verbs = set(re.findall(r"`([a-z]+)`", table.split("| Example |")[1]))
+    hooks = set(re.findall(r"`([a-z_]+)`", terms[terms.index("- **Hooks**"):terms.index("- **`PP`**")]))
+    events = set(re.findall(r"`([a-z]+_(?:changed|received|pressed))`", terms[terms.index("### Events"):terms.index("### Name pass")]))
+    words = set()
+    for name in re.findall(r"`([a-z][a-z0-9_.]*)`", terms):
+        words.update(re.split(r"[_.]", name))
+    words.update(w.lower() for rec in re.findall(r"\b[A-Z][a-z]+(?:_[A-Z][a-z]+)+\b|\b[A-Z][a-z]+\b", terms) for w in rec.split("_"))
+    problems = []
+    def where(path, n):
+        return f"{os.path.relpath(path, os.path.dirname(ROOT))}:{n}"
+    # function names, in both repositories (not tests, vendored libraries or built copies)
+    seen = set()
+    for base, exts in ((PLUGINS, (".js",)), (os.path.join(ROOT, "core"), (".odin",)), (os.path.join(ROOT, "app", "src"), (".kt", ".js"))):
+        for d, dirs, fs in os.walk(base):
+            dirs[:] = [x for x in dirs if x not in {".git", "node_modules", "test", "vendor", "build", "plugins"}]
+            for f in fs:
+                if not f.endswith(exts):
+                    continue
+                path = os.path.join(d, f)
+                for n, line in enumerate(open(path, encoding="utf-8", errors="ignore"), 1):
+                    for pat in DEFS:
+                        m = pat.match(line)
+                        name = m and m.group(1)
+                        if not name or "_" not in name or name in seen or name in hooks | events:
+                            continue
+                        seen.add(name)
+                        *nouns, verb = name.split("_")
+                        why = []
+                        if verb not in verbs:
+                            why.append(f"verb '{verb}' isn't in the closed list")
+                        unknown = [w for w in nouns if w not in words and w not in verbs]
+                        if unknown:
+                            why.append(f"{', '.join(unknown)} not in the list")
+                        if why:
+                            problems.append((name, where(path, n), "; ".join(why)))
+                # events sent
+                if f.endswith(".js"):
+                    for n, line in enumerate(open(path, encoding="utf-8", errors="ignore"), 1):
+                        for e in re.findall(r'event_send\("([a-z_]+)"', line):
+                            if e not in events and e not in seen:
+                                seen.add(e)
+                                problems.append((e, where(path, n), "an event outside the seven"))
+    # setting keys and saved Turn fields
+    schema = json.load(open(os.path.join(PLUGINS, "runtime-records", "schemas.json"), encoding="utf-8"))
+    for d in schema["settings"]:
+        if f"`{d['key']}`" not in terms:
+            problems.append((d["key"], "runtime-records/schemas.json", "a setting key not in the list"))
+    send = open(os.path.join(PLUGINS, "runtime-send", "send.js"), encoding="utf-8").read()
+    i = send.index("  const turn = {")
+    for field in re.findall(r"^\s+([a-z_]+)[:,]", send[i:send.index("};", i)], re.M):
+        if f"`{field}`" not in terms:
+            problems.append((field, "runtime-send/send.js (turn_save)", "a saved Turn field not in the list"))
+    # the port contract (as name-check.py)
+    ports = open(os.path.join(design, "4-ports.md"), encoding="utf-8").read()
+    for c in re.findall(r"^\| `([a-z_]+)` \|", ports[:ports.index("## The events")], re.M):
+        *nouns, verb = c.split("_")
+        why = [f"verb '{verb}' isn't in the closed list"] if verb not in verbs else []
+        why += [f"{w} not in the list" for w in nouns if w not in words]
+        if why:
+            problems.append((c, "design/4-ports.md", "; ".join(why)))
+    waiting = [p for p in problems if p[0] in pending]
+    broken = [p for p in problems if p[0] not in pending]
+    print(f"\nNames: {len(seen)} checked against design/3-terms.md")
+    for title, items in (("break the list", broken), ("waiting for a decision (design/terms-pending.md)", waiting)):
+        print(f"{len(items)} {title}")
+        if show or title == "break the list":
+            for name, at, why in sorted(items):
+                print(f"  {name}  ({at}): {why}")
+    return len(broken)
 
 main()
