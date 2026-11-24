@@ -221,7 +221,7 @@ install_bytes :: proc(name: string, data: []byte) -> (id: string, err: string) {
 	if !ok || m == nil do return "", fmt.tprintf("%s is neither a .zip nor a plugin.json", name)
 	pid := get_str(m, "id")
 	if !safe_name(pid) do return "", "plugin.json needs an id made of letters, digits, - or _"
-	for k in ([]string{"main", "siteScript", "css"}) {
+	for k in ([]string{"main", "contentScript", "css"}) {
 		if get_str(m, k) != "" do return "", fmt.tprintf("this plugin.json needs %s too: pick the plugin's .zip instead", get_str(m, k))
 	}
 	_, e5 := install_plugins([]Plugin_Files{{pid, []File_Data{{"plugin.json", data}}}}, "user")
@@ -263,7 +263,7 @@ install_url :: proc(raw: string) -> (id: string, err: string) {
 	if !safe_name(pid) do return "", "plugin.json needs an id made of letters, digits, - or _"
 	base := url[:strings.last_index_byte(url, '/')]
 	names := make([dynamic]string)
-	for k in ([]string{"main", "siteScript", "css"}) do if v := get_str(m, k); v != "" do append(&names, v)
+	for k in ([]string{"main", "contentScript", "css"}) do if v := get_str(m, k); v != "" do append(&names, v)
 	for v in get_arr(m, "files") do if s, is_str := v.(json.String); is_str do append(&names, string(s))
 	files := make([dynamic]File_Data)
 	append(&files, File_Data{"plugin.json", mdata})

@@ -1,15 +1,16 @@
 // A stand-in for the promptpipe core, for looking at the app screen in a desktop browser.
 // It serves the app's own UI files and answers the same routes with simple, in-memory
-// behaviour. The AI site is faked: "send" reports progress and returns a canned reply.
+// behaviour. The AI website is faked: "send" reports progress and returns a canned reply.
 // Not the real core: storage, git and the page bridge are simulated. Use the real core
 // (odin build core) when Odin is installed; this is for a machine without it.
 //
 //   node scripts/ux/standin.js          then open http://127.0.0.1:7790 (or run driver.js)
 //
 // PP_PLUGINS=<folder>: a checkout of promptpipe-plugins (default: ../promptpipe-plugins, next
-// to this repo). With it, the app parts are the newer ones from there and "Get plugins"
-// installs from it. Without it, the parts are the ones this repo ships.
-// PP_PORT=<port>: default 7790. Each start begins from a first launch (build/ux-data is emptied).
+// to this repo). Every plugin comes from there: the built-in ones (index.json "builtin"), and
+// "Get plugins" installs the others from it.
+// PP_PORT=<port>: default 7790. PP_DATA=<folder>: default build/ux-data. Each start begins from a
+// first launch (the data folder is emptied).
 // The fake site answers every message with one reply (list, table, code, link, thinking).
 // A message with "fail" in it is not sent, "slow" takes 22 s, "short" gets a one-word reply.
 const http = require("http");
@@ -19,23 +20,23 @@ const path = require("path");
 const ROOT = path.join(__dirname, "../..");
 const APP = path.join(ROOT, "app/src/main/assets");
 const REPO = process.env.PP_PLUGINS || path.join(ROOT, "../promptpipe-plugins");
-const DATA = path.join(ROOT, "build/ux-data");
+const DATA = process.env.PP_DATA || path.join(ROOT, "build/ux-data");
 const PORT = +process.env.PP_PORT || 7790;
-const PARTS = ["chat-ui", "core-chatfile", "core-history", "core-jobs", "core-markdown", "core-pipeline", "core-send"];
+// The built-in plugins: the ones the plugins repo's index.json marks "builtin" (what an APK built now
+// would carry, see scripts/copy-plugins.py), read straight from the plugins repo.
+const BUILTIN = Object.fromEntries(JSON.parse(fs.readFileSync(path.join(REPO, "index.json"), "utf8")).plugins.filter((e) => e.builtin).map((e) => [e.id, path.join(REPO, e.path)]));
 fs.rmSync(DATA, { recursive: true, force: true });
 for (const d of ["history", "plugins", "export"]) fs.mkdirSync(path.join(DATA, d), { recursive: true });
 
 const MIME = { html: "text/html", js: "text/javascript", css: "text/css", json: "application/json", md: "text/markdown", svg: "image/svg+xml", png: "image/png" };
 const safe = (rel) => !!rel && !rel.startsWith("/") && rel.split("/").every((p) => p && p !== "." && p !== "..");
-// The newest app parts are the ones in the plugins repo (what an updated phone runs).
 const pluginDir = (id, builtinOnly) => {
   const user = path.join(DATA, "plugins", id);
   if (!builtinOnly && fs.existsSync(path.join(user, "plugin.json"))) return { dir: user, source: "user" };
-  if (PARTS.includes(id) && fs.existsSync(path.join(REPO, id, "plugin.json"))) return { dir: path.join(REPO, id), source: "builtin" };
-  return { dir: path.join(APP, "plugins", id), source: "builtin" };
+  return { dir: BUILTIN[id] || path.join(REPO, id), source: "builtin" };
 };
 const listPlugins = (builtinOnly) => {
-  const ids = new Set([...fs.readdirSync(path.join(APP, "plugins")), ...PARTS, ...(builtinOnly ? [] : fs.readdirSync(path.join(DATA, "plugins")))]);
+  const ids = new Set([...Object.keys(BUILTIN), ...(builtinOnly ? [] : fs.readdirSync(path.join(DATA, "plugins")))]);
   const out = [];
   for (const id of [...ids].sort()) {
     const { dir, source } = pluginDir(id, builtinOnly);
@@ -119,9 +120,9 @@ const site = async (b) => {
       if (!/\/c\//.test(pg.url)) pg.url = (pg.url || "https://chat.example.com/").replace(/\/$/, "") + "/c/" + Math.random().toString(36).slice(2, 8);
       return { ...info, url: pg.url, raw: /short/i.test(b.text || "") ? "Done." : REPLY, thinking: THINK, you: b.text || "" };
     }
-    case "models": return { ...info, models: ["Stand-in 1.0", "Stand-in Max", "Stand-in Flash"], switches: (b.site?.switches || []).map((s) => ({ name: s.name, found: true, on: false })) };
-    case "setModel": return { ...info, model: b.model, switches: [] };
-    case "setSwitch": return { ...info, switches: [] };
+    case "models": return { ...info, models: ["Stand-in 1.0", "Stand-in Max", "Stand-in Flash"], options: (b.provider?.options || []).map((s) => ({ name: s.name, found: true, on: false })) };
+    case "setModel": return { ...info, model: b.model, options: [] };
+    case "setOption": return { ...info, options: [] };
     case "list": return { ...info, chats: [{ url: "https://chat.example.com/c/abc", title: "An older site chat" }] };
     case "last": return { ...info, raw: REPLY, thinking: THINK };
     case "history": return { ...info, turns: [{ you: "Hello", reply: "Hi there.", thinking: "" }] };

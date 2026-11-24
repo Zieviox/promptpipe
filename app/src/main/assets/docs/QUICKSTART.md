@@ -11,9 +11,9 @@ itself receives.
 1. Allow notifications (the app keeps running in the background with one).
 2. Tap **Grant file access** when asked, so chats and plugins live in
    `/sdcard/PromptPipe/`.
-3. Install a site plugin: ⋯ → **Plugins** → **Install from a file** (a `.zip`)
-   or paste its link → **Install**. promptpipe ships without site plugins.
-4. Tap the site name in the header (green dot) and log in on the site once.
+3. Install a provider (the plugin for your AI website): ⋯ → **Plugins** → **Get providers**,
+   or **Install from a file** (a `.zip`) or paste its link. promptpipe ships without providers.
+4. Tap the provider's name in the header (green dot) and log in on the site once.
    **← Chat** brings you back.
 
 ## 2. Chatting
@@ -32,10 +32,10 @@ itself receives.
   in order. Queued messages can be moved up, edited or removed.
 - Replies never scroll the chat for you. A new one shows as **↓ 1 new** above
   the message box; tap it to jump to the start of that reply.
-- **System prompts**: the ☰ on the System prompt switch opens your library.
-  Save prompts, **Pin** favourites, **Use** them to stack several (sent in
-  order, move with ↑ ↓). The stack is per profile; the library is
-  `system-prompts.json` in your history folder.
+- **System prompts** are blocks of your profile: write one for the profile, or
+  keep it in the **Prompt library** (Settings) and link it. A linked block sends
+  the library's text, so one edit there changes every profile that links it.
+  The library is `prompt-library.json` in your history folder.
 
 ## 3. Chats
 
@@ -57,11 +57,13 @@ itself receives.
 ## 5. Profiles, models and plugins
 
 - The profile name in the header (e.g. **Base64**) opens **Profiles**: each one
-  picks a site and which plugins run, with their settings.
-- The model name opens the **Model** sheet: pick the model and switches
-  (Thinking, Search). If the app can't read the list, **Choose on the site**.
-- **Plugins**: switch them on per profile, change their order, open their
-  settings (⚙ on a block under the message box).
+  is a list of blocks (System prompts, plugins, your message), sent top to bottom,
+  with its plugins' settings. **Quick edit** next to the message box toggles
+  them for this chat.
+- The model name opens the **Model and options** sheet: pick the model and the
+  site's options (Thinking, Search). If the app can't read the list, **Choose on the site**.
+- **Plugins**: add them to a profile as blocks, change their order, open their
+  settings (⚙ on a plugin's toggle).
 
 ## Advanced
 
@@ -99,15 +101,15 @@ Settings › Sites › **Max replies at once** (5, or up to 10). Each reply runs
 own copy of the site (a page opens when a message has to wait), so that many chats
 get answered at the same time: yours, plugins'
 (`PP.ask`) and other apps' (local API). Anything more waits its turn. All
-pages share the login. In the site view, **Page 1/2** switches between them;
+pages share the login. In the site view, tap a page to see it;
 Check and "Add the page's newest reply" use the page on screen. More pages use
 more memory, and many messages at once can look like a bot to the site.
 
 ### Writing your own plugins
 Settings › Plugins › Library › **Plugin guide** (copy the instructions for an AI, then install its answer), or `docs/PLUGINS.md` in the repo.
-A plugin is a folder with `plugin.json` (+ `main.js`); site plugins are mostly
+A plugin is a folder with `plugin.json` (+ `main.js`); providers are mostly
 CSS selectors. When a site changes, the Page report plugin shows what to fix.
-The app itself is plugins too: Settings › App parts lists them, with **Copy**
+The app itself is plugins too: Settings › Core plugins lists them, with **Copy**
 to change one and **Restart in safe mode** if one of yours breaks.
 
 ### Plugin updates
@@ -115,7 +117,7 @@ Settings › **Plugins** (top right: **Update all**) gets the latest plugins wit
 a new APK. A dot marks a plugin with an update; the app checks once a day. Each
 plugin has its own page with **Update**, **Roll back** and **Remove**. Library
 sources: the official one is always there; add others by their GitHub link.
-If the download fails, use Settings › App parts › **Download the zip** and
+If the download fails, use Settings › Core plugins › **Download the zip** and
 **Install the zip**. Restart the app after an app update.
 
 ### Keyboard (optional)

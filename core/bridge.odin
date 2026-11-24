@@ -6,7 +6,7 @@ package ppcore
 //   native modules). The core queues a call, the shell long-polls /shell/next
 //   and answers on /shell/done;
 // - jobs: API requests handed to the app screen, which runs the message
-//   pipeline and answers on /api/jobs/done.
+//   queue and answers on /api/jobs/done.
 // Request threads wait on one shared condition until their answer arrives.
 
 import "core:fmt"

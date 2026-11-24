@@ -1,0 +1,714 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>PP wireframe</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one phone mockup centered on the page with a short hint line above it. */
+:root{--bg:#f6f4f1;--fg:#1d1b19;--mute:#6b645d;--line:#ddd7d0;--accent:#c4521a}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14151a;--fg:#ece9e4;--mute:#9a958e;--line:#2b2d35;--accent:#f0a068;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#14151a;--fg:#ece9e4;--mute:#9a958e;--line:#2b2d35;--accent:#f0a068;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;padding-block:16px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;align-items:center;gap:12px}
+h1{font-size:1.1rem;margin:0}
+.hint{color:var(--mute);font-size:.85rem;max-width:380px;text-align:center;margin:0}
+kbd{font:12px ui-monospace,monospace;border:1px solid var(--line);border-radius:5px;padding:0 5px}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-align:left}
+button:focus-visible,input:focus-visible{outline:2px solid var(--pacc);outline-offset:1px}
+.ph{--pbg:#17181d;--pfg:#ece9e4;--pmute:#8f8b85;--pline:#2b2d35;--pcard:#20222a;--pacc:#f0a068;--pon:#1a1208;width:min(100%,360px);height:min(740px,calc(100vh - 150px));min-height:560px;border-radius:30px;background:var(--pbg);color:var(--pfg);font-size:14px;line-height:1.35;position:relative;overflow:hidden;box-shadow:0 0 0 1px var(--line),0 10px 30px rgba(0,0,0,.28);display:flex;flex-direction:column}
+.ph.light{--pbg:#faf8f5;--pfg:#1d1b19;--pmute:#6b645d;--pline:#ddd7d0;--pcard:#efebe6;--pacc:#c4521a;--pon:#fff}
+.top{display:flex;align-items:center;gap:8px;padding:16px 12px 8px}
+.top .t{font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:4px 2px}
+.pill{border:1px solid var(--pline);border-radius:999px;padding:4px 10px;font-size:12.5px;white-space:nowrap;display:inline-flex;align-items:center}
+.dot{width:7px;height:7px;border-radius:50%;background:#5fcf8c;margin-right:6px;flex:none}
+.svg{display:inline-flex;flex:none}.ic{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:17px;flex:none}
+.ic:hover,.it:hover,.pill:hover{filter:brightness(1.15)}
+.chat{flex:1;padding:8px 14px;display:flex;flex-direction:column;gap:14px;overflow:auto}
+.you.tuck{max-height:8.4em;overflow:hidden;-webkit-mask-image:linear-gradient(#000 55%,transparent);mask-image:linear-gradient(#000 55%,transparent)}
+.vsw{display:inline-flex;align-items:center;gap:2px;color:var(--pmute);font-size:12px;margin:2px 0}.vsw button{width:24px;height:24px;display:grid;place-items:center;border-radius:50%;padding:0}.vsw button:hover{color:var(--pfg)}
+.you{align-self:flex-end;background:var(--pcard);padding:8px 12px;border-radius:16px;max-width:80%}
+.ai small{color:var(--pmute);display:block}
+.comp{margin:8px 10px 14px;background:var(--pcard);border-radius:22px;padding:10px 12px;display:flex;align-items:center;gap:10px}
+.comp input{flex:1;min-width:0;background:none;border:0;color:inherit;font:inherit;outline:0}
+.send{background:var(--pacc);color:var(--pon);width:30px;height:30px;border-radius:50%;display:grid;place-items:center;flex:none}
+.layer{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end}
+.dim{position:absolute;inset:0;background:rgba(0,0,0,.45)}
+.sheet{position:relative;background:var(--pbg);border-radius:22px 22px 0 0;padding:14px 14px 18px;box-shadow:0 -1px 0 var(--pline);display:flex;flex-direction:column;gap:6px;max-height:calc(100% - 44px);min-height:30%}
+.sheet.tall{height:calc(100% - 44px)}
+.sh{display:flex;align-items:center;gap:6px;font-weight:600;font-size:15px;margin-bottom:4px}
+.sh .grow{flex:1}
+.body{overflow:auto;display:flex;flex-direction:column;gap:6px;padding:2px}
+.lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--pmute);margin:10px 0 2px}
+.it{display:flex;align-items:center;gap:8px;padding:11px 12px;border-radius:12px;background:var(--pcard);width:100%}
+.it .g{flex:1;min-width:0}.it small{display:block;color:var(--pmute);font-size:12px}
+.it kbd{border:0;color:var(--pmute)}
+.ch{color:var(--pmute)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}.chips .pill{background:var(--pcard)}
+.sw{width:38px;height:22px;border-radius:99px;background:var(--pline);position:relative;flex:none}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:var(--pfg);transition:left .15s}
+.sw.on{background:var(--pacc)}.sw.on::after{left:19px;background:var(--pon)}
+.seg{display:flex;border:1px solid var(--pline);border-radius:99px;overflow:hidden}
+.seg button{padding:5px 12px;font-size:13px}.seg .on{background:var(--pacc);color:var(--pon)}
+.search{background:var(--pcard);border-radius:12px;padding:10px 12px;display:flex;gap:8px;align-items:center}
+.search input{flex:1;min-width:0;background:none;border:0;color:inherit;font:inherit;outline:0}
+.youwrap{display:flex;flex-direction:column;align-items:flex-end;gap:2px}.acts{display:flex;gap:2px;margin-top:4px}.acts.right{margin:0}.act{width:32px;height:30px;display:grid;place-items:center;border-radius:9px;color:var(--pmute)}.act:hover{background:var(--pcard);color:var(--pfg)}
+.hl{outline:2px solid var(--pacc);box-shadow:0 0 0 6px color-mix(in srgb,var(--pacc) 28%,transparent);animation:p 1.1s ease-in-out infinite}
+@keyframes p{50%{box-shadow:0 0 0 11px transparent}}
+@media (prefers-reduced-motion:reduce){.hl{animation:none}}
+.toast{position:absolute;left:50%;transform:translateX(-50%);bottom:84px;background:var(--pfg);color:var(--pbg);padding:7px 14px;border-radius:99px;font-size:13px;white-space:nowrap;z-index:5;max-width:90%;overflow:hidden;text-overflow:ellipsis}
+.drawer{position:absolute;inset:0;background:var(--pbg);padding:16px 12px;display:flex;flex-direction:column;gap:8px;overflow:auto}
+.res .path{color:var(--pmute);font-size:12px}
+.tag{border:1px solid var(--pline);border-radius:99px;padding:2px 9px;font-size:12px}
+.tabs{display:flex;gap:4px;margin:2px 0 6px}.tabs button{flex:1;text-align:center;padding:8px;border-radius:10px;background:var(--pcard);font-size:13.5px}.tabs .on{background:var(--pacc);color:var(--pon);font-weight:600}
+.badge{background:var(--pacc);color:var(--pon);border-radius:99px;font-size:11px;font-weight:700;padding:1px 7px;margin-left:auto}
+.pdot{position:absolute;top:-2px;right:-2px;width:9px;height:9px;border-radius:50%;background:var(--pacc);box-shadow:0 0 0 2px var(--pbg)}
+.pill{position:relative}
+.foot{display:flex;align-items:center;gap:6px;color:var(--pmute);font-size:12px;margin-top:2px}
+.foot .tg{border:1px solid var(--pline);border-radius:99px;padding:1px 8px}.foot .tg.dim{opacity:.55}
+.exp{display:flex;flex-direction:column;gap:6px;margin-top:2px}
+details{background:var(--pcard);border-radius:10px;padding:8px 10px;font-size:13px}details summary{cursor:pointer;color:var(--pmute)}
+.thin{display:flex;align-items:center;gap:4px;color:var(--pmute);font-size:12px;padding:4px 0;margin-top:2px}.thin:hover{color:var(--pfg)}.thin .svg svg{width:14px;height:14px}.thinbox{border-left:2px solid var(--pline);padding-left:10px;margin-top:2px}
+.grip{touch-action:none;cursor:grab;color:var(--pmute);width:26px;height:34px;display:grid;place-items:center;flex:none;margin:-6px 0 -6px -6px}.grip:active{cursor:grabbing}
+.jump{position:absolute;left:50%;transform:translateX(-50%);bottom:78px;background:var(--pcard);border:1px solid var(--pline);border-radius:99px;padding:6px 12px;font-size:12.5px;z-index:4;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+.it{box-sizing:border-box}.mv{display:flex;gap:2px;flex:none}.mv .act{width:28px;height:28px}
+.prim{background:var(--pacc)!important;color:var(--pon);font-weight:600;justify-content:center}
+.sub2{color:var(--pmute);font-size:12px}
+.cr{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:9px;background:var(--pcard);min-height:36px;box-sizing:border-box;font-size:14px;cursor:pointer;position:relative;flex:none;user-select:none}
+.cr.cur{outline:1.5px solid var(--pacc)}.cr.fr{background:transparent;font-weight:600;padding-left:4px}.cr.ind{margin-left:16px}.cr.sel{background:color-mix(in srgb,var(--pacc) 22%,var(--pcard))}
+.cr .ct{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cr .ctag{font-size:11px;color:var(--pmute);max-width:34%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:none}
+.cr .grip{margin:0 -4px 0 0;width:26px;height:28px}.cb{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--pmute);display:grid;place-items:center;flex:none;box-sizing:border-box}.cb.on{background:var(--pacc);border-color:var(--pacc);color:var(--pon)}
+.dt{box-shadow:0 -2px 0 var(--pacc)}.db{box-shadow:0 2px 0 var(--pacc)}.di{outline:2px dashed var(--pacc);outline-offset:-2px}
+.cr .pb{width:26px;height:28px;display:grid;place-items:center;flex:none;color:var(--pmute);margin:0;opacity:.7}.cr .pb.on{color:var(--pacc);opacity:1}
+.comp textarea{flex:1;min-width:0;background:none;border:0;color:inherit;font:inherit;outline:0;resize:none;height:132px}.comp.big{align-items:flex-end}
+.top .pill{min-width:0;flex:0 1 auto;gap:6px}.top .pill .tx{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}.top .ic{flex:none}.top .t{flex:1 1 40px}
+.tourhl{position:relative;z-index:6;outline:2px solid var(--pacc);outline-offset:2px;box-shadow:0 0 0 9999px rgba(0,0,0,.68);border-radius:14px}.tdot{width:8px;height:8px;border-radius:50%;background:var(--pline);padding:0;min-width:0}.tdot.on{background:var(--pacc);width:20px;border-radius:99px}
+.num{width:26px;height:26px;border-radius:50%;background:var(--pacc);color:var(--pon);display:grid;place-items:center;font-weight:700;flex:none;font-size:14px}
+.hq.on{background:var(--pacc);color:var(--pon)}.helpbar{position:absolute;top:62px;left:10px;right:10px;background:var(--pacc);color:var(--pon);border-radius:14px;padding:8px 8px 8px 12px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px;justify-content:space-between}.helpbar .pill{background:var(--pon);color:var(--pacc);border-color:var(--pon)}.helpl{pointer-events:none}
+.hoverq{position:fixed;z-index:50;width:20px;height:20px;border-radius:50%;background:#f0a068;color:#1a1208;font-size:12px;font-weight:700;display:grid;place-items:center;border:0;padding:0;box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:help}.hoverq[hidden]{display:none}
+.shield{position:absolute;z-index:7;background:transparent}.tourl.top .sheet{border-radius:0 0 22px 22px}
+</style>
+<h1>PP wireframe</h1>
+<p class="hint">Tap through it. Find (⌕) searches chats and every function and lights up the control it points to. Tap ⋯ under a reply to open its actions. Desktop: <kbd>Ctrl</kbd>+<kbd>K</kbd> or <kbd>F3</kbd> opens Find, <kbd>Esc</kbd> goes back.</p>
+<div class="ph" id="ph"></div>
+<p class="hint notes"><b>Design note:</b> a profile could recommend a site (for example Feedback prefers DeepSeek). That would show as a hint when you start a new chat with that profile and never force a switch. Not built in this wireframe.</p>
+<script>const $=(t,p={},...k)=>{const e=document.createElement(t);for(const[a,v]of Object.entries(p)){if(v==null||v===false)continue;if(a==='class')e.className=v;else if(a.startsWith('on'))e.addEventListener(a.slice(2),v);else if(a==='html')e.innerHTML=v;else e.setAttribute(a,v===true?'':v)}for(const c of k.flat())if(c!=null&&c!==false)e.append(c.nodeType?c:String(c));return e};
+const IC={char:'<circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-4 3-6 7-6s7 2 7 6"/>',play:'<path d="M8 5l11 7-11 7z"/>',help:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01"/>',stackadd:'<path d="M10 3l8 4-8 4-8-4z"/><path d="M2 12l8 4 8-4"/><path d="M19 15v6M16 18h6"/>',expand:'<path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/>',shrink:'<path d="M20 10h-6V4M4 14h6v6M14 10l7-7M10 14l-7 7"/>',pin:'<path d="M9 4h6l-1 6 3 3H7l3-3zM12 13v7"/>',check:'<path d="M5 12l5 5 9-10"/>',trash:'<path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12"/>',folder:'<path d="M3 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/>',menu:'<path d="M4 7h16M4 12h16M4 17h16"/>',search:'<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',plus:'<path d="M12 5v14M5 12h14"/>',send:'<path d="M12 19V5M5.5 11.5L12 5l6.5 6.5"/>',close:'<path d="M6 6l12 12M18 6L6 18"/>',back:'<path d="M15 5l-7 7 7 7"/>',
+copy:'<rect x="8" y="8" width="11" height="11" rx="2"/><path d="M5 15V6a1 1 0 0 1 1-1h9"/>',quote:'<path d="M10 8H6v5h4zM18 8h-4v5h4zM10 13c0 2-1 3-3 4M18 13c0 2-1 3-3 4"/>',retry:'<path d="M19 12a7 7 0 1 1-2.1-5M19 5v4h-4"/>',more:'<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>',edit:'<path d="M5 19l1-4 9-9 3 3-9 9zM13.5 7.5l3 3"/>',chatI:'<path d="M5 6h14v9H10l-4 4v-4H5z"/>',grip:'<circle cx="9" cy="6" r="1.3"/><circle cx="15" cy="6" r="1.3"/><circle cx="9" cy="12" r="1.3"/><circle cx="15" cy="12" r="1.3"/><circle cx="9" cy="18" r="1.3"/><circle cx="15" cy="18" r="1.3"/>',right:'<path d="M9 5l7 7-7 7"/>',up:'<path d="M6 14l6-6 6 6"/>',down:'<path d="M6 10l6 6 6-6"/>',select:'<path d="M5 7h14M5 12h9M5 17h12"/>',
+settings:'<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',plugins:'<path d="M9 4v4M15 4v4M7 8h10v4a5 5 0 0 1-10 0zM12 17v3"/>',prompt:'<path d="M5 6h14v10H9l-4 4z"/><path d="M9 10h6"/>',look:'<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/>',sites:'<circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c3 3 3 13 0 16M12 4c-3 3-3 13 0 16"/>',storage:'<path d="M4 7a8 3 0 0 1 16 0v10a8 3 0 0 1-16 0zM4 7a8 3 0 0 0 16 0M4 12a8 3 0 0 0 16 0"/>',impexp:'<path d="M12 4v10M8 10l4 4 4-4M5 19h14"/>',api:'<path d="M8 8l-4 4 4 4M16 8l4 4-4 4M13.5 6l-3 12"/>',adv:'<path d="M12 4l7 4v8l-7 4-7-4V8z"/><circle cx="12" cy="12" r="2"/>',help:'<circle cx="12" cy="12" r="8"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01"/>'};
+const ico=n=>{const s=document.createElement('span');s.className='svg';s.setAttribute('aria-hidden','true');s.innerHTML='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+IC[n]+'</svg>';return s};
+const CHATS=[{t:'Harbour story draft',sn:'The door had no handle, only a hum.',tags:'story draft rp',pin:1},{t:'Feedback on chapter 3',sn:'The middle drags. Cut the second flashback.',tags:'feedback draft'},{t:'Character sheet: Ilse',sn:'Ilse Varga, 34, ferry pilot. Dry humour.',tags:'rp characters',f:'Worlds'},{t:'Plot knots',sn:'Who built the door? Why is the lamp failing?',tags:'story',f:'Worlds'},{t:'Plain test',sn:'Hello! How can I help?',tags:''}];
+const mkChar=(id,name,spec,fmt,w,lore,greets)=>({id,name,spec,fmt,w,lore,greets});
+const CHARS0=[mkChar('ilse','Ilse Varga','V2','PNG, V2',{desc:210,pers:80,scen:120,ex:150,sys:0,post:40},[{n:'The lamp',k:'lamp, harbour light',w:60,always:0},{n:'The door',k:'door, hum',w:45,always:0},{n:'Ferry rules',k:'',w:120,always:1}],['The ferry was late again, and Ilse was not sorry.','"You are standing in my seat."','The radio crackled. "Ilse, you there?"']),
+ mkChar('moth','Captain Moth','V3','JSON, V3',{desc:520,pers:300,scen:380,ex:600,sys:90,post:60},[],['Static, then a calm voice: "Bridge to anyone listening."'])];
+const PARTS=[['desc','Description'],['pers','Personality'],['scen','Scenario'],['ex','Example dialogue'],['sys','Card system prompt'],['post','Post-history instructions']];
+const partOn=(c,k)=>{const key='cp_'+c.id+'_'+k;return key in st.on?st.on[key]:true};
+const loreOn=(c,i)=>{const key='le_'+c.id+'_'+i;return key in st.on?st.on[key]:true};
+const charWords=c=>PARTS.reduce((n,[k])=>n+(partOn(c,k)?c.w[k]:0),0)+c.lore.reduce((n,e,i)=>n+(e.always&&loreOn(c,i)?e.w:0),0);
+const charSub=p=>{const c=st.chars.find(x=>x.id===p.cid);return c?'Character card · about '+charWords(c)+' words':'Character card'};
+const SAMPLE_IMPORTS={png:{name:'Mara Voss',spec:'V2',fmt:'PNG, V2 (text chunk "chara")',w:{desc:260,pers:90,scen:150,ex:220,sys:0,post:50},loreN:5,greetN:3,unused:'depth prompt'},json:{name:'Warden Pike',spec:'V3',fmt:'JSON, V3',w:{desc:700,pers:400,scen:500,ex:700,sys:120,post:80},loreN:12,greetN:1,unused:'regex scripts, asset list'}};
+const MSGS=[{you:1,t:'Make the second paragraph shorter and darker.'},{t:'It was low and salt-grey. Warm, which the rock never was.',own:[],time:'01:53'},{you:1,t:'Good. Now the door.'},{t:'The door had no handle, only a hum.',own:['draft'],time:'01:54'}];
+const lastAI=3;
+const PLUG=[{id:'roleplay',name:'Roleplay',kind:'tool',v:'1.0.0',upd:'1.1.0'},{id:'qwen-chat',name:'Qwen Chat',kind:'site',v:'1.6.0',upd:'1.7.0'},{id:'deepseek',name:'DeepSeek',kind:'site',v:'1.1.0'},{id:'memory',name:'Memory',kind:'piece',v:'2.4.0',upd:'2.5.0'},{id:'subchats',name:'Sub-chats',kind:'piece',v:'1.1.0'},{id:'base64',name:'Base64',kind:'piece',v:'1.1.0'},{id:'ember',name:'Ember',kind:'theme',v:'1.0.0'},{id:'paper',name:'Paper',kind:'theme',v:'1.0.0'},{id:'report',name:'Page report',kind:'tool',v:'1.0.0'}];
+const KINDS={site:'AI site',piece:'Message plugin',theme:'Theme',tool:'Tool'};
+const OFF='Zieviox/promptpipe-plugins';
+const CAT=[{n:'ChatGPT',kind:'site',v:'0.3.0',src:OFF,note:'Opt in: the site may limit automated use'},{n:'Gemini',kind:'site',v:'0.2.0',src:OFF,note:'Opt in'},{n:'Poetry meter',kind:'piece',v:'0.4.0',src:OFF,note:'Adds text: meter and rhyme notes'}];
+const CAT3=[{n:'Dusk',kind:'theme',v:'1.0.0',src:'someone/pp-extras',note:'A dark blue theme'},{n:'Rhyme helper',kind:'piece',v:'0.2.0',src:'someone/pp-extras',note:'Adds text: rhyme suggestions'},{n:'Memory',kind:'piece',v:'3.0.0-beta',src:'someone/pp-extras',note:'Another take on Memory',dup:1}];
+const SITES=[{id:'qwen',name:'Qwen Chat',short:'Qwen',models:['Qwen3-Max','Qwen3-235B-A22B','Qwen3-Coder'],state:'ready'},{id:'deepseek',name:'DeepSeek',short:'DeepSeek',models:['DeepSeek-V3','DeepSeek-R1'],state:'ready'}];
+const siteNow=()=>SITES.find(x=>x.id===(st.chatSite[st.cur]||'qwen'));
+const modelNow=()=>st.siteModel[siteNow().id];
+const shortModel=m=>m.replace(/^[A-Za-z]+\d*-?/,'')||m;
+const pillText=()=>siteNow().short+' · '+shortModel(modelNow());
+const st={siteIn:false,seen:seenLoad(),sentN:0,tourBase:{sent:0,pins:0},books:[{id:'harbour',name:'Harbour world',global:1,lore:[{n:'The lamp',k:'lamp',w:70,always:0},{n:'Tides',k:'tide, ferry',w:55,always:0}]}],personas:[{n:'You',d:'No description.'},{n:'Dana',d:'A ferry passenger, curious and polite.'}],persona:0,groups:[{id:'g1',name:'Harbour crew',members:['Ilse Varga','Captain Moth'],mode:'round'}],loreSrc:null,impPre:null,grpCur:null,tourName:'setup',chars:CHARS0.slice(),userName:'You',loreDepth:4,loreBudget:400,imp:null,greetSel:0,charCur:null,help:false,helpCard:null,tourLogin:0,tour:null,tourSite:'Qwen Chat',tourProf:'Plain',scale:1,pinOpen:true,fedit:null,sel:{},selMode:false,selMove:false,ord:null,folders:['Worlds','Drafts'],openF:{Worlds:true},newF:false,dq:'',chatSite:{},siteModel:{qwen:'Qwen3-Max',deepseek:'DeepSeek-V3'},lastSite:'qwen',sitemenu:false,sources:[{name:OFF,official:1,on:true,count:6,checked:'today'}],srcFilter:'all',srcUrl:'',cur:0,sv:false,unread:{},tabs:[{chat:0,url:'https://chat.qwen.ai/c/8f21',state:'ready'},{chat:3,url:'https://chat.qwen.ai/c/51ac',state:'ready'}],activeTab:0,draft:'',qa:'newest',openQA:{},stack:[],drawer:false,plus:false,find:null,light:false,profile:'Story writing',pages:5,unlocked:false,recent:['New chat','Pipeline','Copy the whole chat'],on:{},toast:'',filter:'all',updated:{},clash:'ask',clashPick:'both',dontask:false,
+ profiles:['Default','Story writing','Feedback'],
+ editing:'Story writing',dd:{},
+ pipes:{'Story writing':[{n:'System prompt: Story voice',k:'sys',on:1},{n:'Memory',k:'piece',on:1},{n:'System prompt: No clichés',k:'sys',on:1},{n:'Your message',k:'msg',on:1}],'Default':[{n:'Your message',k:'msg',on:1}],'Feedback':[{n:'System prompt: Feedback coach',k:'sys',on:1},{n:'Your message',k:'msg',on:1}]},
+ more:['Roleplay','Dialogue','Plain','Poetry','Worldbuilding'],
+ sys:[{n:'Story voice',s:'You write in close third person, past tense…'},{n:'No clichés',s:'Avoid stock phrases and mirrored sentence shapes…'},{n:'Feedback coach',s:'Give concrete feedback on pacing and voice…'}],
+ plug:null,sysSel:null};
+const pipeOf=()=>st.pipes[st.editing]||(st.pipes[st.editing]=[{n:'Your message',k:'msg',on:1}]);
+const updCount=()=>PLUG.filter(p=>p.upd&&!st.updated[p.id]).length;
+const siteUpd=()=>!!PLUG.find(p=>p.id==='qwen-chat'&&p.upd&&!st.updated[p.id]);
+const R=(x)=>typeof x==='function'?x():x;
+// ---- screens. rows: array or function(all). Row: {id,label,sub,key,go|toast|act|toggle|seg|radio|badge|chips|pipe|plug|prim,icon,name}
+const S={
+ site:{title:'Profile and site',crumb:'Profile and site',rows:()=>[
+  siteUpd()?{id:'upd',label:'Qwen Chat 1.7.0 is available',sub:'Updates on its own; tap to do it now',prim:1,act:()=>{st.updated['qwen-chat']=1;say('Qwen Chat updated to 1.7.0 · Undo')}}:null,
+  {h:'Profile'},{id:'profile',dd:'switch'},
+  {h:'AI site (for this chat)'},{id:'sitesw',label:()=>siteNow().name,sub:'Switch site',act:()=>{st.stack=[];st.sitemenu=true},name:'Switch site'},{id:'show',label:'Show the page',sub:'Qwen Chat · tabs, address, open in PromptPipe',act:()=>{st.stack=[];st.sv=true},name:'Show AI page'},
+  {id:'model',label:()=>modelNow(),sub:'Model and switches',key:'Ctrl+M',go:'models',name:'Choose model'},
+  {h:'This chat and the page'},
+  {id:'link',label:'Link this chat to the open page',toast:'Linked'},
+  {id:'import',label:'Import messages from the site chat',toast:'Imported 4 messages'},
+  {id:'newest',label:"Add the page's newest reply",toast:'Added the newest reply'},].filter(Boolean)},
+ models:{title:'Model and switches',parent:'site',rows:()=>[
+  ...siteNow().models.map(n=>({id:'m'+n,label:n,act:()=>{st.siteModel[siteNow().id]=n},radio:()=>modelNow()===n,name:'Model: '+n})),
+  {h:'Switches'},{id:'think',label:'Thinking',toggle:'think',def:true},{id:'web',label:'Web search',toggle:'web'}]},
+ chat:{title:'Chat',rows:[
+  {id:'rename',label:'Harbour story draft',sub:'Rename',toast:'Rename the chat'},{tags:true},
+  {h:'Actions'},{id:'copy',label:'Copy the whole chat',toast:'Copied the chat'},{id:'share',label:'Share or export…',toast:'Opens the share sheet'},{id:'pin',label:'Pin to top',sub:()=>CHATS[st.cur].pin?'Pinned':'Not pinned',act:()=>{CHATS[st.cur].pin=!CHATS[st.cur].pin},radio:()=>!!CHATS[st.cur].pin},{id:'move',label:'Move to folder…',sub:()=>CHATS[st.cur].f?'In '+CHATS[st.cur].f:'Top level',go:'moveto'},{id:'sub',label:'Sub-chats',go:'subchats'},
+  {h:'Versions and branches'},{id:'vers',label:'Switch with the arrows',sub:'Send again keeps the old reply. Edit and resend branches the chat from that message.',toast:'Use the arrows under a message'},{h:'History'},{id:'hist',label:'Saved 02:21 · 2 messages',go:'git'}]},
+ moveto:{title:'Move to folder',parent:'chat',rows:()=>[{id:'mf0',label:'Top level (no folder)',act:()=>{delete CHATS[st.cur].f},radio:()=>!CHATS[st.cur].f},...st.folders.map(f=>({id:'mf'+f,label:f,act:()=>{CHATS[st.cur].f=f},radio:()=>CHATS[st.cur].f===f})),{id:'mfnew',label:'New folder…',act:()=>{st.stack=[];st.drawer=true;st.newF=true}}]},
+ subchats:{title:'Sub-chats',parent:'chat',rows:[{id:'nsc',label:'New sub-chat here',toast:'Started a sub-chat'},{id:'sc1',label:'Door lore',sub:'3 messages',toast:'Opens the sub-chat'}]},
+ settings:{title:'Settings',rows:()=>[
+  {id:'plugins',icon:'plugins',label:'Plugins',sub:'Profile order and the plugin library',go:'plugins',key:'',badge:()=>updCount()||''},
+  {id:'sysp',icon:'prompt',label:'System prompts',sub:'Write, order, import, export',go:'sysp'},
+  {id:'roleplay',icon:'char',label:'Roleplay',sub:'Tavern cards, lorebooks, personas, presets, chats',go:'roleplay',badge:()=>st.updated.roleplay?'':'Update'},
+  {id:'look',icon:'look',label:'Look',sub:'Theme, accent, quick actions',go:'look'},
+  {id:'sites',icon:'sites',label:'Sites',sub:'Pages at once, waiting for replies',go:'sites'},
+  {id:'storage',icon:'storage',label:'Chats and storage',sub:'Chat folder, move chats, Git',go:'storage'},
+  {id:'impexp',icon:'impexp',label:'Import and export',sub:'Profiles, prompts, name clashes',go:'impexp'},
+  {id:'api',icon:'api',label:'Local API',sub:'Address, token, folder',go:'api'},
+  {id:'adv',icon:'adv',label:'Advanced',sub:'Reset, safe mode, core log',go:'adv'},
+  {id:'help',icon:'help',label:'Help',sub:'Shortcuts, quick start',go:'help'}]},
+ plugins:{title:'Plugins',crumb:'Plugins › Profile',parent:'settings',tabs:[['plugins','Profile'],['library','Library']],rows:()=>[
+  {id:'cur',dd:'edit'},
+  {h:'Sent top to bottom'},...pipeOf().map((r,i)=>({id:'row'+i,pipe:i,name:r.n})),
+  {id:'add',label:'Add a row',sub:'System prompts and message plugins',go:'addpiece',prim:0}]},
+ addpiece:{title:'Add a row',parent:'plugins',rows:()=>[{h:'Roleplay'},{id:'apers',label:'Persona: '+st.personas[st.persona].n,sub:'Who you are, as system prompt text',act:()=>{pipeOf().splice(Math.max(0,pipeOf().length-1),0,{n:'Persona: '+st.personas[st.persona].n,k:'persona',on:1});st.stack.pop();say('Added to the profile')}},...st.books.map(b=>({id:'al'+b.id,label:'Lorebook: '+b.name,sub:'Added when keywords appear',act:()=>{pipeOf().splice(Math.max(0,pipeOf().length-1),0,{n:'Lorebook: '+b.name,k:'lore',on:1});st.stack.pop();say('Added to the profile')}})),...st.chars.map(c=>({id:'ac'+c.id,label:'Character: '+c.name,sub:'The card as system prompt rows',act:()=>{pipeOf().splice(Math.max(0,pipeOf().length-1),0,{n:'Character: '+c.name,k:'char',on:1,cid:c.id});st.stack.pop();say('Added to the profile')}})),{h:'System prompts'},...st.sys.map(p=>({id:'ap'+p.n,label:p.n,act:()=>{pipeOf().push({n:'System prompt: '+p.n,k:'sys',on:1});st.stack.pop();say('Added to the profile')}})),
+  {h:'Message plugins'},...PLUG.filter(p=>p.kind==='piece').map(p=>({id:'apl'+p.id,label:p.name,act:()=>{pipeOf().push({n:p.name,k:'piece',on:1});st.stack.pop();say('Added to the profile')}}))]},
+ library:{title:'Plugins',crumb:'Plugins › Library',parent:'settings',tabs:[['plugins','Profile'],['library','Library']],rows:(all)=>[
+  {chips:true},
+  updCount()?{id:'updall',label:'Update all',sub:updCount()+' updates available',prim:1,act:()=>{PLUG.forEach(p=>{if(p.upd)st.updated[p.id]=1});say('Everything is up to date')}}:null,
+  ...PLUG.filter(p=>all||st.filter==='all'||p.kind===st.filter).map(p=>({id:'pl'+p.id,plug:p,name:p.name+' plugin'})),
+  {h:'Manage'},{id:'reload',label:'Reload plugins',key:'Ctrl+Shift+R',toast:'Plugins reloaded'},{id:'getp',label:'Get plugins',sub:()=>'From '+st.sources.filter(x=>x.on).length+(st.sources.filter(x=>x.on).length===1?' source':' sources'),go:'getplugins',name:'Get plugins'},{id:'inst',label:'Install from a file or link',toast:'Pick a zip or paste a link'},{id:'guide',label:'Plugin guide',sub:'Writing plugins, copy instructions for AI',go:'guide'},
+  {h:'Sources'},...st.sources.map((x,i)=>({id:'src'+i,src:i,name:'Plugin source: '+x.name})),{id:'addsrc',label:'Add a source',sub:'Another GitHub repo with plugins',go:'addsource',name:'Add plugin source'}].filter(Boolean)},
+ getplugins:{title:'Get plugins',parent:'library',rows:(all)=>{const items=[...CAT,...(st.sources.some(x=>!x.official)?CAT3:[])].filter(c=>st.sources.find(x=>x.name===c.src&&x.on));
+  return[{srcchips:true},...items.filter(c=>all||st.srcFilter==='all'||c.src===st.srcFilter).map(c=>({id:'c'+c.n+c.src,cat:c,name:c.n+' (get)'}))]}},
+ addsource:{title:'Add a source',parent:'library',nofind:1,rows:()=>[{h:'GitHub repo or link'},{input:true},{id:'srcgo',label:'Check and add',prim:1,act:()=>addSource()},{id:'srchint',label:'The repo needs a plugin catalogue (index.json). The app checks this first.'}]},
+ plugin:{title:'Plugin',parent:'library',nofind:1,rows:()=>{const p=st.plug||PLUG[0];return[
+  {id:'pinfo',label:p.name,sub:KINDS[p.kind]+' · version '+p.v+(p.upd&&!st.updated[p.id]?' · '+p.upd+' available':'')},
+  p.upd&&!st.updated[p.id]?{id:'pupd',label:'Update to '+p.upd,prim:1,act:()=>{st.updated[p.id]=1;say(p.name+' updated · Undo')}}:null,
+  p.kind==='site'?{id:'puse',label:'Sites belong to chats',sub:'Pick it from the pill in the header. Profiles do not change the site.'}:{id:'pon',label:'On',toggle:'on'+p.id,def:true},
+  {id:'pset',label:'Settings',sub:'This plugin\'s options',toast:'Opens its settings'},
+  {id:'prb',label:'Roll back to the previous version',toast:'Rolled back'},
+  {id:'prm',label:'Remove',toast:'Removed',confirm:'Remove '+p.name+'? Its settings go with it.'}].filter(Boolean)}},
+ guide:{title:'Plugin guide',parent:'library',rows:[{id:'g1',label:'How a plugin is built',toast:'Shows the doc'},{id:'g2',label:'Copy instructions for AI',sub:'Guide + a request template to paste into any AI',toast:'Copied. Paste it into an AI and say what you want'},{id:'g3',label:'Install the result',sub:'From a file or link',toast:'Pick a zip or paste a link'}]},
+ roleplay:{title:'Roleplay',parent:'settings',rows:()=>[
+  ...(st.updated.roleplay?[]:[{id:'cupd',label:'Roleplay 1.1.0 is ready',sub:'Update it in the Library. Your cards, lorebooks and chats stay.',act:()=>{st.plug=PLUG.find(p=>p.id==='roleplay');go('plugin')},go:'plugin',badge:()=>'Update'}]),
+  {h:'Your library'},
+  {id:'rcards',label:'Characters',sub:st.chars.length+' cards · Tavern V1, V2, V3 (PNG, JSON)',go:'chars'},
+  {id:'rbooks',label:'Lorebooks',sub:st.books.length+' standalone · SillyTavern World Info',go:'books'},
+  {id:'rpers',label:'Personas',sub:'You are: '+st.personas[st.persona].n,go:'personas'},
+  {id:'rgroups',label:'Groups',sub:st.groups.length+' group · several characters in one chat',go:'groups'},
+  {h:'Bring in and take out'},
+  {id:'rpre',label:'Presets (SillyTavern)',sub:'Prompt manager and instruct presets become a profile',go:'cpreset',act:()=>{st.impPre=null;go('cpreset')}},
+  {id:'rchat',label:'Chats (SillyTavern)',sub:'Import and export chat files',go:'cchats'},
+  {h:'Settings'},
+  {id:'cdepth',label:'Lorebook looks back',sub:'How many recent messages are checked for keywords',right:()=>st.loreDepth+' messages',act:()=>{st.loreDepth={2:4,4:8,8:16,16:2}[st.loreDepth]}},
+  {id:'cbudget',label:'Lorebook size limit',sub:'Most words of lorebook added to one message',right:()=>st.loreBudget+' words',act:()=>{st.loreBudget={200:400,400:800,800:200}[st.loreBudget]}},
+  {id:'copen',label:'Show the opening in the chat',sub:'The character\'s opening line appears as the first message and is sent once as context.',toggle:'ropen',def:1},
+  {h:'Good to know'},
+  {id:'ccompat',label:'What PromptPipe uses and ignores',sub:'Cards are read, never run. Nothing is thrown away.',go:'ccompat'}]},
+ ccompat:{title:'What is used',parent:'roleplay',rows:()=>[
+  {h:'Used'},
+  {id:'u1',label:'Character cards V1, V2, V3',sub:'PNG and JSON, with embedded lorebook'},
+  {id:'u2',label:'Lorebooks and World Info',sub:'Keywords, always on, order, size limit'},
+  {id:'u3',label:'Personas',sub:'Name and short description'},
+  {id:'u4',label:'Prompt manager presets and instruct templates',sub:'Become a profile with rows'},
+  {id:'u5',label:'Author\'s note and depth prompts',sub:'Become rows with "At depth N"'},
+  {id:'u6',label:'Chats and branches',sub:'Branches become sub-chats'},
+  {id:'u7',label:'Groups',sub:'Simple turn order'},
+  {h:'Kept in the file, not used'},
+  {id:'k1',label:'Sampler settings',sub:'Temperature and so on. Chat sites do not take them.'},
+  {id:'k2',label:'Regex scripts, extensions',sub:'Never run. Exported back unchanged.'},
+  {id:'k3',label:'Voice, images, expression sprites',sub:'Not part of PromptPipe.'}]},
+ chars:{title:'Characters',parent:'roleplay',rows:()=>[
+  {id:'cimp',label:'Import a card',sub:'Tavern PNG or JSON, from a file or a link',go:'cimport',act:()=>{st.imp=null;go('cimport')}},
+  {id:'cnew',label:'New character',sub:'Start from a blank card',toast:'Opens a blank card'},
+  {h:'Your characters'},
+  ...st.chars.map(c=>({id:'c_'+c.id,label:c.name,sub:c.spec+' card · about '+charWords(c)+' words'+(c.lore.length?' · lorebook '+c.lore.length:''),name:'Character: '+c.name,act:()=>{st.charCur=c;go('char')},go:'char'}))]},
+ books:{title:'Lorebooks',parent:'roleplay',rows:()=>[
+  {id:'bimp',label:'Import a lorebook',sub:'SillyTavern World Info JSON',toast:'Pick a lorebook file'},
+  {id:'bnew',label:'New lorebook',toast:'Opens a blank lorebook'},
+  {h:'Standalone lorebooks'},
+  ...st.books.map(b=>({id:'b_'+b.id,label:b.name,sub:b.lore.length+' entries · '+(b.global?'on for every chat':'off'),name:'Lorebook: '+b.name,act:()=>{st.loreSrc=b;go('lore')},go:'lore'})),
+  {id:'bnote',label:'Add one to a profile as a row',sub:'Plugins › Profile › Add a row › Lorebooks',toast:'Rows go anywhere in the order'}]},
+ personas:{title:'Personas',parent:'roleplay',rows:()=>[
+  {h:'Who you are in the roleplay'},
+  ...st.personas.map((p,i)=>({id:'pe'+i,label:p.n,sub:p.d,radio:()=>st.persona===i,act:()=>{st.persona=i}})),
+  {id:'penew',label:'New persona',sub:'Name and a short description. {{user}} becomes the name.',toast:'Opens a blank persona'},
+  {id:'peimp',label:'Import personas',sub:'SillyTavern persona file',toast:'Pick a file'}]},
+ groups:{title:'Groups',parent:'roleplay',rows:()=>[
+  {id:'gnew',label:'New group',sub:'Pick two or more characters',toast:'Pick characters'},
+  {h:'Your groups'},
+  ...st.groups.map(g=>({id:'gr_'+g.id,label:g.name,sub:g.members.join(', ')+' · '+({round:'take turns',pick:'I choose who speaks',mention:'by name'})[g.mode],name:'Group: '+g.name,act:()=>{st.grpCur=g;go('group')},go:'group'}))]},
+ group:{title:'Group',parent:'groups',nofind:1,rows:()=>{const g=st.grpCur||st.groups[0];return[
+  {h:'Members, in turn order'},
+  ...g.members.map((m,i)=>({id:'gm'+i,label:m,sub:i===0?'Speaks first':'',toast:'Drag to reorder in the build'})),
+  {id:'gadd',label:'Add a character',toast:'Pick a character'},
+  {h:'Who speaks next'},
+  ...[['round','Take turns'],['pick','I choose each time'],['mention','Whoever I name']].map(([k,l])=>({id:'gmode'+k,label:l,radio:()=>g.mode===k,act:()=>{g.mode=k}})),
+  {id:'gnote',label:'How it is sent',sub:'Each member is a Character row. Only the speaker\'s turn instructions are added.',toast:'Same rows as a single character'}]}},
+ cpreset:{title:'Import a preset',parent:'roleplay',nofind:1,rows:()=>{const m=st.impPre;if(!m)return[
+  {id:'pr1',label:'Choose a preset file',sub:'SillyTavern prompt manager or instruct preset (JSON)',act:()=>{st.impPre={name:'Roleplay Deluxe',n:9,order:['Main prompt','Character','Scenario','Persona','World info','Chat history','Author\'s note','Extra instructions','Post-history'],samplers:1}}},
+  {id:'pr2',label:'Paste a link',toast:'Paste a link to a preset'}];
+  return[{h:'Found'},{id:'pp1',label:m.name,sub:m.n+' prompts in this order',toast:'Becomes a profile'},
+   {h:'Becomes a profile with rows'},...m.order.map((o,i)=>({id:'po'+i,label:o,sub:/Character|Scenario|Persona|World info/.test(o)?'A matching row (card, persona or lorebook)':/history/i.test(o)?'Your chat, as the site keeps it':'A system prompt row'})),
+   {h:'Kept, not used'},{id:'pp2',label:'Sampler settings',sub:'Temperature and so on. Chat sites do not take them.',toast:'Exported back unchanged'},
+   {id:'ppgo',label:'Make the profile',prim:1,act:()=>{st.more.push(m.name);st.impPre=null;st.stack.pop();say('Made the profile "'+m.name+'"')}}]}},
+ cchats:{title:'Chats (SillyTavern)',parent:'roleplay',rows:()=>[
+  {id:'ch1',label:'Import a chat',sub:'SillyTavern chat file (JSONL). Branches become sub-chats.',toast:'Pick a chat file'},
+  {id:'ch2',label:'Export this chat as a SillyTavern file',sub:'Messages, names and the character link',toast:'Saved chat.jsonl'},
+  {id:'ch3',label:'Export all chats with a character',toast:'Saved chats.zip'},
+  {id:'ch4',label:'Imported chats go to a folder',sub:'Imported',right:'Imported',toast:'Pick the folder'}]},
+ cimport:{title:'Import a card',parent:'chars',nofind:1,rows:()=>{const m=st.imp;if(!m)return[
+  {id:'ci1',label:'Choose a PNG card',sub:'The card is inside the picture',act:()=>{st.imp=SAMPLE_IMPORTS.png}},
+  {id:'ci2',label:'Choose a JSON card',sub:'V1, V2 or V3',act:()=>{st.imp=SAMPLE_IMPORTS.json}},
+  {id:'ci3',label:'Paste a link',toast:'Paste a link to a card'}];
+  const words=Object.values(m.w).reduce((a,b)=>a+b,0);
+  return[{h:'Found'},
+   {id:'cp1',label:m.name,sub:'Tavern card '+m.spec+' · '+m.fmt,toast:'Looks right?'},
+   {id:'cp2',label:'Fields',sub:'Description, personality, scenario, example dialogue'+(m.w.sys?', system prompt':'')+', post-history',toast:'These become the parts of the Character row'},
+   {id:'cp3',label:'Lorebook',sub:m.loreN+' entries, added only when their keywords appear',toast:'Opens after import'},
+   {id:'cp4',label:'Greetings',sub:m.greetN+(m.greetN===1?' opening':' openings')+' to pick from',toast:'You choose when starting a chat'},
+   {id:'cp5',label:'Not used by PromptPipe',sub:m.unused+'. Kept untouched.',toast:'Exported back unchanged'},
+   {h:'Size'},
+   {id:'cp6',label:'About '+words+' words',sub:words>1500?'Long card. Long cards use more of the site\'s message limit. You can switch parts off after import.':'Fine for most sites.',toast:'You can switch parts off after import'},
+   {id:'cpgo',label:'Import',prim:1,act:()=>{let n=m.name;if(st.chars.some(c=>c.name===n))n+=' (2)';const lore=Array.from({length:m.loreN},(_,i)=>({n:'Entry '+(i+1),k:'keyword '+(i+1),w:50,always:i===0?1:0}));st.chars.push(mkChar(n.toLowerCase().replace(/ /g,'-'),n,m.spec,m.fmt,m.w,lore,Array.from({length:m.greetN},(_,i)=>'Opening '+(i+1))));st.imp=null;st.stack.pop();say('Imported '+n)}}]}},
+ char:{title:'Character',parent:'chars',nofind:1,rows:()=>{const c=st.charCur||st.chars[0];return[
+  {el:()=>$('div',{class:'it','data-row':'char.head',style:'gap:12px'},$('span',{class:'num',style:'width:44px;height:44px;font-size:17px'},c.name.split(' ').map(x=>x[0]).join('').slice(0,2)),$('div',{class:'g'},c.name,$('small',{},c.spec+' card · '+c.fmt)))},
+  {h:'Use it'},
+  {id:'cuse',label:'Add to this profile',sub:'One Character row in "'+st.profile+'". Move it anywhere.',act:()=>{pipeOf().splice(Math.max(0,pipeOf().length-1),0,{n:'Character: '+c.name,k:'char',on:1,cid:c.id});say('Added to '+st.profile)}},
+  {id:'cchat',label:'Start a new chat with it',sub:'Pick an opening, then the scene starts',go:'cgreet',act:()=>{st.greetSel=0;go('cgreet')}},
+  {id:'cbreak',label:'Turn into system prompts',sub:'Makes plain system prompt rows you can edit freely. The card stays.',confirm:'Make system prompts from the parts of '+c.name+' that are switched on?',toast:'Made system prompts',onYes:()=>{PARTS.forEach(([k,l])=>{if(c.w[k]&&partOn(c,k))st.sys.push({n:c.name+': '+l,s:'From the card · '+c.w[k]+' words'})})}},
+  {h:'What is sent (switch parts off to save space)'},
+  ...PARTS.filter(([k])=>c.w[k]).map(([k,l])=>({id:'p_'+k,label:l,sub:c.w[k]+' words',toggle:'cp_'+c.id+'_'+k,def:1})),
+  {id:'clore',label:'Lorebook',sub:c.lore.length?c.lore.length+' entries · only added when their keywords appear':'No lorebook in this card',go:'lore',right:c.lore.length?'':'',act:()=>{st.loreSrc=null;go('lore')}},
+  {id:'ctot',label:'Sent every message: about '+charWords(c)+' words',sub:charWords(c)>1500?'Long. Long cards use more of the site\'s message limit.':'Lorebook entries come on top, up to '+st.loreBudget+' words.',toast:'Switch parts off above to shrink it'},
+  {h:'Edit and share'},
+  {id:'cedit',label:'Edit fields',sub:'Description, personality, scenario and the rest',toast:'Opens the card editor'},
+  {id:'cx1',label:'Export as PNG card',toast:'Saved '+c.id+'.png'},
+  {id:'cx2',label:'Export as JSON (V2)',toast:'Saved '+c.id+'.json'},
+  {id:'cx3',label:'Export as JSON (V3)',toast:'Saved '+c.id+'.v3.json'},
+  {id:'cdup',label:'Duplicate',act:()=>{st.chars.push({...c,id:c.id+'2',name:c.name+' (2)'});say('Duplicated')}},
+  {id:'cdel',label:'Delete',confirm:'Delete '+c.name+'? Profiles that use it keep an empty row.',toast:'Deleted',onYes:()=>{st.chars=st.chars.filter(x=>x!==c);st.stack.pop()}}]}},
+ lore:{title:'Lorebook',parent:'char',nofind:1,rows:()=>{const c=st.loreSrc||st.charCur||st.chars[0];return[
+  {id:'lo0',label:'How it works',sub:'An entry is added to your message only when one of its keywords appears in the last '+st.loreDepth+' messages. "Always on" entries are added every time.',toast:'Change the look-back in Characters'},
+  {h:'Entries'},
+  ...c.lore.map((e,i)=>({id:'le'+i,label:e.n,sub:(e.always?'Always on':'Keywords: '+e.k)+' · '+e.w+' words',toggle:'le_'+c.id+'_'+i,def:1})),
+  {id:'leadd',label:'Add an entry',toast:'Opens a blank entry'},
+  {h:'Move it'},
+  {id:'leimp',label:'Import a lorebook',sub:'SillyTavern World Info JSON',toast:'Pick a lorebook file'},
+  {id:'leexp',label:'Export this lorebook',toast:'Saved '+c.id+'-lorebook.json'}]}},
+ cgreet:{title:'Pick an opening',parent:'char',nofind:1,rows:()=>{const c=st.charCur||st.chars[0];return[
+  ...c.greets.map((g,i)=>({id:'g'+i,label:'Opening '+(i+1),sub:g,radio:()=>st.greetSel===i,act:()=>{st.greetSel=i}})),
+  {id:'gstart',label:'Start chat',prim:1,sub:'',act:()=>{st.stack=[];st.drawer=false;say('New chat started with '+c.name)}}]}},
+ sysp:{title:'System prompts',parent:'settings',rows:()=>[...st.sys.map((p,i)=>({id:'sp'+i,label:p.n,sub:p.s,act:()=>{st.sysSel=p;go('sysone')},go:'sysone',name:'System prompt: '+p.n})),
+  {h:'Manage'},{id:'spnew',label:'New system prompt',toast:'Made "Prompt 4"'},{id:'spimp',label:'Import system prompts…',toast:'Pick .md files'},{id:'spexp',label:'Export all system prompts',toast:'Saved system-prompts.zip'}]},
+ sysone:{title:'System prompt',parent:'sysp',nofind:1,rows:()=>{const p=st.sysSel||st.sys[0];return[{id:'so1',label:p.n,sub:p.s,toast:'Opens the editor'},{h:'Use'},{id:'so2',label:'Add to this profile',toast:'Added to the profile'},{id:'so3',label:'Export as Markdown',toast:'Saved '+p.n.toLowerCase().replace(/ /g,'-')+'.md'},{id:'so4',label:'Delete',toast:'Deleted',confirm:'Delete this system prompt? Profiles that use it keep an empty row.'}]}},
+ look:{title:'Look',parent:'settings',rows:[
+  {id:'mode',label:'Light or dark',seg:true},{id:'acc',label:'Accent',sub:'Warm orange',toast:'Pick an accent'},{id:'size',label:'UI scale',scale:true},
+  {id:'qa',label:'Quick actions under replies',sub:()=>({newest:'Newest reply only',always:'Every reply',off:'Collapsed'})[st.qa],act:()=>{st.qa={newest:'always',always:'off',off:'newest'}[st.qa];st.openQA={}}}]},
+ sites:{title:'Sites',parent:'settings',rows:[{id:'s2',label:()=>'Max replies at once: '+st.pages,sub:'How many chats can be answered at the same time. Memory and Sub-chats use extra ones. Tap to change.',name:'Max replies at once',act:()=>{const cap=st.unlocked?10:5;if(st.pages>=cap){if(!st.unlocked){st.confirm={confirm:'More than 5 replies at once uses a lot of memory, and many messages on one account can look like a bot to the site. Unlock up to 10?',toast:'Unlocked: up to 10',onYes:()=>{st.unlocked=true;st.pages=6}}}else st.pages=1}else st.pages++}},{id:'s3',label:'Waiting for replies',sub:'Give up after…',toast:'Set the wait'}]},
+ storage:{title:'Chats and storage',parent:'settings',rows:[{id:'st1',label:'Chat folder',sub:'/sdcard/PromptPipe/history',toast:'Choose where chats are saved'},{id:'st2',label:'Move all chats to another folder…',toast:'Pick a folder'},{id:'git',label:'Git history and backup',go:'git'}]},
+ git:{title:'Git history',parent:'storage',rows:[{id:'gh1',label:'seed Harbour story draft',sub:'02:21',toast:'Opens the commit'}]},
+ impexp:{title:'Import and export',parent:'settings',rows:()=>[
+  {h:'Profiles'},{id:'ie1',label:'Export all profiles',toast:'Saved profiles.zip'},{id:'ie2',label:'Import a profile…',act:()=>importProfile(),name:'Import a profile'},
+  {h:'System prompts'},{id:'ie3',label:'Export all system prompts',toast:'Saved system-prompts.zip'},{id:'ie4',label:'Import system prompts…',toast:'Pick .md files'},
+  {h:'When a name already exists'},
+  {id:'clash',label:'Importing a name you already have',sub:()=>({ask:'Ask each time (keep both is preselected)',both:'Always keep both',replace:'Always replace'})[st.clash],act:()=>{st.clash={ask:'both',both:'replace',replace:'ask'}[st.clash]},name:'Name clash on import'}]},
+ importp:{title:'Import profile',parent:'impexp',nofind:1,rows:()=>[
+  {id:'ip0',label:'story-writing.profile.json',sub:'Profile "Story writing"'},
+  {h:'It contains'},{id:'ip1',label:'AI site: Qwen Chat',sub:'Installed'},{id:'ip2',label:'Memory',sub:'Installed'},{id:'ip3',label:'Poetry meter',sub:'Not installed',act:()=>say('Opens the plugin catalogue'),right:'Get it'},{id:'ip4',label:'System prompt: Story voice',sub:'Comes with the file'},
+  {h:'A profile named "Story writing" already exists'},
+  ...[['both','Keep both','Adds "Story writing (2)"'],['replace','Replace it','Overwrites the existing one'],['skip','Skip this profile','Imports nothing']].map(([k,l,sub])=>({id:'ipc'+k,label:l,sub,act:()=>{st.clashPick=k},radio:()=>st.clashPick===k})),
+  {id:'ipd',label:"Don't ask again (keep both every time)",sub:'Change it later in Settings › Import and export',toggle:'dontask'},
+  {id:'ipgo',label:'Import',prim:1,act:()=>finishImport()}]},
+ api:{title:'Local API',parent:'settings',rows:[{id:'a1',label:'Address',sub:'http://127.0.0.1:7790/v1',toast:'Copied'},{id:'a2',label:'API token',sub:'Copy or make a new one',toast:'Copied'}]},
+ adv:{title:'Advanced',parent:'settings',rows:[
+  {id:'ad0',label:'Reset to first launch',sub:'Shows the welcome again. Chats, profiles and plugins stay.',toast:'Reset. The welcome opens now.',onYes:()=>{st.stack=[];resetSeen();startTour('setup')},confirm:'Reset the app to first launch? Your chats, profiles, prompts and plugins stay.'},
+  {id:'ad1',label:'App parts',toast:'Opens app parts'},{id:'ad2',label:'Safe mode',toast:'Restarts in safe mode'},{id:'ad3',label:'Core log',toast:'Opens the log'}]},
+ qs:{title:'Quick start',parent:'help',rows:()=>[
+  ...Object.entries(GUIDES).map(([k,G])=>({id:'qs_'+k,label:G.title,sub:G.sub+' · 3 steps',right:()=>st.seen[k]?'Seen':'New',act:()=>{st.drawer=false;st.plus=false;st.find=null;st.dd={};st.stack=k==='plugins'?['plugins']:[];if(k==='list')st.drawer=true;startTour(k)}})),
+  {id:'qsall',label:'Show every guide again',sub:'They open the first time you visit each place.',act:()=>{resetSeen();st.stack=[];st.tour=null}}]},
+ help:{title:'Help',parent:'settings',rows:[{id:'hq',label:'Show the ? button',sub:'Tap ?, then tap anything to see what it does',toggle:'helpbtn',def:1},{id:'h1',label:'Shortcuts',sub:'Keyboard and touch',toast:'Opens shortcuts'},{id:'h2',label:'Quick start',sub:'Short guides, three steps each. Replay any time.',go:'qs'},{id:'h3',label:'Plugin guide',go:'guide'}]},
+};
+const rowsOf=(sid,all)=>R(typeof S[sid].rows==='function'?()=>S[sid].rows(all):S[sid].rows);
+const ACTIONS=[
+ {name:'Show AI page',path:'Chats',key:'Alt+S',run:()=>{st.stack=[];st.sv=true}},
+ {name:'Quick plugins',path:'Message bar',key:'',run:()=>{st.plus=true}},
+ {name:'Bigger message box',path:'Message bar',key:'Ctrl+E',run:toggleBig},
+ {name:'Put a text file in the box',path:'Message bar',key:'',run:()=>say('Pick a text file')},
+ {name:'Edit this profile',path:'Profile',key:'Ctrl+Shift+L',run:()=>openAt('plugins')},
+ {name:'Help mode (?)',path:'Help',key:'',run:()=>{st.help=true}},
+ {name:'Quick start guides',path:'Help',key:'',run:()=>{st.stack=['qs']}},
+ {name:'Select chats',path:'Chats',key:'',run:()=>{st.drawer=true;st.selMode=true;st.sel={}}},
+ {name:'New folder',path:'Chats',key:'',run:()=>{st.drawer=true;st.newF=true}},
+ {name:'New chat',path:'Chats',key:'Ctrl+N',run:()=>{say('New chat started')}},
+ {name:'Search all chats',path:'Chats',key:'Ctrl+F',run:()=>{openDrawer(true)}},
+ {name:'Chats and folders',path:'Chats',key:'Ctrl+B',run:()=>{openDrawer()}}];
+const chainOf=id=>{const c=[];let x=id;while(x){c.unshift(x);x=S[x].parent}return c};
+const pathOf=id=>{const c=chainOf(id);return c.map((i,j)=>j===c.length-1?(S[i].crumb||S[i].title):S[i].title).join(' › ')};
+function buildIndex(){const out=[];for(const sid of Object.keys(S)){const sc=S[sid];if(sid==='plus'||sc.nofind)continue;const path=pathOf(sid);
+ for(const r of rowsOf(sid,true)){if(!r||r.h||r.tags||r.chips||r.srcchips||r.input||r.prim&&!r.name&&0)continue;let name=r.name||(typeof r.label==='function'?(r.sub&&typeof r.sub==='string'?r.sub:r.label()):r.label);if(r.plug)name=r.plug.name+' plugin';if(r.pipe!=null)name=pipeOf()[r.pipe].n;if(!name||typeof name!=='string')continue;out.push({name,path,key:r.key||'',screen:sid,row:r.id})}}for(const n of ['Switch profile','Edit profile','New profile','Export this profile','Export all profiles']){out.push({name:n,path:'Profile and site',key:'',screen:'site',row:'profile'})}
+ return out}
+const ph=document.getElementById('ph');
+let toastTimer;function say(m){if(!/ · Open$/.test(m))st.toastChat=null;st.toast=m;render();clearTimeout(toastTimer);toastTimer=setTimeout(()=>{st.toast='';render()},2200)}
+function openDrawer(focus){st.drawer=true;st.focusSearch=!!focus;render()}
+function go(id){st.dd={};st.stack=[...st.stack,id];render()}
+function addSource(){const v=(st.srcUrl||'').trim();if(!v){say('Paste a GitHub repo or link');return}
+ const name=v.replace(/^https?:\/\/github\.com\//,'').replace(/\/$/,'');
+ st.confirm={confirm:'Add '+name+'? Only add repos you trust. Plugins are code that runs in the app and can read your chats.',toast:'Source added: '+name,onYes:()=>{st.sources.push({name,on:true,count:3,checked:'just now'});st.srcUrl='';st.stack.pop()}}}
+function installCat(c){const go=()=>{PLUG.push({id:c.n.toLowerCase().replace(/ /g,'-')+(c.dup?'-3p':''),name:c.n,kind:c.kind,v:c.v,src:c.src});st.cat=st.cat||{};st.cat[c.n+c.src]=1;say('Installed '+c.n+' from '+c.src);render()};
+ if(c.dup&&PLUG.some(p=>p.name===c.n&&(!p.src||p.src===OFF))){st.confirm={confirm:c.n+' is also offered by '+OFF+' and already installed. Use the one from '+c.src+' instead?',toast:'Switched '+c.n+' to '+c.src,onYes:()=>{const p=PLUG.find(p=>p.name===c.n);p.src=c.src;p.v=c.v;st.cat=st.cat||{};st.cat[c.n+c.src]=1}};render();return}
+ go()}
+function importProfile(){if(st.clash==='ask'){st.clashPick='both';st.dontask=false;go('importp')}else{say(st.clash==='both'?'Imported as "Story writing (2)"':'Replaced "Story writing"')}}
+function finishImport(){if(st.dontask)st.clash='both';const p=st.clashPick;st.stack.pop();say(p==='both'?'Imported as "Story writing (2)"':p==='replace'?'Replaced "Story writing"':'Skipped')}
+function startDrag(e,i,P=pipeOf(),sel='[data-pipe]'){const rows=[...ph.querySelectorAll(sel)];const row=rows[i],h=row.offsetHeight+6,y0=e.clientY,max=P.length-1;let to=i;const grip=e.currentTarget;grip.setPointerCapture(e.pointerId);e.preventDefault();
+ row.style.position='relative';row.style.zIndex='2';row.style.boxShadow='0 8px 20px rgba(0,0,0,.4)';row.style.outline='1.5px solid var(--pacc)';row.style.transition='none';
+ const move=ev=>{const dy=ev.clientY-y0;row.style.transform='translateY('+dy+'px)';const c=row.offsetTop+row.offsetHeight/2+dy;
+  let t=i;rows.forEach((r,k)=>{if(c>=r.offsetTop&&c<r.offsetTop+r.offsetHeight)t=k});t=Math.max(0,Math.min(max,t));to=t;
+  rows.forEach((r,j)=>{if(j===i)return;let sh=0;if(i<to&&j>i&&j<=to)sh=-h;if(i>to&&j>=to&&j<i)sh=h;r.style.transition='transform .12s';r.style.transform=sh?'translateY('+sh+'px)':''})};
+ const up=()=>{grip.removeEventListener('pointermove',move);grip.removeEventListener('pointerup',up);grip.removeEventListener('pointercancel',up);if(to!==i){const [m]=P.splice(i,1);P.splice(to,0,m);}render()};
+ grip.addEventListener('pointermove',move);grip.addEventListener('pointerup',up);grip.addEventListener('pointercancel',up)}
+function openAt(sid,rowId){st.dd={};st.drawer=false;st.plus=false;st.find=null;st.stack=chainOf(sid);render();
+ if(rowId)setTimeout(()=>{const e=ph.querySelector(`[data-row="${sid}.${rowId}"]`);if(e){e.scrollIntoView({block:'center'});e.classList.add('hl');setTimeout(()=>e.classList.remove('hl'),2600)}},60)}
+function closeAll(){st.dd={};if(st.help||st.helpCard){if(st.helpCard)st.helpCard=null;else st.help=false;render();return}if(st.tour!=null){st.tour=null;render();return}if(st.confirm)st.confirm=null;else if(st.drawer&&st.selMode){st.selMode=false;st.sel={};st.selMove=false;}else if(st.find!=null)st.find=null;else if(st.stack.length>1)st.stack.pop();else if(st.stack.length)st.stack=[];else if(st.plus)st.plus=false;else if(st.drawer)st.drawer=false;render()}
+const act=(i,label,run)=>$('button',{class:'act','aria-label':label,title:label,onclick:run},ico(i));
+const allProfiles=()=>[...st.profiles,...st.more.filter(()=>false)];
+function profDD(sid,kind){const key=kind+sid;const open=!!st.dd[key];const cur=kind==='switch'?st.profile:st.editing;const ed=n=>{st.editing=n;if(sid==='plus'){st.plus=false;st.stack=['plugins']}else go('plugins')};
+ const head=$('button',{class:'it','data-row':sid+'.'+(kind==='switch'?'profile':'cur'),'aria-expanded':String(open),onclick:()=>{st.dd[key]=!open;render()}},$('div',{class:'g'},cur,$('small',{},kind==='switch'?(sid==='plus'?"This chat's profile · tap to switch":'Active profile · tap to switch or edit'):(cur===st.profile?'Editing the active profile · tap to change':'Editing · not the active profile'))),$('span',{class:'ch'},ico(open?'up':'down')));
+ if(!open)return kind==='switch'?$('div',{style:'display:flex;gap:6px;align-items:stretch'},$('div',{style:'flex:1;min-width:0;display:flex;flex-direction:column'},head),$('button',{class:'pill','aria-label':'Edit '+cur,style:'align-self:center',onclick:()=>ed(cur)},ico('edit'),'Edit')):head;
+ const pick=n=>{if(kind==='switch'){st.profile=n;st.editing=n}else st.editing=n;st.dd[key]=false;render()};
+ const list=$('div',{style:'max-height:176px;overflow:auto;display:flex;flex-direction:column;gap:4px;padding:2px',role:'listbox'},[...st.profiles,...st.more].map(n=>$('div',{class:'it',style:'padding:6px 6px 6px 12px',role:'option','aria-selected':String(n===cur)},
+  $('button',{style:'flex:1;min-width:0;display:flex;gap:8px;align-items:center;padding:6px 0',onclick:()=>pick(n)},$('span',{class:'on'},n===cur?'●':'○'),$('span',{class:'g'},n,n===st.profile?$('small',{},'Active'):null)),
+  kind==='switch'?$('button',{class:'pill',onclick:()=>ed(n)},ico('edit'),'Edit'):(n!==st.profile?$('button',{class:'pill',onclick:()=>{st.profile=n;render()}},'Use'):null))));
+ const chips=$('div',{class:'chips'},$('button',{class:'pill',onclick:()=>{st.more.push('Profile '+(st.profiles.length+st.more.length+1));say('Made a new profile')}},'+ New'),$('button',{class:'pill',onclick:()=>importProfile()},'Import…'),$('button',{class:'pill',onclick:()=>say('Saved '+cur.toLowerCase().replace(/ /g,'-')+'.profile.json')},'Export this'),$('button',{class:'pill',onclick:()=>say('Saved profiles.zip')},'Export all'));
+ return $('div',{style:'display:flex;flex-direction:column;gap:6px;background:var(--pcard);border-radius:14px;padding:4px'},head,list,chips)}
+function rowEl(sid,r){
+ if(r.el)return r.el();
+ if(r.srcchips)return $('div',{class:'chips'},[{name:'all',l:'All sources'},...st.sources.filter(x=>x.on).map(x=>({name:x.name,l:x.name.split('/')[1]}))].map(o=>$('button',{class:'pill',style:st.srcFilter===o.name?'background:var(--pacc);color:var(--pon);border-color:var(--pacc)':'',onclick:()=>{st.srcFilter=o.name;render()}},o.l)));
+ if(r.cat){const c=r.cat;const done=st.cat&&st.cat[c.n+c.src];return $('div',{class:'it','data-row':sid+'.'+r.id},$('div',{class:'g'},c.n,$('small',{},KINDS[c.kind]+' · '+c.v+' · '+c.note),$('small',{},'From '+c.src+(c.src===OFF?' · Official':' · Third party'))),done?$('span',{class:'ch'},'Installed'):$('button',{class:'pill',onclick:()=>installCat(c)},'Get'))}
+ if(r.src!=null){const x=st.sources[r.src];return $('div',{class:'it','data-row':sid+'.'+r.id},$('div',{class:'g'},x.name,$('small',{},x.count+' plugins · checked '+x.checked+(x.official?' · Official':' · Third party'))),!x.official?$('button',{class:'act','aria-label':'Remove source',onclick:()=>{st.confirm={confirm:'Remove '+x.name+'? Plugins you installed from it stay.',toast:'Source removed',onYes:()=>{st.sources.splice(r.src,1);if(st.srcFilter===x.name)st.srcFilter='all'}};render()}},ico('close')):null,$('button',{class:'sw'+(x.on?' on':''),'aria-label':'On or off',onclick:()=>{x.on=!x.on;render()}}))}
+ if(r.input)return $('label',{class:'search'},$('input',{id:'srcurl','aria-label':'GitHub repo or link',placeholder:'owner/repo or https://github.com/…',value:st.srcUrl,oninput:e=>{st.srcUrl=e.target.value},onkeydown:e=>{if(e.key==='Enter')addSource()}}));
+ if(r.dd)return profDD(sid,r.dd);
+ if(r.h)return $('div',{class:'lbl'},r.h);
+ if(r.tags)return $('div',{class:'chips'},['#story','#draft','#rp','+ tag'].map(t=>$('span',{class:'tag'},t)));
+ if(r.chips)return $('div',{class:'chips'},[['all','All'],['site','AI sites'],['piece','Message plugins'],['theme','Themes'],['tool','Tools']].map(([k,l])=>$('button',{class:'pill',style:st.filter===k?'background:var(--pacc);color:var(--pon);border-color:var(--pacc)':'',onclick:()=>{st.filter=k;render()}},l)));
+ if(r.pipe!=null){const P=pipeOf();const i=r.pipe,p=P[i];const mv=(d)=>{const j=i+d;if(j<0||j>=P.length)return;[P[i],P[j]]=[P[j],P[i]];render()};
+  return $('div',{class:'it','data-row':sid+'.'+r.id,'data-pipe':i},$('button',{class:'grip','aria-label':'Drag to reorder',title:'Drag to reorder',onpointerdown:ev=>startDrag(ev,i)},ico('grip')),$('div',{class:'g'},p.n,$('small',{},p.k==='sys'?'Adds text · system prompt':p.k==='char'?charSub(p):p.k==='lore'?'Lorebook · added when keywords appear':p.k==='persona'?'Persona · who you are':p.k==='msg'?'Your text goes here. Move it anywhere.':(p.n==='Base64'?'Changes text':'Adds text'))),
+   p.k==='char'?$('button',{class:'act','aria-label':'Open the card',title:'Open the card',onclick:()=>{st.charCur=st.chars.find(c=>c.id===p.cid)||st.chars[0];go('char')}},ico('edit')):null,$('div',{class:'mv'},$('button',{class:'act','aria-label':'Move up',disabled:i===0,onclick:()=>mv(-1)},ico('up')),$('button',{class:'act','aria-label':'Move down',disabled:i>=P.length-1,onclick:()=>mv(1)},ico('down'))),
+   p.k==='msg'?null:$('button',{class:'sw'+(p.on?' on':''),'aria-label':'On or off',onclick:()=>{p.on=p.on?0:1;render()}}))}
+ if(r.plug){const p=r.plug,u=p.upd&&!st.updated[p.id];return $('button',{class:'it','data-row':sid+'.'+r.id,onclick:()=>{st.plug=p;go('plugin')}},$('div',{class:'g'},p.name,$('small',{},KINDS[p.kind]+' · '+p.v+(u?' → '+p.upd:'')+(p.src&&p.src!==OFF?' · Third party':''))),u?$('span',{class:'badge'},'Update'):null,$('span',{class:'ch'},'›'))}
+ const val=r.toggle?(r.toggle in st.on?st.on[r.toggle]:r.toggle==='dontask'?st.dontask:!!r.def):null;
+ const click=()=>{if(r.confirm){st.confirm=r;render();return}if(r.toggle){if(r.toggle==='dontask')st.dontask=!st.dontask;else st.on[r.toggle]=!val;render()}else if(r.act){r.act();render()}else if(r.go){if(sid==='plus'){st.dd={};st.plus=false;st.stack=chainOf(r.go);render()}else go(r.go)}else if(r.toast)say(r.toast)};
+ if(r.scale)return $('div',{class:'it','data-row':sid+'.'+r.id},$('div',{class:'g'},R(r.label),$('small',{},'Text and controls. Applies at once.')),$('div',{class:'seg'},[['90%',.9],['100%',1],['115%',1.15],['130%',1.3]].map(([l,v])=>$('button',{class:v===st.scale?'on':'','aria-label':'UI scale '+l,onclick:()=>{st.scale=v;render()}},l))));
+ if(r.seg)return $('div',{class:'it','data-row':sid+'.'+r.id},$('div',{class:'g'},R(r.label)),$('div',{class:'seg'},['Dark','Light'].map(m=>$('button',{class:(m==='Light')===st.light?'on':'',onclick:()=>{st.light=m==='Light';render()}},m))));
+ const b=r.badge&&r.badge();
+ return $('button',{class:'it'+(r.prim?' prim':''),'data-row':sid+'.'+r.id,onclick:click},
+  r.icon?ico(r.icon):null,
+  $('div',{class:'g',style:r.prim?'flex:0 1 auto;text-align:center':''},R(r.label),r.sub?$('small',{},R(r.sub)):null),
+  r.key?$('kbd',{},r.key):null,b?$('span',{class:'badge'},b):null,
+  r.right?$('span',{class:'ch on'},R(r.right)):null,
+  r.toggle?$('span',{class:'sw'+(val?' on':'')}):null,
+  r.radio?$('span',{class:'on'},r.radio()?'●':'○'):null,
+  r.go&&!r.key&&!b?$('span',{class:'ch'},'›'):null)}
+function sheet(sid,top){const sc=S[sid];
+ return $('div',{class:'layer'},$('div',{class:'dim',onclick:closeAll}),
+  $('section',{class:'sheet'+(top?' tall':''),role:'dialog','aria-label':sc.title},
+   $('div',{class:'sh'},st.stack.length>1?$('button',{class:'ic','aria-label':'Back',onclick:closeAll},ico('back')):null,$('span',{class:'grow'},sc.title),(sid==='plugins'||sid==='library')?$('button',{class:'ic','aria-label':'Quick start: plugins',title:'Quick start: plugins',onclick:()=>{startTour('plugins');render()}},ico('play')):null,helpBtn(),$('button',{class:'ic','aria-label':'Close',onclick:()=>{st.stack=[];st.plus=false;render()}},ico('close'))),
+   sc.tabs?$('div',{class:'tabs'},sc.tabs.map(([id,l])=>{const n=id==='library'?updCount():(pipeOf().some(r=>r.n==='Memory')&&!st.updated.memory?1:0);return $('button',{class:id===sid?'on':'',onclick:()=>{st.dd={};st.stack[st.stack.length-1]=id;render()}},l,n?$('span',{class:'badge',style:'margin-left:6px;background:'+(id===sid?'var(--pon)':'var(--pacc)')+';color:'+(id===sid?'var(--pacc)':'var(--pon)')},id==='library'?n:'●'):null)})):null,
+   $('div',{class:'body'},rowsOf(sid).map(r=>r&&rowEl(sid,r)))))}
+function toggleBig(){st.big=!st.big;render();const m=ph.querySelector('#msg');if(m){m.focus();m.setSelectionRange(m.value.length,m.value.length)}}
+function renameProf(v){v=(v||'').trim();if(!v){say('Type a profile name');return}const o=st.profile;if(v===o){st.qren=false;render();return}if([...st.profiles,...st.more].includes(v)){say('That name is taken');return}const sw=a=>{const k=a.indexOf(o);if(k>=0)a[k]=v};sw(st.profiles);sw(st.more);if(st.pipes[o]){st.pipes[v]=st.pipes[o];delete st.pipes[o]}st.profile=v;st.editing=v;st.qren=false;render()}
+function plusDrawer(){const P=st.pipes[st.profile]||(st.pipes[st.profile]=[{n:'Your message',k:'msg',on:1}]);
+ const mv=(i,d)=>{const [m]=P.splice(i,1);P.splice(i+d,0,m);render()};
+ return $('div',{class:'layer'},$('div',{class:'dim',onclick:closeAll}),
+  $('section',{class:'sheet',role:'dialog','aria-label':'Quick plugins',style:'min-height:0'},
+   $('div',{class:'sh'},st.qren?$('div',{class:'grow',style:'display:flex;gap:6px'},$('input',{id:'qrn','aria-label':'Profile name',value:st.profile,style:'flex:1;min-width:0;background:var(--pcard);border:0;border-radius:10px;color:inherit;font:inherit;padding:6px 10px',onkeydown:e=>{if(e.key==='Enter')renameProf(document.getElementById('qrn').value)}}),$('button',{class:'pill',onclick:()=>renameProf(document.getElementById('qrn').value)},'Save')):$('button',{class:'grow','aria-label':'Rename profile',style:'text-align:left;font:inherit;font-weight:600;padding:0',onclick:()=>{st.qren=true;render();setTimeout(()=>document.getElementById('qrn')?.focus(),0)}},st.profile,$('small',{style:'display:block;font-weight:400;color:var(--pmute);font-size:12px'},'Quick edit · tap the name to rename')),$('button',{class:'pill',onclick:()=>openAt('plugins')},ico('edit'),'Edit profile'),helpBtn(),$('button',{class:'ic','aria-label':'Close',onclick:closeAll},ico('close'))),
+   $('div',{class:'body',style:'flex:none;padding-bottom:0'},profDD('plus','switch')),
+   $('div',{class:'sub2'},'Switch on or off, drag to reorder.'),
+   $('div',{class:'body'},...P.map((p,i)=>$('div',{class:'it','data-qp':i,'data-row':'plus.'+p.n},
+     $('button',{class:'grip','aria-label':'Drag to reorder',title:'Drag to reorder',onpointerdown:ev=>startDrag(ev,i,P,'[data-qp]')},ico('grip')),
+     $('div',{class:'g'},p.n.replace('System prompt: ',''),$('small',{},p.k==='sys'?'System prompt':p.k==='char'?'Character card':p.k==='lore'?'Lorebook':p.k==='persona'?'Persona':p.k==='msg'?'Your text goes here':'Message plugin')),
+     $('div',{class:'mv'},$('button',{class:'act','aria-label':'Move up',disabled:i===0,onclick:()=>mv(i,-1)},ico('up')),$('button',{class:'act','aria-label':'Move down',disabled:i>=P.length-1,onclick:()=>mv(i,1)},ico('down'))),
+     p.k==='msg'?null:$('button',{class:'sw'+(p.on?' on':''),'aria-label':p.n+' on or off',onclick:()=>{p.on=p.on?0:1;render()}}))),
+    $('div',{class:'lbl'},'Add to your message'),
+    $('button',{class:'it',onclick:()=>{st.plus=false;render();say('Pick a text file')}},ico('quote'),$('div',{class:'g'},'Text file',$('small',{},'Put its text in the box'))),
+    $('button',{class:'it',onclick:()=>{st.plus=false;render();say('Pick text files')}},ico('copy'),$('div',{class:'g'},'Several text files',$('small',{},'One after another, in the box'))))))}
+function seenLoad(){try{return JSON.parse(localStorage.getItem('pp_seen')||'{}')}catch(e){return{}}}
+const markSeen=k=>{st.seen[k]=1;try{localStorage.setItem('pp_seen',JSON.stringify(st.seen))}catch(e){}};
+const resetSeen=()=>{st.seen={};try{localStorage.removeItem('pp_seen')}catch(e){}};
+const pinN=()=>CHATS.filter(c=>c.pin).length;
+const TRY='Try it now: use the lit control';
+const TOURPROFS=[['Plain','Just your message'],['Story writing','Voice, memory, no clichés'],['Writing feedback','Honest notes on your text'],['Role play','Characters and scenes']];
+const GUIDES={
+ setup:{title:'Welcome and log in',sub:'Pick a site and log in',full:1,steps:[
+  {t:'Welcome to PromptPipe',b:['PromptPipe sends your messages to the AI chat sites you already use, and keeps every chat on your phone.','Three quick steps to get going.'],next:'Start'},
+  {t:'Pick a site',b:['A site is the AI chat PromptPipe talks to for you.'],choice:1},
+  {t:'Log in to your site',b:['PromptPipe has no AI of its own. It uses the chat site for you, like you would. So you need to be logged in there.'],login:1,note:'You log in on the site\'s own page, not in a PromptPipe form. Use an account you can afford to lose. Sites may limit automated use.',next:'Done'}]},
+ chat:{title:'Chatting',sub:'Send, find, quick edit',steps:[
+  {t:'Say hello',b:['Pick a starter profile, then type a message and tap send. The reply shows up above, live.'],starter:1,sel:'.comp',go:()=>{st.drawer=false;st.plus=false;st.find=null;st.stack=[];st.sv=false},hint:'Try it now: type and send',done:()=>st.sentN>st.tourBase.sent},
+  {t:'Find anything',b:['Find searches your chats and every setting, and lights up where each one lives.'],sel:'[aria-label="Find chats and functions"]',go:()=>{st.drawer=false;st.plus=false;st.find=null;st.stack=[];st.sv=false},hint:TRY,done:()=>st.find!=null,after:()=>{st.find=null}},
+  {t:'Quick edit',b:['This turns your profile\'s plugins on or off and reorders them, without leaving the chat.'],sel:'[aria-label="Quick edit and add"]',go:()=>{st.drawer=false;st.plus=false;st.find=null;st.stack=[];st.sv=false},hint:TRY,done:()=>st.plus,after:()=>{st.plus=false}}]},
+ list:{title:'Chat list',sub:'Pin, select, search',steps:[
+  {t:'Pin a chat',b:['Pinned chats stay on top. Tap a pin.'],sel:'#clist [data-ck^="c:"] .pb:not(.on)',go:()=>{st.plus=false;st.find=null;st.stack=[];st.sv=false;st.drawer=true},hint:TRY,done:()=>pinN()>st.tourBase.pins},
+  {t:'Select several',b:['Tap the check to pick many chats, then pin, move or delete them together. Drag handles move chats and folders.'],sel:'[aria-label="Select chats"]',go:()=>{st.plus=false;st.find=null;st.stack=[];st.sv=false;st.drawer=true},hint:TRY,done:()=>st.selMode,after:()=>{st.selMode=false;st.sel={};st.selMove=false}},
+  {t:'Search',b:['Type a name or a #tag.'],sel:'#cs',go:()=>{st.plus=false;st.find=null;st.stack=[];st.sv=false;st.drawer=true},hint:'Try it now: type a letter',done:()=>st.dq.length>0}]},
+ plugins:{title:'Plugins',sub:'Updates and repos',steps:[
+  {t:'Open the Library',b:['Plugins add sites and tools. A dot on Library means an update is waiting.'],sel:'.tabs button:last-child',go:()=>{st.drawer=false;st.plus=false;st.find=null;st.stack=['plugins']},hint:TRY,done:()=>st.stack[st.stack.length-1]==='library'},
+  {t:'Update everything',b:['Tap Update all. You can roll a plugin back later.'],sel:'[data-row="library.updall"]',go:()=>{st.drawer=false;st.plus=false;st.find=null;st.stack=['library']},hint:TRY,done:()=>updCount()===0},
+  {t:'Plugins from friends',b:['A repo is a list of plugins. A friend can send you a link. Tap Get plugins, then Sources.'],warn:'Only add repos from people you trust. Plugins are code. They can read your chats. Never add one from a random site.',sel:'[data-row="library.getp"]',go:()=>{st.drawer=false;st.plus=false;st.find=null;st.stack=['library']},hint:TRY,done:()=>st.stack.includes('getplugins')}]}};
+const curStep=()=>st.tour!=null&&GUIDES[st.tourName]?GUIDES[st.tourName].steps[st.tour]:null;
+function enterStep(n){st.tour=n;st.tourBase={sent:st.sentN,pins:pinN()}}
+function startTour(k){k=k||'setup';markSeen(k);st.tourName=k;enterStep(0)}
+function endTour(msg){if(st.tourName==='setup')st.sv=false;st.tour=null;if(msg)say(msg)}
+function tourAdvance(){const G=GUIDES[st.tourName],d=curStep();if(d&&d.done&&d.done()){if(d.after)d.after();if(st.tour>=G.steps.length-1){endTour(G.title+' guide done');return true}enterStep(st.tour+1);return true}return false}
+function maybeTour(){if(st.tour!=null||st.help)return;const top=st.stack[st.stack.length-1];
+ if(!st.seen.setup)startTour('setup');
+ else if(!st.seen.chat&&!st.drawer&&!st.stack.length&&!st.plus&&st.find==null&&!st.sv&&!st.confirm)startTour('chat');
+ else if(!st.seen.list&&st.drawer)startTour('list');
+ else if(!st.seen.plugins&&(top==='plugins'||top==='library'))startTour('plugins')}
+const TOURSITES=[['Qwen Chat','Sign in for higher limits'],['DeepSeek','Sign in needed'],['Later','Add one in Settings › Sites']];
+function tourBody(G,i){const d=G.steps[i],last=i===G.steps.length-1,go2=n=>{enterStep(n);render()},fs=G.full;
+ if(d.login&&st.sv&&st.tourLogin>=1)return[
+  $('div',{class:'chips',style:'justify-content:center'},G.steps.map((x,k)=>$('button',{class:'tdot'+(k===i?' on':''),'aria-label':'Step '+(k+1)+' of '+G.steps.length,onclick:()=>go2(k)}))),
+  $('div',{class:'sh',style:'font-size:17px'},'Log in on the site'),
+  $('p',{style:'margin:0 0 4px;font-size:15px'},'Log in like normal. PromptPipe tells you when it sees you are in.'),
+  $('div',{style:'display:flex;gap:8px;align-items:center;font-weight:700;color:'+(st.tourLogin===2?'#5fcf8c':'var(--pacc)')},$('span',{class:'dot',style:'margin:0;background:'+(st.tourLogin===2?'#5fcf8c':'var(--pmute)')}),st.tourLogin===2?'Logged in. I can see the chat box.':'Waiting for you to log in…'),
+  $('div',{style:'display:flex;gap:6px;align-items:center;margin-top:4px'},
+   $('button',{class:'pill',onclick:()=>endTour()},'Skip guide'),$('div',{style:'flex:1'}),
+   st.tourLogin===2?$('button',{class:'it prim',style:'width:auto',onclick:()=>{endTour('Logged in to '+st.tourSite)}},'Done'):$('button',{class:'pill',onclick:()=>{st.siteIn=true;st.tourLogin=2;render()}},'I am logged in'))];
+ return[
+  $('div',{class:'chips',style:'justify-content:center'},G.steps.map((x,k)=>$('button',{class:'tdot'+(k===i?' on':''),'aria-label':'Step '+(k+1)+' of '+G.steps.length,onclick:()=>go2(k)}))),
+  $('div',{class:'sh',style:'font-size:'+(fs?'26px':'17px')+';margin-top:'+(fs?'8px':'0')},d.t),
+  ...d.b.map(x=>$('p',{style:'margin:0 0 4px;font-size:'+(fs?'17px':'15px')},x)),
+  d.starter?$('div',{style:'display:flex;flex-direction:column;gap:6px'},TOURPROFS.map(([n,sub])=>$('button',{class:'it',role:'radio','aria-checked':String(st.tourProf===n),onclick:e=>{e.stopPropagation();st.tourProf=n;st.profile=n;render()}},$('span',{class:'on'},st.tourProf===n?'●':'○'),$('div',{class:'g'},n,$('small',{},sub))))):null,
+  d.choice?$('div',{style:'display:flex;flex-direction:column;gap:6px'},TOURSITES.map(([n,sub])=>$('button',{class:'it',role:'radio','aria-checked':String(st.tourSite===n),onclick:()=>{st.tourSite=n;render()}},$('span',{class:'on'},st.tourSite===n?'●':'○'),$('div',{class:'g'},n,$('small',{},sub))))):null,
+  d.login?(st.tourSite==='Later'?$('div',{class:'sub2'},'No site yet. Add one any time in Settings › Sites, then log in there.'):$('div',{style:'display:flex;flex-direction:column;gap:10px'},
+   ...['Tap "Open '+st.tourSite+'"','Log in like normal. Google, email, whatever the site offers.','Come back here. That is it.'].map((x,k)=>$('div',{style:'display:flex;gap:10px;align-items:center;font-size:16px'},$('span',{class:'num'},k+1),x)),
+   $('div',{style:'display:flex;gap:6px;align-items:center;flex-wrap:wrap'},
+    $('button',{class:'it prim',style:'width:auto',onclick:()=>{st.tourLogin=1;st.sv=true;render()}},'Open '+st.tourSite),
+    st.tourLogin>=1?$('button',{class:'pill',onclick:()=>{st.tourLogin=2;render()}},'I am logged in'):null,
+    $('span',{class:'ch '+(st.tourLogin===2?'on':'')},st.tourLogin===2?'Logged in':st.tourLogin===1?'Waiting for you…':'Not logged in')))):null,
+  d.warn?$('div',{style:'background:color-mix(in srgb,#e8b04b 22%,var(--pcard));border-radius:12px;padding:10px 12px;font-size:14px;font-weight:600'},d.warn):null,
+  d.note?$('div',{class:'sub2'},d.note):null,
+  d.hint?$('div',{style:'color:var(--pacc);font-weight:700;font-size:14px'},d.hint):null,
+  $('div',{style:'display:flex;gap:6px;align-items:center;margin-top:4px'},
+   $('button',{class:'pill',onclick:()=>endTour()},'Skip guide'),$('div',{style:'flex:1'}),
+   i>0?$('button',{class:'it',style:'width:auto',onclick:()=>go2(i-1)},'Back'):null,
+   d.done?$('button',{class:'pill',onclick:()=>{if(d.after)d.after();last?endTour():go2(i+1)}},last?'Finish':'Skip step'):$('button',{class:'it prim',style:'width:auto',onclick:()=>{if(last){endTour(G.title+' guide done')}else go2(i+1)}},d.next||'Next'))]}
+function tourLayer(){const G=GUIDES[st.tourName],i=st.tour,d0=G.steps[i];
+ if(G.full&&!(d0.login&&st.sv&&st.tourLogin>=1))return $('div',{class:'layer tourl',style:'z-index:9;background:var(--pbg);justify-content:center;padding:0 18px 28px'},$('div',{style:'display:flex;flex-direction:column;gap:12px;overflow:auto;min-height:0;max-height:100%;padding-top:30px'},...tourBody(G,i)));
+ return $('div',{class:'layer tourl',style:'z-index:8;pointer-events:none'},$('section',{class:'sheet',role:'dialog','aria-label':'Quick start: '+G.steps[i].t,style:'min-height:0;pointer-events:auto'},...tourBody(G,i)))}
+function tourTarget(){const d=curStep();if(!d||!d.sel)return null;const t=ph.querySelector(d.sel);if(!t)return null;const r=t.getBoundingClientRect(),p=ph.getBoundingClientRect();
+ return r.width>0&&r.height>0&&r.bottom>p.top&&r.top<p.bottom?t:null}
+function tourSpot(){const d=curStep();if(!d||!d.sel)return;const t=tourTarget(),lay=ph.querySelector('.tourl'),card=lay&&lay.querySelector('.sheet');
+ if(!t){if(card){const x=document.createElement('div');x.style.cssText='display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--pmute)';x.append('That control is not on this screen.');if(d.go){const b=document.createElement('button');b.className='pill';b.textContent='Take me there';b.onclick=()=>{d.go();render()};x.append(b)}card.insertBefore(x,card.lastElementChild)}return}
+ t.classList.add('tourhl');
+ if(!st.tourSeen||st.tourSeen!==st.tourName+st.tour){st.tourSeen=st.tourName+st.tour;t.scrollIntoView({block:'nearest'})}
+ const r=t.getBoundingClientRect(),p=ph.getBoundingClientRect();
+ if(lay&&(r.top+r.bottom)/2>p.top+p.height/2){lay.style.justifyContent='flex-start';lay.classList.add('top')}}
+const tourBlock=e=>{const d=curStep();if(st.tour==null||!d||!d.sel)return;const t=tourTarget();if(!t)return;if(e.target.closest('.tourl')||t.contains(e.target))return;e.stopPropagation();e.preventDefault()};
+['click','pointerdown','pointerup'].forEach(n=>ph.addEventListener(n,tourBlock,true));
+const helpOn=()=>'helpbtn' in st.on?st.on.helpbtn:true;
+const helpBtn=()=>helpOn()?$('button',{class:'ic hq'+(st.help?' on':''),'aria-label':'Help: explain things','aria-pressed':String(st.help),title:'Help: tap, then tap anything',onclick:()=>{st.help=!st.help;st.helpCard=null;render()}},ico('help')):null;
+const HELP={'Chats':'Your chat list. Folders, pins and search live here.','Find chats and functions':'Search your chats and every setting. It shows where each one lives and lights it up.','Quick edit and add':'Switch your profile\'s plugins on or off, reorder them, or add a text file to your message.','Message':'Type your message here.','Send':'Sends your message, with your profile\'s rows added, to the site.','Bigger message box':'Makes the box taller for long messages. Ctrl+E.','Smaller message box':'Makes the box small again. Ctrl+E.','Switch site':'The site and model this chat uses. Tap to switch.','Chat title':'Tap for rename, tags, pin, copy, export, folders and history.','Close':'Closes this screen.','Back':'Goes back one screen.','Jump to latest ↓':'Scrolls to the newest message.'};
+function helpFor(el){const dr=el.closest('[data-row]')?.dataset.row;const lab=el.getAttribute('aria-label')||el.getAttribute('title')||(el.classList.contains('t')?'Chat title':'')||el.textContent.trim().slice(0,40);
+ let name=lab,body=HELP[lab]||HELP[(lab||'').replace(/^Help: .*/,'')],path='',key='';
+ if(dr){const [sid,rid]=dr.split('.');const e=buildIndex().find(x=>x.screen===sid&&x.row===rid);const r=(rowsOf(sid,true)||[]).find(x=>x&&x.id===rid);if(e){name=e.name;path=e.path;key=e.key}if(r&&r.sub)body=body||(typeof r.sub==='function'?r.sub():r.sub)}
+ const al=el.getAttribute('aria-label');return{name:name||'This',body:body||'Tap it normally to use it. Its screen explains the options.',path,key,sel:al?'[aria-label="'+al+'"]':(dr?'[data-row="'+dr+'"]':null)}}
+function helpLayer(){const c=st.helpCard;return $('div',{class:'layer helpl',style:'z-index:8;pointer-events:none'},
+ st.help?$('div',{class:'helpbar',style:'pointer-events:auto'},$('span',{},'Help mode. Tap anything to see what it does.'),$('span',{style:'display:flex;gap:6px;flex:none'},$('button',{class:'pill',onclick:()=>{st.help=false;st.helpCard=null;st.stack=['qs'];render()}},'Quick start'),$('button',{class:'pill',onclick:()=>{st.help=false;st.helpCard=null;render()}},'Done'))):null,
+ c?$('section',{class:'sheet helpcard',role:'dialog','aria-label':'Help: '+c.name,style:'min-height:0;pointer-events:auto'},
+  $('div',{class:'sh',style:'font-size:17px'},c.name),$('p',{style:'margin:0 0 4px'},c.body),c.path?$('div',{class:'sub2'},'Where: '+c.path+(c.key?' · '+c.key:'')):null,
+  $('div',{class:'chips'},$('button',{class:'it prim',style:'width:auto',onclick:()=>{st.helpCard=null;render()}},'Got it'),$('button',{class:'it',style:'width:auto',onclick:()=>{const el=c.el;st.help=false;st.helpCard=null;render();const t=c.sel?ph.querySelector(c.sel):null;(t||el).click()}},'Do it'))):null)}
+ph.addEventListener('pointerdown',e=>{if(st.help&&!e.target.closest('.helpl,.hq'))e.stopPropagation()},true);
+ph.addEventListener('click',e=>{if(!st.help||e.target.closest('.helpl,.hq'))return;const el=e.target.closest('button,[role=button],.it,[data-row],input,textarea,.t');if(!el)return;e.preventDefault();e.stopPropagation();const h=helpFor(el);h.el=el;st.helpCard=h;render()},true);
+const hb=document.createElement('button');hb.className='hoverq';hb.textContent='?';hb.setAttribute('aria-label','What is this?');hb.title='What is this?';hb.hidden=true;document.body.appendChild(hb);
+let hbEl=null,hbT;const HSEL='button,[role=button],.it,[data-row],input,textarea,.t,.cr,.pill';
+const hbHide=()=>{clearTimeout(hbT);hbT=setTimeout(()=>{hb.hidden=true},180)};
+ph.addEventListener('pointerover',e=>{if(e.pointerType!=='mouse'||st.help||st.helpCard||st.tour!=null||!helpOn())return;const el=e.target.closest(HSEL);if(!el||el.closest('.helpl,.hq,.helpcard'))return;clearTimeout(hbT);hbEl=el;const r=el.getBoundingClientRect(),p=ph.getBoundingClientRect();hb.style.left=Math.min(r.right-12,p.right-24)+'px';hb.style.top=Math.max(r.top-8,p.top+2)+'px';hb.hidden=false});
+ph.addEventListener('pointerout',e=>{if(e.pointerType==='mouse')hbHide()});
+hb.addEventListener('pointerenter',()=>clearTimeout(hbT));hb.addEventListener('pointerleave',hbHide);
+hb.addEventListener('click',e=>{e.stopPropagation();if(!hbEl||!hbEl.isConnected){hb.hidden=true;return}const h=helpFor(hbEl);h.el=hbEl;st.helpCard=h;hb.hidden=true;render()});
+function confirmSheet(){const r=st.confirm;return $('div',{class:'layer',style:'z-index:6'},$('div',{class:'dim',onclick:closeAll}),$('section',{class:'sheet',role:'alertdialog'},$('div',{class:'sh'},'Are you sure?'),$('p',{style:'margin:0 0 8px'},r.confirm),$('div',{class:'chips'},$('button',{class:'it prim',style:'width:auto',onclick:()=>{st.confirm=null;if(r.onYes)r.onYes();say(r.toast||'Done')}},'Yes'),$('button',{class:'it',style:'width:auto',onclick:closeAll},'Cancel'))))}
+let INDEX=null;
+function findSheet(){const q=st.find.trim().toLowerCase();INDEX=INDEX||buildIndex();
+ const all=[...ACTIONS.map(a=>({name:a.name,path:a.path,key:a.key,a})),...INDEX.map(i=>({name:i.name,path:i.path,key:i.key,i}))];
+ const seen=new Set();const uniq=all.filter(x=>{const k=x.name+x.path;if(seen.has(k))return false;seen.add(k);return true});
+ const hit=q?uniq.filter(x=>(x.name+' '+x.path).toLowerCase().includes(q)).slice(0,30):[];
+ const chatHit=q?CHATS.filter(c=>(c.t+' '+c.sn+' '+c.tags).toLowerCase().includes(q)).map(c=>({name:c.t,path:'Chats',chat:c,snip:c.sn})):[];
+ const pick=x=>{if(x.chat){st.find=null;openChatIdx(CHATS.indexOf(x.chat));st.stack=[];render();return}st.recent=[x.name,...st.recent.filter(n=>n!==x.name)].slice(0,4);st.find=null;if(x.a){x.a.run();render()}else openAt(x.i.screen,x.i.row)};
+ const input=$('input',{id:'q',placeholder:'Find chats and functions',value:st.find,autocomplete:'off',oninput:e=>{st.find=e.target.value;const pos=e.target.selectionStart;render();const n=ph.querySelector('#q');n.focus();n.setSelectionRange(pos,pos)},onkeydown:e=>{if(e.key==='Enter'){const f=chatHit[0]||hit[0];if(f)pick(f)}}});
+ return $('div',{class:'layer'},$('div',{class:'dim',onclick:closeAll}),
+  $('section',{class:'sheet tall',role:'dialog','aria-label':'Find'},
+   $('div',{class:'sh'},$('span',{class:'grow'},'Find'),helpBtn(),$('button',{class:'ic','aria-label':'Close',onclick:closeAll},ico('close'))),
+   $('label',{class:'search'},$('span',{class:'ch'},ico('search')),input),
+   $('div',{class:'body res'},
+    q?(hit.length||chatHit.length?[chatHit.length?$('div',{class:'lbl'},'Chats'):null,...chatHit.map(x=>$('button',{class:'it',onclick:()=>pick(x)},ico('chatI'),$('div',{class:'g'},x.name,$('small',{class:'path'},x.snip)))),hit.length?$('div',{class:'lbl'},'Functions'):null,...hit.map(x=>$('button',{class:'it',onclick:()=>pick(x)},$('div',{class:'g'},x.name,$('small',{class:'path'},x.path)),x.key?$('kbd',{},x.key):null))].filter(Boolean):[$('div',{class:'lbl'},'No match')])
+     :[$('div',{class:'lbl'},'Recent'),$('div',{class:'chips'},st.recent.map(n=>$('button',{class:'pill',onclick:()=>{st.find=n;render();ph.querySelector('#q')?.focus()}},n))),$('div',{class:'lbl'},'Try'),$('div',{class:'chips'},['model','profile','plugin','prompt','export','folder'].map(n=>$('button',{class:'pill',onclick:()=>{st.find=n;render();ph.querySelector('#q')?.focus()}},n)))])))}
+const chatOf=k=>CHATS[+k.slice(2)];
+const selKeys=()=>Object.keys(st.sel).filter(k=>st.sel[k]&&k[0]==='c');
+const kidsOf=f=>st.ord.filter(x=>x[0]==='c'&&chatOf(x).f===f);
+function ordInit(){if(!st.ord)st.ord=[...st.folders.map(f=>'f:'+f),...CHATS.map((c,i)=>'c:'+i)];
+ st.ord=st.ord.filter(k=>k[0]==='f'?st.folders.includes(k.slice(2)):!!chatOf(k)&&!chatOf(k).del);
+ st.folders.forEach(f=>{if(!st.ord.includes('f:'+f))st.ord.push('f:'+f)});CHATS.forEach((c,i)=>{if(!c.del&&!st.ord.includes('c:'+i))st.ord.push('c:'+i)})}
+function toggleSel(k){if(k[0]==='f'){const kids=kidsOf(k.slice(2));const all=kids.length&&kids.every(x=>st.sel[x]);kids.forEach(x=>{st.sel[x]=!all})}else st.sel[k]=!st.sel[k];render()}
+function lpress(e,k){if(st.selMode)return;const x=e.clientX,y=e.clientY,el=e.currentTarget;
+ const tm=setTimeout(()=>{st.selMode=true;st.sel={};toggleSel(k)},450);
+ const stop=()=>{clearTimeout(tm);el.removeEventListener('pointerup',stop);el.removeEventListener('pointercancel',stop);el.removeEventListener('pointermove',mv)};
+ const mv=ev=>{if(Math.abs(ev.clientX-x)+Math.abs(ev.clientY-y)>8)stop()};
+ el.addEventListener('pointerup',stop);el.addEventListener('pointercancel',stop);el.addEventListener('pointermove',mv)}
+function endSel(){st.selMode=false;st.sel={};st.selMove=false}
+function dropItems(k,tgt,pos){let keys=(st.selMode&&st.sel[k])?selKeys():[k];keys=st.ord.filter(x=>keys.includes(x));if(!keys.length||keys.includes(tgt))return;
+ const tc=tgt[0]==='c'?chatOf(tgt):null,ft=tgt[0]==='f'?tgt.slice(2):null;
+ if(k[0]==='f'&&tc&&tc.pin)return;
+ st.ord=st.ord.filter(x=>!keys.includes(x));
+ if(tgt==='p:'){if(k[0]==='c'){keys.forEach(x=>{chatOf(x).pin=true});st.pinOpen=true}st.ord.splice(0,0,...keys);return}
+ const endOf=f=>{const r=[...st.ord].reverse().findIndex(x=>x[0]==='c'&&chatOf(x).f===f);return r<0?st.ord.indexOf('f:'+f)+1:st.ord.length-r};
+ let idx=st.ord.indexOf(tgt);
+ if(k[0]==='f'){idx=ft&&pos!=='before'?endOf(ft):pos==='after'?idx+1:idx}
+ else if(pos==='in'){keys.forEach(x=>{chatOf(x).f=ft;chatOf(x).pin=false});st.openF[ft]=true;idx=endOf(ft)}
+ else{keys.forEach(x=>{const c=chatOf(x);if(tc&&tc.f)c.f=tc.f;else delete c.f;c.pin=tc?!!tc.pin:false});if(pos==='after')idx+=1}
+ st.ord.splice(idx,0,...keys)}
+function startCDrag(e,k){e.preventDefault();const grip=e.currentTarget;grip.setPointerCapture(e.pointerId);
+ const list=ph.querySelector('#clist'),rows=()=>[...list.querySelectorAll('[data-ck]')],src=list.querySelector('[data-ck="'+k+'"]'),y0=e.clientY;
+ src.style.opacity='.55';src.style.position='relative';src.style.zIndex='3';let tgt=null,pos=null;
+ const clear=()=>rows().forEach(r=>r.classList.remove('dt','db','di'));
+ const move=ev=>{src.style.transform='translateY('+(ev.clientY-y0)+'px)';clear();tgt=null;
+  for(const r of rows()){if(r===src)continue;const b=r.getBoundingClientRect();if(ev.clientY>=b.top&&ev.clientY<=b.bottom){const f=(ev.clientY-b.top)/b.height,rk=r.dataset.ck;
+   if(rk==='p:'&&k[0]==='c'){pos='in';r.classList.add('di')}else if(rk[0]==='f'&&k[0]==='c'&&f>.25){pos='in';r.classList.add('di')}else if(f<.5){pos='before';r.classList.add('dt')}else{pos='after';r.classList.add('db')}
+   tgt=rk;break}}};
+ const up=()=>{grip.removeEventListener('pointermove',move);grip.removeEventListener('pointerup',up);grip.removeEventListener('pointercancel',cancel);if(tgt)dropItems(k,tgt,pos);render()};
+ const cancel=()=>{grip.removeEventListener('pointermove',move);grip.removeEventListener('pointerup',up);grip.removeEventListener('pointercancel',cancel);render()};
+ grip.addEventListener('pointermove',move);grip.addEventListener('pointerup',up);grip.addEventListener('pointercancel',cancel)}
+function crow(k,o){const i=+k.slice(2),c=CHATS[i];const t=st.tabs[tabOfChat(i)];const stt=t&&t.state==='replying'?'Replying…':st.unread[i]?'Reply ready':'';const on=!!st.sel[k];
+ return $('div',{class:'cr'+(o.ind?' ind':'')+(i===st.cur?' cur':'')+(on?' sel':''),'data-ck':k,role:'button',tabindex:'0',onclick:()=>st.selMode?toggleSel(k):openChatIdx(i),onpointerdown:e=>lpress(e,k)},
+  st.selMode?$('span',{class:'cb'+(on?' on':'')},on?ico('check'):null):(o.q&&c.pin?$('span',{class:'ch'},ico('pin')):null),
+  $('span',{class:'ct'},c.t),$('span',{class:'ctag'},c.tags),stt?$('span',{class:'ch '+(st.unread[i]?'on':'')},stt):null,
+  !st.selMode?$('button',{class:'pb'+(c.pin?' on':''),'aria-label':c.pin?'Unpin':'Pin to top',title:c.pin?'Unpin':'Pin to top',onpointerdown:e=>e.stopPropagation(),onclick:e=>{e.stopPropagation();c.pin=!c.pin;render()}},ico('pin')):null,
+  o.drag?$('button',{class:'grip','aria-label':'Drag to move',onpointerdown:e=>{e.stopPropagation();startCDrag(e,k)},onclick:e=>e.stopPropagation()},ico('grip')):null)}
+function frow(f,open,cnt){const k='f:'+f,kids=kidsOf(f),all=kids.length&&kids.every(x=>st.sel[x]);
+ return $('div',{class:'cr fr','data-ck':k,role:'button','aria-expanded':String(open),onclick:()=>{if(st.selMode)toggleSel(k);else{st.openF[f]=!open;render()}},onpointerdown:e=>lpress(e,k)},
+  st.selMode?$('span',{class:'cb'+(all?' on':'')},all?ico('check'):null):$('span',{class:'ch'},ico(open?'down':'right')),
+  $('span',{class:'ct'},f),$('span',{class:'ch'},cnt),
+  !st.selMode?$('button',{class:'pb','aria-label':'Rename or delete folder '+f,title:'Rename or delete',onpointerdown:e=>e.stopPropagation(),onclick:e=>{e.stopPropagation();st.fedit=st.fedit===f?null:f;render()}},ico('edit')):null,
+  $('button',{class:'grip','aria-label':'Drag to move',onpointerdown:e=>{e.stopPropagation();startCDrag(e,k)},onclick:e=>e.stopPropagation()},ico('grip')))}
+function fpanel(f){const kids=kidsOf(f);return $('div',{class:'search',style:'gap:6px;margin-left:16px;flex-wrap:wrap'},$('input',{id:'fr',value:f,'aria-label':'Folder name',onkeydown:e=>{if(e.key==='Enter')renameF(f,e.target.value)}}),$('button',{class:'pill',onclick:()=>renameF(f,ph.querySelector('#fr').value)},'Rename'),$('button',{class:'pill',onclick:()=>{st.confirm={confirm:'Delete folder "'+f+'"? Its '+kids.length+(kids.length===1?' chat moves':' chats move')+' to the top level.',toast:'Folder deleted',onYes:()=>{kids.forEach(x=>{delete chatOf(x).f});st.folders=st.folders.filter(x=>x!==f);delete st.openF[f];st.fedit=null;render()}};render()}},ico('trash'),'Delete'),$('button',{class:'pill',onclick:()=>{st.fedit=null;render()}},'Cancel'))}
+function renameF(f,v){v=(v||'').trim();if(!v){say('Type a folder name');return}if(v===f){st.fedit=null;render();return}if(st.folders.includes(v)){say('That folder exists');return}st.folders=st.folders.map(x=>x===f?v:x);st.ord=st.ord.map(x=>x==='f:'+f?'f:'+v:x);CHATS.forEach(c=>{if(c.f===f)c.f=v});st.openF[v]=st.openF[f];delete st.openF[f];st.fedit=null;render();say('Renamed to "'+v+'"')}
+function drawer(){ordInit();const q=st.dq.trim().toLowerCase();const match=k=>{const c=chatOf(k);return !q||(q.startsWith('#')?c.tags.split(' ').some(t=>t.startsWith(q.slice(1))):(c.t+' '+c.tags).toLowerCase().includes(q))};
+ let items=[];
+ if(q){const m=st.ord.filter(k=>k[0]==='c'&&match(k));items=m.length?m.map(k=>crow(k,{q:1})):[$('div',{class:'sub2'},'No chats match.')]}
+ else{const pins=st.ord.filter(k=>k[0]==='c'&&chatOf(k).pin);
+  {items.push($('div',{class:'cr fr','data-ck':'p:',role:'button','aria-expanded':String(st.pinOpen),onclick:()=>{st.pinOpen=!st.pinOpen;render()}},$('span',{class:'ch'},ico(st.pinOpen?'down':'right')),$('span',{class:'ct'},'Pinned'),$('span',{class:'ch'},pins.length),$('span',{class:'ch'},ico('pin'))));if(st.pinOpen){pins.forEach(k=>items.push(crow(k,{drag:1})));if(!pins.length)items.push($('div',{class:'sub2',style:'padding:2px 6px 2px 22px'},'Drag chats here to pin them.'))}}
+  st.ord.forEach(k=>{if(k[0]==='f'){const f=k.slice(2),kids=kidsOf(f).filter(x=>!chatOf(x).pin),open=!!st.openF[f];items.push(frow(f,open,kids.length));if(st.fedit===f)items.push(fpanel(f));if(open){if(kids.length)kids.forEach(x=>items.push(crow(x,{drag:1,ind:1})));else items.push($('div',{class:'sub2',style:'padding:2px 6px 2px 22px'},'Empty. Drag chats here.'))}}
+   else if(!chatOf(k).f&&!chatOf(k).pin)items.push(crow(k,{drag:1}))})}
+ const ks=selKeys(),n=ks.length,allP=n&&ks.every(k=>chatOf(k).pin);
+ const fin=m=>{endSel();render();say(m)};
+ const bar=st.selMode?$('div',{style:'display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:14px;background:var(--pcard)'},
+  $('div',{class:'sub2'},n+' selected. Drag one to move them all.'),
+  st.selMove?$('div',{class:'chips'},$('button',{class:'pill',onclick:()=>{ks.forEach(k=>{delete chatOf(k).f});fin('Moved to top level')}},'Top level'),...st.folders.map(f=>$('button',{class:'pill',onclick:()=>{ks.forEach(k=>{chatOf(k).f=f;chatOf(k).pin=false});st.openF[f]=true;fin('Moved to '+f)}},f))):null,
+  $('div',{class:'chips'},
+   $('button',{class:'pill',disabled:!n,onclick:()=>{ks.forEach(k=>{chatOf(k).pin=!allP});fin(allP?'Unpinned':'Pinned')}},ico('pin'),allP?'Unpin':'Pin'),
+   $('button',{class:'pill',disabled:!n,onclick:()=>{st.selMove=!st.selMove;render()}},ico('folder'),'Move…'),
+   $('button',{class:'pill',disabled:!n,onclick:()=>{st.confirm={confirm:'Delete '+n+(n===1?' chat':' chats')+'? This cannot be undone.',toast:'Deleted',onYes:()=>{ks.forEach(k=>{chatOf(k).del=true});if(CHATS[st.cur].del)st.cur=Math.max(0,CHATS.findIndex(c=>!c.del));endSel();render()}};render()}},ico('trash'),'Delete'),
+   $('button',{class:'pill',onclick:()=>{endSel();render()}},'Done'))):null;
+ return $('div',{class:'drawer'},
+ $('div',{class:'sh'},$('span',{class:'grow',style:'font-size:17px'},'Chats'),$('button',{class:'ic','aria-label':st.selMode?'Done selecting':'Select chats',style:st.selMode?'color:var(--pacc)':'',onclick:()=>{st.selMode=!st.selMode;st.sel={};st.selMove=false;render()}},ico('check')),helpBtn(),$('button',{class:'ic','aria-label':'Close',onclick:closeAll},ico('close'))),
+ $('div',{style:'display:flex;gap:6px'},$('button',{class:'it',style:'background:var(--pacc);color:var(--pon);font-weight:600;flex:1;justify-content:center',onclick:()=>{st.drawer=false;say('New chat started')}},'+ New chat'),$('button',{class:'it',style:'width:auto;flex:none','aria-label':'New folder',onclick:()=>{st.newF=!st.newF;render()}},'+ Folder')),
+ st.newF?$('div',{class:'search',style:'gap:6px'},$('input',{id:'nf',placeholder:'Folder name',onkeydown:e=>{if(e.key==='Enter')mkFolder(e.target.value)}}),$('button',{class:'pill',onclick:()=>mkFolder(ph.querySelector('#nf').value)},'Create')):null,
+ $('label',{class:'search'},$('span',{class:'ch'},ico('search')),$('input',{id:'cs',placeholder:'Search chats, #tag',value:st.dq,oninput:e=>{st.dq=e.target.value;const p=e.target.selectionStart;render();const nn=ph.querySelector('#cs');nn.focus();nn.setSelectionRange(p,p)}})),
+ $('div',{class:'chips'},['#draft','#rp','#story'].map(t=>$('button',{class:'pill',onclick:()=>{st.dq=t;render()}},t))),
+ $('div',{id:'clist',style:'display:flex;flex-direction:column;gap:3px;overflow:auto;min-height:0'},...items),
+ $('div',{style:'flex:1'}),bar,
+ $('div',{style:'display:flex;gap:6px;align-items:center;flex-wrap:wrap'},$('button',{class:'it','aria-label':'Settings',style:'width:auto;align-self:flex-start;border-radius:99px;padding:10px 16px',onclick:()=>{st.drawer=false;st.stack=['settings'];render()}},ico('settings'),'Settings',updCount()?$('span',{class:'badge'},updCount()):null),$('button',{class:'it','aria-label':'Quick start tutorial',title:'Quick start tutorial',style:'width:auto;border-radius:99px;padding:10px 16px',onclick:()=>{st.drawer=false;st.stack=['qs'];render()}},ico('play'),'Quick start')))}
+function mkFolder(v){v=(v||'').trim();if(!v){say('Type a folder name');return}if(st.folders.includes(v)){say('That folder exists');return}st.folders.push(v);ordInit();st.ord.unshift('f:'+v);st.openF[v]=true;st.newF=false;render();say('Folder "'+v+'" created')}
+const chatTitle=i=>CHATS[i].t;
+st.br={};
+const ALTS=['The door had no handle. It hummed, low, as if it remembered being a wall.','There was no handle on the door, only a hum you felt in your teeth.'];
+const vtext=m=>m.vs?m.vs[m.vi]:m.t;
+const flip=n=>$('span',{style:'display:inline-flex;transform:scaleX(-1)'},ico('back'));
+const vsw=m=>m.vs&&m.vs.length>1?$('span',{class:'vsw','aria-label':'Versions of this reply'},$('button',{'aria-label':'Previous version',onclick:()=>{m.vi=(m.vi+m.vs.length-1)%m.vs.length;render()}},ico('back')),(m.vi+1)+'/'+m.vs.length,$('button',{'aria-label':'Next version',onclick:()=>{m.vi=(m.vi+1)%m.vs.length;render()}},flip())):null;
+function retryVer(m){if(!m.vs){m.vs=[m.t];m.vi=0}m.vs.push(ALTS[(m.vs.length-1)%ALTS.length]);m.vi=m.vs.length-1;say('New version '+m.vs.length+'. The earlier one is kept.')}
+function newBranch(i,text){const base=MSGS;if(i>=base.length){say('Branching from this message is not in the wireframe');st.editFrom=null;return}let b=st.br[i];if(!b)b=st.br[i]={vi:0,vers:[{t:base[i].t,tail:base.slice(i+1)}]};b.vers.push({t:text,tail:[{t:'Branched here. This reply follows your edited message.',own:[],time:'now'}]});b.vi=b.vers.length-1;st.draft='';st.editFrom=null;render();say('New branch. The earlier one is kept.')}
+const bsw=(i,b)=>$('span',{class:'vsw','aria-label':'Branches from this message'},$('button',{'aria-label':'Previous branch',onclick:()=>{b.vi=(b.vi+b.vers.length-1)%b.vers.length;render()}},ico('back')),'Branch '+(b.vi+1)+'/'+b.vers.length,$('button',{'aria-label':'Next branch',onclick:()=>{b.vi=(b.vi+1)%b.vers.length;render()}},flip()));
+const LONGMSG='Here is chapter 3. Please tell me where the middle drags.\n\nThe ferry came in late that night, and nobody on the quay said so. Ilse tied off the line and watched the lamp on the far rock flicker twice, then hold. She had told them the lamp was failing. She had told them in March, and again in June, and the last time she had stopped saying it kindly.\n\nThe door in the cliff had no handle, only a hum. Dana put her palm flat against it and felt the hum travel up her wrist.\n\n"It was never a door," Ilse said. "It is a door now because you want one."\n\nThey stood there until the tide began to turn, and the hum dropped half a note, and neither of them mentioned the flashback they had both been waiting for the other to start.';
+const isLong=t=>t.length>600||t.split('\n').length>8;
+st.openLong={};
+const msgsFor=i=>i===0?(()=>{const idx=Object.keys(st.br).map(Number).sort((a,b)=>a-b);if(!idx.length)return MSGS;const bi=idx[0],b=st.br[bi];return MSGS.slice(0,bi).concat([{you:1,t:b.vers[b.vi].t,branch:bi}],b.vers[b.vi].tail)})():[{you:1,t:i===1?LONGMSG:'(earlier message)'},{t:CHATS[i].sn,own:[],time:'02:10'}];
+const tabOfChat=i=>st.tabs.findIndex(t=>t.chat===i);
+const replying=()=>st.tabs.filter(t=>t.state==='replying').length;
+function setSite(id){if(id===siteNow().id){st.sitemenu=false;render();return}
+ const apply=()=>{st.chatSite[st.cur]=id;st.lastSite=id;st.sitemenu=false;const t=tabOfChat(st.cur);if(t>=0)st.tabs[t].url='https://chat.'+id+'.com/';render()};
+ const has=CHATS[st.cur].sn;const nm=SITES.find(x=>x.id===id).name;
+ if(has){st.sitemenu=false;st.confirm={confirm:'Continue this chat on '+nm+'? It starts a new conversation there, and Memory carries the context.',toast:'Now on '+nm,onYes:apply};render()}else{apply();say('Now on '+nm)}}
+function openChatIdx(i){st.cur=i;delete st.unread[i];const t=tabOfChat(i);if(t>=0)st.activeTab=t;st.drawer=false;st.sv=false;render()}
+function sendMsg(){if(st.editFrom!=null&&st.cur===0){newBranch(st.editFrom,st.draft||'(edited)');return}st.sentN++;const i=st.cur;let t=tabOfChat(i);if(t<0){st.tabs.push({chat:i,url:'https://chat.qwen.ai/c/'+Math.random().toString(16).slice(2,6),state:'idle'});t=st.tabs.length-1}
+ const tab=st.tabs[t];tab.state='replying';st.draft='';render();
+ setTimeout(()=>{tab.state='ready';if(tab.chat!==st.cur){st.unread[tab.chat]=1;st.toastChat=tab.chat;say('Reply ready in '+chatTitle(tab.chat)+' · Open')}else render()},3000)}
+const loginActive=()=>st.tour!=null&&st.tourName==='setup'&&st.tour===2&&st.tourLogin>=1;
+function loginMock(){if(!loginActive())return null;
+ if(!st.siteIn)return[$('div',{style:'color:var(--pfg);font-weight:600;font-size:15px;margin-bottom:10px'},'Sign in to '+st.tourSite),
+  $('button',{class:'it',style:'margin-bottom:6px',onclick:()=>{st.siteIn=true;st.tourLogin=2;render()}},'Continue with Google'),
+  $('button',{class:'it',style:'margin-bottom:6px',onclick:()=>{st.siteIn=true;st.tourLogin=2;render()}},'Continue with email'),
+  $('div',{style:'margin-top:8px'},'This is the site\'s own page. Sign in here like you normally would.')];
+ return[$('div',{style:'color:var(--pfg);font-weight:600;font-size:15px;margin-bottom:10px'},st.tourSite),
+  $('div',{style:'border:1px solid var(--pline);border-radius:12px;padding:12px;color:var(--pmute)'},'Ask anything…'),
+  $('div',{style:'margin-top:8px'},'Chat box is showing.')]}
+function svLayer(){const tab=st.tabs[st.activeTab];const linked=tab&&tab.chat!=null;
+ const strip=$('div',{style:'display:flex;gap:4px;overflow:auto;padding:0 10px 6px'},...st.tabs.map((t,i)=>$('div',{class:'it',style:'width:auto;flex:none;padding:6px 6px 6px 10px;'+(i===st.activeTab?'outline:1.5px solid var(--pacc)':''),role:'tab','aria-selected':String(i===st.activeTab)},
+  $('button',{style:'display:flex;gap:6px;align-items:center;max-width:120px',onclick:()=>{st.activeTab=i;if(t.chat!=null){st.cur=t.chat;delete st.unread[t.chat]}render()}},$('span',{class:'dot',style:'margin:0;background:'+(t.state==='replying'?'#e8b04b':t.state==='ready'?'#5fcf8c':'var(--pmute)')}),$('span',{style:'overflow:hidden;text-overflow:ellipsis;white-space:nowrap'},t.chat!=null?chatTitle(t.chat):'Not linked')),
+  $('button',{class:'act','aria-label':'Close tab',style:'width:24px;height:24px',onclick:()=>{st.tabs.splice(i,1);if(st.activeTab>=st.tabs.length)st.activeTab=Math.max(0,st.tabs.length-1);const a=st.tabs[st.activeTab];if(a&&a.chat!=null)st.cur=a.chat;render();say('Tab closed. The chat is kept.')}},ico('close')))),
+  $('button',{class:'ic','aria-label':'New tab',style:'flex:none;background:var(--pcard)',onclick:()=>{CHATS.push({t:'New chat',sn:'',tags:''});const c=CHATS.length-1;st.chatSite[c]=st.lastSite;st.tabs.push({chat:c,url:'https://chat.qwen.ai/',state:'idle'});st.activeTab=st.tabs.length-1;st.cur=c;render()}},ico('plus')));
+ const bar=tab?$('div',{style:'display:flex;gap:6px;align-items:center;margin:0 10px 8px'},
+  $('label',{class:'search',style:'flex:1;min-width:0;padding:7px 10px'},$('input',{id:'url','aria-label':'Page address',value:tab.url,onchange:e=>{tab.url=e.target.value;say('Loading '+tab.url)},onkeydown:e=>{if(e.key==='Enter'){tab.url=e.target.value;say('Loading '+tab.url)}}})),
+  $('button',{class:'ic','aria-label':'Reload',style:'background:var(--pcard)',onclick:()=>say('Reloading')},ico('retry'))):null;
+ const open=tab?(linked?$('div',{class:'foot',style:'margin:0 12px 8px;gap:8px'},'Linked to chat: '+chatTitle(tab.chat),$('button',{class:'pill',onclick:()=>{st.sv=false;st.cur=tab.chat;render()}},'Open chat')):$('button',{class:'it prim',style:'margin:0 10px 8px;width:calc(100% - 20px)',onclick:()=>{CHATS.push({t:'Imported: Door lore',sn:'The door had no handle.',tags:''});tab.chat=CHATS.length-1;st.cur=tab.chat;st.sv=false;render();say('Opened in PromptPipe. History imported.')}},'Open in PromptPipe')):null;
+ return $('div',{style:'position:absolute;inset:0;background:var(--pbg);display:flex;flex-direction:column;z-index:3'},
+  $('div',{class:'top'},$('button',{class:'ic','aria-label':'Back to chat',onclick:()=>{st.sv=false;render()}},ico('back')),$('span',{class:'t'},'AI page · Qwen Chat'),$('button',{class:'pill',onclick:()=>{st.sv=false;st.stack=['site'];render()}},'Profile and site')),
+  strip,bar,open,
+  $('div',{style:'flex:1;margin:0 10px 12px;border-radius:14px;background:var(--pcard);padding:14px;color:var(--pmute);font-size:12.5px;overflow:hidden'},tab?(loginMock()||[$('div',{style:'color:var(--pfg);font-weight:600;margin-bottom:8px'},'chat.qwen.ai'),'The real site page shows here: your login, the chat as the site draws it, and its own buttons.',tab.state==='replying'?$('div',{style:'margin-top:10px'},'Replying…'):null]):'No tabs open. Tap + for a new tab.'))}
+st.openSent={};
+function sentLine(i,m){const open=!!st.openSent[i];const rows=(st.pipes['Story writing']||[]).filter(r=>r.on&&r.k!=='msg');
+ const head=$('button',{class:'thin','aria-expanded':String(open),onclick:()=>{st.openSent[i]=!open;render()}},$('span',{class:'ch'},ico(open?'up':'down')),'Thought for 14 s',$('span',{style:'opacity:.7'},' · sent with '+(rows.length+1)));
+ if(!open)return head;
+ return $('div',{class:'thinbox'},head,
+  $('div',{class:'lbl',style:'margin:6px 0 2px'},'Thinking'),$('div',{style:'font-size:13px;color:var(--pmute)'},'The keeper hesitates. Focus on the hum, not the door.'),
+  $('div',{class:'lbl',style:'margin:10px 0 2px'},'Sent with'),
+  $('div',{style:'font-size:13px;display:flex;flex-direction:column;gap:3px'},$('div',{},'Profile: '+st.profile+' · '+modelNow()),...rows.map(r=>$('div',{},'· '+r.n)),$('div',{},'· Your message')),
+  $('button',{class:'pill',style:'margin-top:8px',onclick:()=>say('Shows the full text that was sent')},'Show the full text'))}
+const qaOpen=i=>i in st.openQA?st.openQA[i]:st.qa==='always'||(st.qa==='newest'&&i===lastAI);
+function replyFoot(i,m){const open=qaOpen(i);
+ const tog=$('button',{class:'act','aria-label':open?'Hide actions':'Show actions','aria-expanded':String(open),onclick:()=>{st.openQA[i]=!open;render()}},ico(open?'up':'more'));
+ if(!open)return $('div',{class:'foot'},tog,vsw(m),m.time,m.own.length?$('span',{class:'tg',title:'Message tags'},'#'+m.own.length):null);
+ return $('div',{class:'exp'},vsw(m),
+  $('div',{class:'foot'},tog,m.time),
+  $('div',{class:'acts'},act('copy','Copy',()=>say('Copied the reply')),act('quote','Quote',()=>{st.draft='> '+m.t+'\n\n';render();ph.querySelector('.comp input').focus()}),act('retry','Send again',()=>retryVer(m)),act('select','Select text',()=>say('Select text'))),
+  $('div',{class:'chips'},m.own.map(t=>$('span',{class:'tag'},'#'+t)),['story','rp'].map(t=>$('span',{class:'tag',style:'opacity:.5',title:'From the chat tags'},'#'+t)),$('button',{class:'pill',onclick:()=>say('Type a tag')},'+ tag')),
+  )}
+let first=true;
+const domPath=el=>{const p=[];for(let n=el;n&&n!==ph;n=n.parentElement)p.push([...n.parentElement.children].indexOf(n));return p.join('.')};
+const byPath=p=>p.split('.').reverse().reduce((n,i)=>n&&n.children[+i],ph);
+const viewKey=()=>[st.drawer,st.stack.join('>'),st.find!=null,st.plus,st.sv].join('|');
+function scrollSnap(){const o={};ph.querySelectorAll('*').forEach(el=>{if(el.scrollTop>0&&!el.classList.contains('chat'))o[domPath(el)]=el.scrollTop});return o}
+function render(){
+
+ maybeTour();
+ const vk=viewKey(),snap=vk===st.lastVk?scrollSnap():{};st.lastVk=vk;
+ const old=ph.querySelector('.chat');const keep=old?old.scrollTop:null;
+ ph.className='ph'+(st.light?' light':'');ph.style.zoom=st.scale;ph.style.width='min('+100/st.scale+'%,'+360/st.scale+'px)';ph.style.height='min('+740/st.scale+'px,calc((100vh - 150px)/'+st.scale+'))';ph.style.minHeight=560/st.scale+'px';ph.replaceChildren(...[
+  $('div',{class:'top'},$('button',{class:'ic','aria-label':'Chats',title:'Chats',style:'position:relative',onclick:()=>openDrawer()},ico('menu'),Object.keys(st.unread).length?$('span',{class:'pdot',style:'top:2px;right:2px'}):null),$('button',{class:'t',title:'Chat actions',onclick:()=>{st.stack=['chat'];render()}},chatTitle(st.cur)+' ▾'),
+   $('button',{class:'pill',title:'Switch site','aria-haspopup':'menu','aria-expanded':String(st.sitemenu),onclick:()=>{st.sitemenu=!st.sitemenu;render()}},$('span',{class:'dot'}),$('span',{class:'tx'},pillText()+(replying()>1?' · '+replying()+' replying':'')),$('span',{class:'ch',style:'margin-left:4px'},ico('down')),siteUpd()?$('span',{class:'pdot',title:'Update available'}):null),
+   $('button',{class:'ic','aria-label':'Find chats and functions',title:'Find chats and functions',style:'outline:1.5px solid var(--pacc)',onclick:()=>{st.find='';render();ph.querySelector('#q')?.focus()}},ico('search')),helpBtn()),
+  $('div',{class:'chat',onscroll:e=>{const c=e.target;const away=c.scrollHeight-c.scrollTop-c.clientHeight>60;const j=ph.querySelector('.jump');if(j)j.hidden=!away}},...msgsFor(st.cur).map((m,i)=>m.you?$('div',{class:'youwrap'},(m.branch!=null&&st.br[m.branch]?$('div',{style:'align-self:flex-end'},bsw(i,st.br[m.branch])):null),$('div',{class:'you'+(isLong(m.t)&&!st.openLong[st.cur+':'+i]?' tuck':''),style:'white-space:pre-wrap'},m.t),isLong(m.t)?$('button',{class:'thin','aria-expanded':String(!!st.openLong[st.cur+':'+i]),style:'align-self:flex-end',onclick:()=>{st.openLong[st.cur+':'+i]=!st.openLong[st.cur+':'+i];render()}},st.openLong[st.cur+':'+i]?'Show less':'Show more',$('span',{class:'ch'},ico(st.openLong[st.cur+':'+i]?'up':'down'))):null,$('div',{class:'acts right'},act('copy','Copy',()=>say('Copied your message')),act('edit','Edit and resend',()=>{st.draft=m.t;st.editFrom=m.branch!=null?m.branch:i;say('Edit it, then send. It starts a branch.');render()}))):$('div',{class:'ai'},$('small',{},siteNow().name+' · '+modelNow()),vtext(m),sentLine(i,m),replyFoot(i,m)))),
+  $('button',{class:'jump',hidden:true,onclick:()=>{const c=ph.querySelector('.chat');c.scrollTop=c.scrollHeight}},'Jump to latest ↓'),
+  $('div',{class:'comp'+(st.big?' big':'')},$('button',{class:'ic','aria-label':'Quick edit and add',title:'Quick edit and add',onclick:()=>{st.plus=true;render()}},ico('stackadd')),(st.big?$('textarea',{id:'msg',placeholder:'Message','aria-label':'Message',oninput:e=>{st.draft=e.target.value}},st.draft):$('input',{id:'msg',placeholder:'Message','aria-label':'Message',value:st.draft,oninput:e=>{st.draft=e.target.value}})),$('button',{class:'ic','aria-label':st.big?'Smaller message box':'Bigger message box',title:(st.big?'Smaller':'Bigger')+' message box (Ctrl+E)',onclick:toggleBig},ico(st.big?'shrink':'expand')),$('button',{class:'send','aria-label':'Send',onclick:sendMsg},ico('send'))),
+  st.sitemenu?$('div',{class:'layer',style:'z-index:5'},$('div',{style:'position:absolute;inset:0',onclick:()=>{st.sitemenu=false;render()}}),$('div',{role:'menu',style:'position:absolute;top:54px;right:10px;width:250px;background:var(--pcard);border-radius:16px;padding:6px;box-shadow:0 10px 30px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:2px;border:1px solid var(--pline)'},
+  ...SITES.map(x=>$('button',{role:'menuitemradio','aria-checked':String(x.id===siteNow().id),class:'it',style:'background:transparent',onclick:()=>setSite(x.id)},$('span',{class:'on'},x.id===siteNow().id?'●':'○'),$('div',{class:'g'},x.name,$('small',{},st.siteModel[x.id])),$('span',{class:'dot',style:'margin:0'}))),
+  $('div',{style:'height:1px;background:var(--pline);margin:2px 6px'}),
+  $('button',{role:'menuitem',class:'it',style:'background:transparent',onclick:()=>{st.sitemenu=false;st.stack=['site'];render()}},$('div',{class:'g'},'Site, model and profile…')))):null,
+  st.sv?svLayer():null,st.drawer?drawer():null,st.plus?plusDrawer():null,st.stack.length?sheet(st.stack[st.stack.length-1],true):null,st.confirm?confirmSheet():null,st.tour!=null?tourLayer():null,(st.help&&helpOn()||st.helpCard)?helpLayer():null,st.find!=null?findSheet():null,
+  st.toast?$('div',{class:'toast',role:st.toastChat!=null?'button':'status',style:st.toastChat!=null?'cursor:pointer':'',onclick:()=>{if(st.toastChat!=null){const c=st.toastChat;st.toast='';st.toastChat=null;openChatIdx(c)}}},st.toast):null].filter(Boolean));
+ const c=ph.querySelector('.chat');if(c){c.scrollTop=first||keep==null?c.scrollHeight:keep;first=false}
+ tourSpot();
+ Object.entries(snap).forEach(([p,t])=>{const el=byPath(p);if(el)el.scrollTop=t});
+ if(st.drawer&&st.focusSearch){st.focusSearch=false;ph.querySelector('#cs')?.focus()}
+ if(st.tour!=null&&tourAdvance())return render()}
+document.addEventListener('keydown',e=>{
+ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'||e.key==='F3'){e.preventDefault();st.find='';render();ph.querySelector('#q')?.focus()}
+ else if(e.key==='Escape'&&(st.confirm||st.find!=null||st.stack.length||st.plus||st.drawer))closeAll();
+ else if(e.ctrlKey&&e.key==='e'){e.preventDefault();toggleBig()}
+ else if(e.ctrlKey&&e.key==='b'){e.preventDefault();openDrawer()}
+ else if(e.ctrlKey&&e.key==='m'){e.preventDefault();openAt('models')}});
+if(location.hash==='#tour'){resetSeen();}
+render();
+</script></body></html>
+</body></html>

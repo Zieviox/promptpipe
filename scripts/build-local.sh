@@ -1,15 +1,24 @@
 #!/bin/sh
 # Builds the whole app on an arm64 phone (Termux + proot Arch): the Odin core,
 # linked with the host clang against the NDK's sysroot (the NDK's own tools
-# only run on x86), then the APK. Prints every step.
-# Usage: sh scripts/build-local.sh [versionName] [versionCode]
+# only run on x86), then the APK. Prints every step. The built-in plugins are
+# copied in from the promptpipe-plugins checkout next to this one (its current
+# state, see scripts/copy-plugins.py); PP_PLUGINS=<folder> for another one.
+# Usage: sh scripts/build-local.sh [versionName] [versionCode]   (codes: see README, "Version codes")
 # Needs: odin, clang, lld, JDK 17, Gradle, ANDROID_HOME (or sdk.dir in
 # local.properties) with an NDK, and debug.keystore next to settings.gradle.kts
 # so the APK installs over earlier ones.
 set -e
 cd "$(dirname "$0")/.."
 VNAME="${1:-0.7.0-local}"
-VCODE="${2:-100}"
+# The version code must not go below an earlier build's, or Android refuses the APK as an update
+# (Samsung says "package appears to be invalid"). Without a code, the next one after build/ is used.
+TOP=$(ls build/*.apk >/dev/null 2>&1 && python3 scripts/apk-version.py build/*.apk 2>/dev/null | awk '$1 ~ /^[0-9]+$/ {print $1}' | sort -n | tail -1)
+VCODE="${2:-$(( ${TOP:-99} + 1 ))}"
+if [ -n "$TOP" ] && [ "$VCODE" -lt "$TOP" ]; then
+  echo "Version code $VCODE is lower than $TOP (the highest in build/): Android would refuse it as an update. Use $((TOP + 1)) or higher."
+  exit 1
+fi
 step() { echo; echo "== $*"; }
 t0=$(date +%s)
 
@@ -32,6 +41,9 @@ GV="$GECKOVIEW"
 [ -z "$GV" ] || [ "$GV" = latest ] && GV=$(curl -fsSL https://maven.mozilla.org/maven2/org/mozilla/geckoview/geckoview/maven-metadata.xml | sed -n 's:.*<release>\(.*\)</release>.*:\1:p')
 [ -n "$GV" ] || { echo "Couldn't read the GeckoView version; set GECKOVIEW=<version>."; exit 1; }
 echo "sdk $SDK"; echo "ndk $NDK"; echo "gradle $GRADLE"; echo "geckoview $GV"; echo "version $VNAME ($VCODE)"
+
+step "0/4 built-in plugins from promptpipe-plugins"
+python3 scripts/copy-plugins.py
 
 step "1/4 compiling core (Odin)"
 mkdir -p build app/src/main/jniLibs/arm64-v8a

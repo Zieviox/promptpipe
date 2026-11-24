@@ -127,24 +127,61 @@ class Shell(private val app: App) {
     }
 
     // The fetch primitive: https only, redirects followed, body as base64.
+    // A connection the server had already closed shows up as "unexpected end of stream on
+    // com.android.okhttp.Address@…" (Android reuses connections to the same host, and GitHub
+    // closes idle ones). Each fetch asks for a fresh connection, a cut-off one is tried once more,
+    // and a failure is said in plain words with the host.
+    private class TooBig : IOException("that download is over 50 MB")
+
     private fun fetch(url: String): JSONObject {
         if (!url.startsWith("https://")) throw IOException("only https links can be fetched")
+        try {
+            return fetchOnce(url)
+        } catch (e: TooBig) {
+            throw e
+        } catch (e: IOException) {
+            Log.w("pp", "fetch $url: ${e.message}; trying once more")
+            try {
+                return fetchOnce(url)
+            } catch (e2: TooBig) {
+                throw e2
+            } catch (e2: IOException) {
+                val host = try { URL(url).host } catch (bad: Exception) { url }
+                throw IOException(plainNetError(e2, host))
+            }
+        }
+    }
+
+    private fun plainNetError(e: IOException, host: String): String = when {
+        e is java.net.UnknownHostException -> "$host wasn't found (no internet, or the address is wrong)"
+        e is java.net.SocketTimeoutException -> "$host didn't answer in time"
+        e is javax.net.ssl.SSLException -> "the secure connection to $host failed (${e.message})"
+        (e.message ?: "").contains("end of stream") -> "the connection to $host was cut off, twice. Try again in a moment"
+        else -> "couldn't download from $host (${e.message})"
+    }
+
+    private fun fetchOnce(url: String): JSONObject {
         val c = URL(url).openConnection() as HttpURLConnection
         c.setRequestProperty("User-Agent", "promptpipe")
+        c.setRequestProperty("Connection", "close") // no reuse of a connection the server may have dropped
         c.connectTimeout = 15_000
         c.readTimeout = 60_000
         c.instanceFollowRedirects = true
-        val code = c.responseCode
-        val bytes = ByteArrayOutputStream()
-        (if (code in 200..299) c.inputStream else c.errorStream)?.use { input ->
-            val buf = ByteArray(64 * 1024)
-            while (true) {
-                val n = input.read(buf)
-                if (n < 0) break
-                bytes.write(buf, 0, n)
-                if (bytes.size() > 50 * 1024 * 1024) throw IOException("that download is over 50 MB")
+        try {
+            val code = c.responseCode
+            val bytes = ByteArrayOutputStream()
+            (if (code in 200..299) c.inputStream else c.errorStream)?.use { input ->
+                val buf = ByteArray(64 * 1024)
+                while (true) {
+                    val n = input.read(buf)
+                    if (n < 0) break
+                    bytes.write(buf, 0, n)
+                    if (bytes.size() > 50 * 1024 * 1024) throw TooBig()
+                }
             }
+            return JSONObject().put("status", code).put("url", c.url.toString()).put("base64", Base64.encodeToString(bytes.toByteArray(), Base64.NO_WRAP))
+        } finally {
+            c.disconnect()
         }
-        return JSONObject().put("status", code).put("url", c.url.toString()).put("base64", Base64.encodeToString(bytes.toByteArray(), Base64.NO_WRAP))
     }
 }
