@@ -42,7 +42,7 @@ the tags), **unless it's really unclear for the user.** One meaning per word.
 | 16 | A saved arrangement of what goes out with your message | "profile" | **profile** | Code: `Profile`. |
 | 17 | One item in a profile | "block", "System prompts and plugins" | **block** | Code: `Block`. Said once where it's added: "a system prompt or a plugin". |
 | 18 | A text block sent as instructions | "System prompt" | **System prompt** | Code: `type: "prompt"` = System prompt. |
-| 19 | Where system prompts are kept to reuse | "Prompt library" | **Prompt library** | The code's name for it; with "Library" gone from Plugins (24), it has one meaning. |
+| 19 ✅ | Where system prompts are kept to reuse | "Prompt library" | **Prompt Library** | Its name, capitalised as a name; with "Library" gone from Plugins (24), it has one meaning. |
 | 20 | The block that is your typed text | "Your message" | **Your message** | Code: `type: "message"` = Your message. |
 | 21 | Blocks switched together | "group" | **group** | Code: `group`. |
 
