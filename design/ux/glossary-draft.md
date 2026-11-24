@@ -30,7 +30,7 @@ Decided in `3-terms.md` (records, nouns, tags, the name pass) or the UX spec; th
 | 9 | What you type / what comes back / its reasoning | **message**, **reply**, **thinking** | records (`Turn`), nouns |
 | 12 | Folders in the chats list | **folder** | records (`Folder`) |
 | 13 | Words on messages; name# numbers them | **tag**, **chat tag**, **counter tag** (now "Counting tags count") | records (`tags`), "counter tags' numbers" |
-| 14 | Messages waiting to go | **waiting** (not "queue") | `Send.status` |
+| 14 | Messages not sent yet | **queued** (behind your earlier message), **waiting** (for a free page) | `Send.status`: two statuses; "the queue" |
 | 16 | A saved arrangement of what goes out | **profile** | records (`Profile`) |
 | 17 | One item in a profile | **block** | records (`Block`) |
 | 18 | A text block sent as instructions | **System Prompt** | records: `type` "prompt" = System prompt |
@@ -54,22 +54,26 @@ Decided in `3-terms.md` (records, nouns, tags, the name pass) or the UX spec; th
 | 27 | Where plugins come from | **Plugin Sources**, button **Add Repository** |
 | 28 | The guide to writing a plugin | **Plugin Guide** |
 
-## C. Not agreed anywhere: to decide
+## C. In the requirements or the UX spec
 
-These names exist only in the code or on screen; nobody decided them. Options, then what I'd pick.
+These are in the design notes already (the first version of this draft called them undecided: it
+had only read `3-terms.md`). Listed so it's clear where each comes from; only the ones you say
+don't count are reopened.
 
-| # | The thing | On screen now | Options | I'd pick |
-|---|---|---|---|---|
-| 10 | Another take on a message or reply (‹ 2/2 ›) | "version" | **Version**; **Branch** | Version: what sites show; `3-terms.md` reserves `version` for SemVer, so in code it stays branch |
-| 11 | A chat's own screen (name, tags, provider, history) | "Chat details", "Chat" | **Chat Details**; **Chat** | Chat Details: "Chat" alone is the conversation itself |
-| 15 | The panel above the box for this message's blocks, model and options | "Quick edit" | **Quick Edit**; **This Message**; **Message Settings** | yours: Quick Edit is the old app's and familiar |
-| 23 | Earlier states of your chats | "History", "Git history", "All commits" | **History**; **Git History**; **Commits** | History, with Git only in its setup (remote, author) |
-| 29 | Theme, accent, sizes, quick actions | "Look" | **Look**; **Appearance**; **Display** | Appearance: Android's word |
-| 30 | How big everything is / how big text is | "UI scale", "Bigger UI", "Text size" | **UI Scale**; **Display Size** · **Text Size** | Display Size and Text Size: Android's words |
-| 35 | The list of keys | "Shortcuts and help", "Shortcuts" | **Shortcuts**; **Keyboard Shortcuts** | Keyboard Shortcuts |
-| 37 | The less used settings | "Advanced" | **Advanced** | Advanced |
-| 38 | The sheet a provider's name opens (model, options, site actions) | "Profile and provider", "Provider sheet", "Site, model and profile…" | **Provider** (titled with its name, e.g. "Qwen Chat"); **Provider Settings** | the provider's name as the title; "Provider" in Find |
-| 39 | The Settings section with the waiting limits and pages at once | "Sites" | **Sites**; **Site View**; **Pages** | decided in the arrangement pass (it may merge) |
+| # | The thing | Word | Where it's settled |
+|---|---|---|---|
+| 10 | Another take on a message or reply (‹ 2/3 ›) | **version** (screen); `branch` in code | UX spec, build notes (branching proposal) |
+| 11 | A chat's own sheet | **Chat Details** | requirements, behaviour ("Tap the title: Chat details") |
+| 15 | The panel above the box | **Quick Edit** | intent, requirements, function list, UX spec |
+| 23 | Earlier states of your chats | **Git History** | requirements, UX spec |
+| 29, 30 | Theme, accent, sizes; how big everything is | **Look**, **UI Scale** | UX spec's Settings list ("Look (light or dark, accent, UI scale 90/100/115/130%, quick actions)"), requirements, behaviour (from the old app) |
+| 35 | The list of keys | **Shortcuts** | requirements |
+| 37 | The less used settings | **Advanced** | UX spec's Settings list |
+| 38 | The sheet a provider's name opens | **provider sheet** | requirements, behaviour |
+| 39 | Pages at once, waiting limits | **Sites** | UX spec's Settings list |
+
+Question for Gtex: Look (and the rest of the UX spec's Settings list) came from the mock and the
+old app. Does the UX spec count as agreed, or is that list reopened in the arrangement pass?
 
 ## Not covered
 

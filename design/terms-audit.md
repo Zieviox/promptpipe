@@ -1,91 +1,63 @@
-# Stray terms in the code (audit, 2026-11-24)
+# Stray terms in the code (audit, 2026-11-24, redone)
 
-Names in both repos (`promptpipe` and `promptpipe-plugins`, branch `rewrite`) that aren't agreed
-in `3-terms.md`: a verb outside the closed list, a noun nobody decided, a saved field or setting
-key missing from the records, an event outside the seven. Many came in during the phone fixes of
-the last sessions without being checked against the lists (Claude's, not a design decision).
+**How it's checked.** A name is settled when any design note has it: the requirements
+(`2-requirements.md`, `2b-behaviour.md`), the terms (`3-terms.md`), the ports (`4-ports.md`), the
+function list (`8-functions.md`), the build notes and approved proposals (`9-build.md`), or the UX
+spec (`ux/SPEC.md`). A name no note has is fine when it follows the naming rules with agreed words
+(`chat_get`). A **stray** breaks the rules (a verb outside the closed list, or one the list says
+isn't used) or uses a word no note has. Allowed: hooks and events by their rules, adapter words in
+their adapter.
 
-Allowed and not listed: hooks named by their place (`send_before`, `reply_after`, `block_text`,
-`chat_route`, `turn_render`), the seven events, adapter words inside their adapter (`session` in
-the Kotlin GeckoView code, `html` = htm), and small helpers inside one function.
+(The first version of this audit read only `3-terms.md`, and called settled words undecided:
+queue, pool, branch, `parent`, `site_ref`, box, keyboard, Undo and Redo. Withdrawn.)
 
-Nothing is renamed until the words are decided. Each rename then goes through `terms-check.py`,
-which gets the retired names so they can't come back.
+Many of the strays came in during the phone fixes of the last sessions without being checked
+against the notes (Claude's, not a design decision). Nothing is renamed before this is agreed.
 
-## 1. Verbs outside the closed list
+## 1. Function names that break the rules: 155, 30 of them on `PP`
 
-The closed list is in `3-terms.md` (Verbs). Proposed replacements use only listed verbs; where no
-listed verb fits, the question is whether to add one.
+**On `PP`** (plugins call them, so they're public):
 
-| Stray verb | Where (examples) | Proposed | Note |
-|---|---|---|---|
-| `check` | `attachments_check`, `turn_check`, `record_check`, `response_check` | `validate` (attachments, record, response); `compare` (turn against the site) | `check` is named in the list as *not used* ("validate or verify") |
-| `put` | `changes_put`, `files_put`, `folder_put`, `list_put`, `path_put` | `set` (data), `add` (files into the site's upload input) | |
-| `of` | `path_of`, `kind_of`, `chat_of`, `key_of`, `provider_of`, `update_of` | `get` | |
-| `show` | `version_show`, `popup_show`, `reply_show` | `set` (version), `open` (popup) | `show` is named as *not used* (open/close) |
-| `toggle` | `fold_toggle`, `select_toggle`, `site_view_toggle` | `set` | `toggle` is a noun in the list (a block's on/off) |
-| `make` | `folder_make` (core), `part_make`, `summaries_make` (Memory) | `create` (folder), `build` (summaries) | `make` is named as *not used* |
-| `ask` | `chats_delete_ask`, `send_dismiss_ask`, `summary_ask` | `dialog_open` with the action; Memory's `summary_send` | or add `ask` (open a question) |
-| `try` | `apply_try`, `call_try` | add? They run a change or a call and toast its failure | decide: a listed verb, or a rule for wrappers |
-| `undo` / `redo` | `record_undo`, `record_redo`, `turn_redo` | add `undo` / `redo` to the list | no listed verb fits |
-| `pause` | `queue_pause` | add `pause` / `resume`, or `waiting_stop` / `waiting_start` | `queue` isn't agreed either (see 2) |
-| `now`, `dismiss` | `send_now`, `send_dismiss` | `send_start` (send a waiting one now), `send_remove` | |
-| `type` | `draft_type` | `draft_set` (with its quiet flag) | |
-| `sync`, `watch`, `size` | `box_sync`, `box_watch`, `box_size` | `box_set`, `box_on` (width changes), `box_size_set` | `box` isn't agreed either |
-| `search` | `find_search` | `find_run` | |
-| `attach` | `files_attach` | `attachment_add` | the agreed verb for this |
-| `same` | `url_same`, `words_same` | `compare` | |
-| `shown` | `turns_shown`, `page_shown` | `turns_shown_get` → `path_get` (the versions shown) | |
-| `words`, `svg`, `ref` | `error_words`, `icon_svg`, `focus_ref`, `sortable_ref` | `error_text_get`, `icon_render`; refs: a rule for Preact ref callbacks | |
-| `pick`, `link`, `fill` | `profile_pick`, `chat_link`, `order_fill` | `profile_set`, `chat_link_set`, `order_build` | |
-| `serve` | `asset_serve`, `file_serve` (core) | `send` | |
-| `listen`, `forward`, `wake`, `hand` | Kotlin: `session_listen`, `call_forward`, `sessions_wake`, `scripts_hand` | `on`, `send`, `start`, `send` | |
+| Name | Problem | Proposed |
+|---|---|---|
+| `attachments_check`, `turn_check` | `check` is on the not-used list | `attachments_validate`, `turn_compare` (the reply against the site's) |
+| `version_show` | `show` is on the not-used list | `version_set` |
+| `changes_put` | `put` | `changes_set` |
+| `path_of` | `of` | `path_get` |
+| `turns_shown`, `turns_tree` | not verbs | `path_turns_list`, `tree_build` |
+| `files_attach` | `attach` | `attachment_add` (the agreed call's name) |
+| `send_dismiss`, `send_now` | `dismiss`, `now` | `send_remove`, `send_start` |
+| `queue_pause` | `pause` | add `pause`/`resume` to the list, or `queue_stop`/`queue_start` |
+| `record_undo`, `record_redo`, `turn_redo` | `undo`/`redo` | Undo and Redo are settled (`9-build.md`); add the verbs to the list |
+| `apply_try`, `call_try` | `try` | a rule for wrappers that run something and say its failure, or `*_run` |
+| `chats_delete_ask` | `ask` | `dialog_open` with the delete |
+| `draft_type`, `box_size`, `box_sync`, `side_width` | `type`, `size`, `sync`, `width` | `draft_set` (quiet), `box_set`, `box_width_get` |
+| `chat_link`, `profile_pick`, `order_fill`, `find_search` | `link`, `pick`, `fill`, `search` | `chat_link_set`, `profile_set`, `order_build`, `find_run` |
+| `error_words`, `icon_svg`, `focus_ref` | not verbs | `error_text_get`, `icon_render` (the svg); refs: a rule for Preact ref callbacks |
+| `outbox_load`, `outbox_save` | `outbox` is in no note | `sends_load`, `sends_save` (the `Send` records they keep) |
 
-The `PP` surface (what plugins call, so public): 33 of 175 functions end in an unlisted verb.
-`runtime-screen`: apply_try, box_size, box_sync, box_side_width, call_try, chat_link,
-chats_delete_ask, draft_type, error_words, files_attach, find_search, focus_ref, icon_svg,
-order_fill, profile_pick, sortable_ref, toast. `runtime-send`: attachments_check, queue_pause,
-send_dismiss, send_now, turn_check, turn_redo. `runtime-records`: changes_put, record_redo,
-record_undo. `runtime-chats`: path_of, turns_shown, turns_tree, url_same, version_show.
+**Inside a module** (125): the same patterns. `check`, `show`, `make`, `do`, `hide` (on the
+not-used list) in `record_check`, `response_check`, `reply_show`, `popup_show`, `folder_make`,
+`part_make`, `summaries_make`, `help_do`, `hover_hide`; `put`, `of`, `toggle`, `row`, `ask`, `serve`,
+`listen`, `wake`, `match`, `near`, `last`, `pick`… The full list is regenerated by the scan
+(`terms-check.py` gets this scan), so it isn't copied here.
 
-## 2. Nouns nobody decided
+## 2. Saved fields, setting keys, an event
 
-| Stray noun | Where | Means | Proposed |
-|---|---|---|---|
-| `version` (for a turn) | `versions_get`, `version_show`, screen "‹ 2/2 ›" | another take on a message | **conflict**: `3-terms.md` reserves `version` for SemVer. Code: `branch`; screen: glossary row 10 |
-| `parent` | `Turn.parent`, `Send.parent` | the turn a version hangs from | add to `Turn` (branches) |
-| `queue` | `queue_pause`, `queue_run`, `queue_bar_render` | the waiting sends | `waiting` (the agreed `Send.status`) |
-| `hold`, `held` | `hold_get`, `hold_set`, `Send.held` | why waiting sends don't go | decide a word (`hold`?) and add it |
-| `outbox` | `outbox.json`, `outbox_load`, `outbox_save` | sends kept until saved | decide: `outbox`, or `sends` (the record's name) |
-| `raw` | `raw_get`, `raw_set`, `Chat.own.raw` | the profile off for a chat | decide: `raw` or `profile_off` |
-| `site_ref` | `Turn.site_ref`, `site_ref_get`, `ref_find` | the reply's element id on the site | add to `Turn` |
-| `box` | `box_size`, `box_sync`, `box_text`, `.boxscroll` | the message box | add `box` (the message box) to the screen's parts |
-| `keyboard`, `selection_ordered` | `keyboard_set`, `Keyboard.kt` | how a selection reaches the keyboard | add `keyboard` (platform) |
-| `snapshot`, `pool`, `answer`, `draft` | `snapshot_take`, `pool_add`, `answer_parse`, `draft_get` | what was on the page before; the pages in use; an AI's answer of files; the box's text | `draft` is agreed (`drafts`); the others: add or rename |
-
-## 3. Saved fields and setting keys not in the records
-
-- **`Turn`**: `parent`, `site_ref`.
-- **`Send`**: `held`, `force`, `regenerate`, `plain`, `progress`, `updates_got`, `thinking_at`,
-  `writing_at` (`replaces`, `turn`, `status` are agreed).
-- **Setting keys**: `look.theme`, `look.text`, `look.quick_actions`, `look.selection_ordered`,
-  `updates.checked`, `help.seen`, `screen.plugin`. And the `look` group itself was never agreed
-  (glossary row 29).
-- **Setting sections** in `schemas.json`: "Chats" and "Plugins" sections exist, but no screen shows
+- **`Send` fields in no note**: `force`, `updates_got`, `thinking_at`, `writing_at` (the last two
+  added today).
+- **Setting keys in no note**: `look.theme`, `look.text`, `look.quick_actions`,
+  `look.selection_ordered` (added today), `updates.checked`, `screen.plugin`.
+- **Event outside the seven**: `send_failed`. By the rule ("a record's changes are one `_changed`
+  event with a status") it's a send's change; or it's added to the list.
+- **Bug**: the "Chats" and "Plugins" setting sections exist in `schemas.json` but no screen shows
   them (Provider for new chats, Active profile, Counting tags count, Check for plugin updates,
-  Also download the release's plugin bundle are unreachable). A bug either way.
-
-## 4. Events outside the seven
-
-- `send_failed` (runtime-send to the screen, with the message and error). Either one of the
-  `_changed` events with a status (the rule: "a record's changes are one `_changed` event with a
-  status field") or added to the list.
+  Also download the release's plugin bundle).
 
 ## To decide
 
-1. Verbs to **add** to the closed list (`undo`, `redo`, `pause`/`resume`, `ask`?), and a rule for
-   wrappers (`apply_try`, `call_try`) and Preact refs (`focus_ref`).
-2. The nouns in part 2: each kept and added to `3-terms.md`, or renamed.
-3. `version` vs `branch` for a message's versions (code), with glossary row 10 (screen).
-4. Then the renames, both repos at once, with `terms-check.py` extended, the tests passing, and the
-   plugin guide (`PLUGINS.md`) updated for the `PP` names that change.
+1. Verbs to add to the closed list: `undo`/`redo` (their features are settled), `pause`/`resume`?
+2. A rule for wrappers (`call_try`, `apply_try`) and Preact refs (`focus_ref`).
+3. `outbox` → `sends`?
+4. Then one rename pass, both repos, `terms-check.py` extended with this scan, tests passing, and
+   the plugin guide updated for the `PP` names that change.
