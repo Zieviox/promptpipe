@@ -162,16 +162,16 @@ file_read :: proc(d: Object) -> (string, Error) {
 
 // Whether a name matches one pattern part, "*" standing for any characters ("*.json", "lod*.md").
 part_match :: proc(part, name: string) -> bool {
-	pieces := strings.split(part, "*", context.temp_allocator)
-	if !strings.has_prefix(name, pieces[0]) do return false
-	at := len(pieces[0])
-	for piece, i in pieces[1:] {
-		if i == len(pieces) - 2 {
-			return len(name) - at >= len(piece) && strings.has_suffix(name, piece)
+	substrings := strings.split(part, "*", context.temp_allocator)
+	if !strings.has_prefix(name, substrings[0]) do return false
+	at := len(substrings[0])
+	for substring, i in substrings[1:] {
+		if i == len(substrings) - 2 {
+			return len(name) - at >= len(substring) && strings.has_suffix(name, substring)
 		}
-		found := strings.index(name[at:], piece)
+		found := strings.index(name[at:], substring)
 		if found < 0 do return false
-		at += found + len(piece)
+		at += found + len(substring)
 	}
 	return at == len(name)
 }

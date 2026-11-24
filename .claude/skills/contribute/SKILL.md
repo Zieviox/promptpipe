@@ -129,7 +129,7 @@ python3 .claude/skills/remake/scripts/name-check.py design   # when calls change
 ## Building on the user's phone
 
 The user builds in Termux + proot Arch, with the two repos at `~/promptpipe` and
-`~/promptpipe-plugins`. Give one copy-paste block per step:
+`~/promptpipe-plugins`. Give each part its own copy-paste block:
 
 ```sh
 cd ~/promptpipe-plugins && git pull

@@ -17,7 +17,7 @@ SDK="${ANDROID_HOME:-$(sed -n 's/^sdk.dir=//p' local.properties 2>/dev/null)}"
 [ -d "$SDK" ] || { echo "Set ANDROID_HOME, or sdk.dir in local.properties."; exit 1; }
 [ -f local.properties ] || echo "sdk.dir=$SDK" > local.properties
 NDK="${ANDROID_NDK_HOME:-$(ls -d "$SDK"/ndk/* | sort | tail -1)}"
-TOOLS=$(ls -d "$NDK"/toolchains/llvm/prebuilt/* | head -1)
+TOOLCHAIN=$(ls -d "$NDK"/toolchains/llvm/prebuilt/* | head -1)
 GRADLE=$(command -v gradle || ls -d /root/gradle-*/bin/gradle 2>/dev/null | sort | tail -1)
 [ -x "$GRADLE" ] || { echo "Gradle not found."; exit 1; }
 command -v ld.lld >/dev/null || { echo "lld is missing (Arch: pacman -S lld)."; exit 1; }
@@ -65,8 +65,8 @@ odin build core -target:linux_arm64 -subtarget:android -build-mode:object -no-en
 # through it since Odin 2026-11) and log. To see what else a new Odin needs:
 # llvm-nm -u build/ppcore.o, and look each name up in Odin's core/sys/android.
 OUT=app/src/main/jniLibs/arm64-v8a/libppcore.so
-clang --target=aarch64-linux-android29 --sysroot="$TOOLS/sysroot" \
-    -resource-dir="$(ls -d "$TOOLS"/lib/clang/* | head -1)" --rtlib=compiler-rt --unwindlib=none \
+clang --target=aarch64-linux-android29 --sysroot="$TOOLCHAIN/sysroot" \
+    -resource-dir="$(ls -d "$TOOLCHAIN"/lib/clang/* | head -1)" --rtlib=compiler-rt --unwindlib=none \
     -fuse-ld=lld -fno-emulated-tls -fPIE -pie -O2 -o "$OUT" build/ppcore.o core/android/shim.c -lm -llog -landroid
 
 echo "== 3/4 the core's thread-local segment must be 64-aligned for Android"

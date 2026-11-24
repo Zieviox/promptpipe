@@ -120,7 +120,7 @@ below is a rule from then on.
   ask the user for a few real files (with private text replaced), and test the import on the phone
   in 9b. An import reports what it found and what it skipped, on screen, not only in a toast.
 - **Nothing is pinned that wasn't checked.** A version written from memory (GeckoView's) didn't
-  exist. Every dependency, tool and version is looked up (the registry, the old build that worked)
+  exist. Every dependency and its version, and every program the build uses, is looked up (the registry, the old build that worked)
   before it goes in; when the old build had a working way (the cached GeckoView), reuse it and say
   so.
 - **The platform layer can't run here, so it gets a crash record from its first line**
@@ -132,7 +132,7 @@ below is a rule from then on.
 - **Work within the user's phone.** Builds happen in Termux + proot Arch on the phone, with little
   free space and a slow connection: never suggest deleting downloads, caches that would be
   downloaded again, or old builds; diagnose with read-only commands first (`du`, `ncdu`); give one
-  copy-paste block per step; the version code always goes up; `app/build` can be removed before
+  copy-paste block for each part; the version code always goes up; `app/build` can be removed before
   installing, it's rebuilt offline.
 - **The checks travel with the code.** The terms check, the name check and the skills lived on the
   design branch, not the new one; carry them over when building starts (`scripts/`, `.claude/`).
