@@ -182,7 +182,7 @@ class MainActivity : Activity() {
         }
     }
 
-    fun popup_show(session: GeckoSession?) {
+    fun popup_open(session: GeckoSession?) {
         popup_view?.let { it.releaseSession(); root.removeView(it) }
         popup_view = session?.let { s ->
             s.open(app.runtime)

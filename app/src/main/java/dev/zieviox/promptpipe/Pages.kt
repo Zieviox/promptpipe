@@ -243,7 +243,7 @@ class Pages(private val app: App) {
                 override fun onCloseRequest(session: GeckoSession) = popup_close()
             }
             popup = popup_session
-            Screen.activity?.popup_show(popup_session)
+            Screen.activity?.popup_open(popup_session)
             changed_send(page)
             return GeckoResult.fromValue(popup_session)
         }
@@ -253,7 +253,7 @@ class Pages(private val app: App) {
         val session = popup ?: return
         popup = null
         app.main.post {
-            Screen.activity?.popup_show(null)
+            Screen.activity?.popup_open(null)
             session.close()
         }
         pages.values.firstOrNull()?.let { changed_send(it) }
