@@ -128,7 +128,7 @@ again … Check all the skills and guides and whatever to know EXACTLY what we a
     one text form of a chat (format/parse, also for copy, share and export); the import as a
     removable plugin; prose in content files.
 38. Each function is in the function list with its layer and module; a function that isn't, and
-    isn't a small private step of one that is, is a deviation to log.
+    isn't a small private function inside one that is, is a deviation to log.
 39. The budget (`6-architecture.md`, Q4): a layer over its budget is a design problem that goes back
     to stage 6 or 8 (`remake/SKILL.md`), never packed lines or cut features. Measure with
     `remake/scripts/sloc.py` per layer.
