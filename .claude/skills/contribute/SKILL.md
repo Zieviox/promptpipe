@@ -48,6 +48,11 @@ licence. Inside the app: functions over plain data, no classes, no state outside
 - **Names**: snake_case; functions `noun_verb` with a verb from the closed list in
   `design/3-terms.md`; records `Ada_Case`; the design's terms first, then the standard term; no
   invented words (`python3 scripts/terms-check.py` stays at 0).
+- **Every name has a source, said with it.** The order is `design/1-principles.md`'s ("Names are
+  reused too"): the design's terms and decisions (`3-terms.md`, the glossary, the decisions in the
+  notes), then the standard term (the technology's own name, a standard programming term). A name
+  with neither is new: it goes to the user with no word attached, and only their word goes into
+  `3-terms.md`. Never a made-up word, not even as a proposal.
 - **What's settled is in all the design notes, not one.** Before calling a name, a word, a screen
   or a behaviour undecided, or proposing a new one, search every note: `0-intent.md`,
   `2-requirements.md`, `2b-behaviour.md`, `3-terms.md`, `4-ports.md`, `8-functions.md`, `9-build.md`
