@@ -112,3 +112,55 @@ pure or effect, its call, and its line estimate, fitting the budget.
 - JavaScript: [Prettier](https://prettier.io/docs/options), [ESLint](https://eslint.org/docs/latest/rules/), [Node's test runner](https://nodejs.org/api/test.html)
 - Odin: the core library's sources and `build/odin-reference/docs/testing.md`; [the language server's formatter (odinfmt)](https://github.com/DanielGavin/ols)
 - Testing with stand-ins: [Fowler, Test Double](https://martinfowler.com/bliki/TestDouble.html)
+
+## Part 3. The code against the design (started 2026-11-24)
+
+Gtex, 2026-11-24: "Go over the code line by line … Please check EVERYTHING so we don't have to do
+this again." Done with the `standards-review` skill (`.claude/skills/standards-review/SKILL.md`):
+every rule from every design note and skill, the code read file by file, each file logged here
+before the next.
+
+### What the whole code shows before any file is read
+
+Measured with `remake/scripts/sloc.py` (lines of code; blank lines and comments not counted):
+
+| Layer | Budget (`6-architecture.md`) | Measured | × |
+|---|---|---|---|
+| core | 580 | 1,256 | 2.2 |
+| platform | 520 | 1,095 | 2.1 |
+| loader | 180 | 279 | 1.6 |
+| page side | 200 | 718 | 3.6 |
+| runtime | 700 | 2,417 | 3.5 |
+| screen | 1,360 | 4,500 | 3.3 |
+| **app** | **3,540** | **10,265** | **2.9** |
+| optional plugins | 550 | 740 | 1.3 |
+| import | 130 | 503 | 3.9 |
+| **everything** | **4,220** | **11,508** | **2.7** |
+
+- The old app was 10,370 lines (`5-strategies.md`). The remake is **larger** than what it remakes,
+  where the approved strategies (A–G) put it at about a third. By the remake's own rule, a layer
+  over its budget is a design problem, not something to polish (`remake/SKILL.md`, rule 39).
+- **Strategy 1 is not in the screen** (rule 32): no list or form is drawn from a collection's schema;
+  each sheet is written by hand (`runtime-screen/sheets.js`, 1,837 lines, over a shared row engine).
+  The strategy replaces the chats list, the profile editor, Quick edit, the prompt library, the
+  plugin screens, Settings, the chat sheet, Model and options, Credentials and the storage check.
+- **Copies that disagree** (rule 41, already in `clone-detection/jobs.md`): opening a site page in
+  4 places with different rules; creating a chat for a first message in 4; Base64 to bytes in 4;
+  adding profiles with new ids in 2.
+- **Names**: 230 names outside `3-terms.md` (terms-check, `design/terms-pending.md`); 11 functions
+  use verbs the terms list as not used (`show`, `hide`, `check`, `make`, `do`).
+- **ESLint** (the guide's linter, added 2026-11-24): 23 problems: unused values, empty `catch`
+  blocks, the screen calling Preact outside its adapter (`screen.js` 600), two content scripts
+  without strict mode.
+
+### Per file
+
+| File | Lines | Read | Verdict | Fixed (rule: what) | Questions |
+|---|---|---|---|---|---|
+
+### Questions for Gtex
+
+1. **Rebuild or polish.** The screen (and the runtime, at 3.5×) doesn't follow strategy 1, and the
+   app is 2.9× its budget. Polishing it line by line keeps that structure. Rebuild the screen (and
+   whichever layers the read shows the same for) from the function list and strategies 1–2, or
+   review and fix the code as it is?
