@@ -470,6 +470,80 @@ masked with Copy and Show (UC37); Memory's summaries as JSON shown and edited in
 the readable file (UC43, D1, D6); the old app's folders marked, backed up and imported (X5); the
 templates' and plugins' texts carried over word for word (X6).
 
+## Decided on the phone (2026-11-22 to 2026-11-24)
+
+Your decisions from testing builds on the phone, in your words; each refines the use case it names
+and wins over the spec and the screenshots. Recorded 2026-11-24 (they were made in the conversation
+and only some reached the build notes).
+
+**Chatting**
+- UC1.2, UC1.3: replies and thinking show live ("still no thinking during thinking … Not even
+  messages are realtime", 11-22); all of the thinking, as Markdown ("Live thinking only displays one
+  section, finished thinking doesn't use markdown", 11-23); the thinking is the new reply's ("takes
+  the thinking of the previous message not current"), one block before and after the reply,
+  collapsible ("Why not just use the same one and make it dynamic?", 11-24).
+- All text through one Markdown path ("Why do we even have multiple systems for the same thing?",
+  11-23).
+- Actions don't wait for a reply: your own message can be copied at once ("I don't want to be held
+  back for no reason", 11-23).
+- UC2: when a message fails, the messages queued after it hold and go only when a reply comes back
+  or you force one ("only send when the response successfully comes back or when the user forces
+  send"); a Pause button for the queue ("I also need a pause queue button", 11-23).
+- UC4: a message that doesn't go is never lost ("I need the message to not be deleted or the user
+  might lose a lot of text they typed", 11-23).
+- UC4: any reply can be checked against the site's version, not only a failed one ("It needs to be
+  an option for me under the message to click … between the collapsible buttons", 11-23).
+- UC5: messages can be deleted in the app; they stay in the history ("I meant delete in the app
+  (buts it's fine to keep in version control)", 11-23).
+- Undo and Redo for app actions ("I meant undo redo for app actions", 11-23); no permanent Undo
+  button, the toasts and Find ("C seems fine for now", 11-23).
+- UC1.1: the whole profile can be off for a chat, to send a message as typed ("I need a toggle for
+  the entire profile off (like if I just want to send a raw message)", 11-23).
+- UC48: when a provider can't send attachments the app says so ("Report when the plugin has no
+  implementation for attachement", 11-22); Qwen sends them ("if it's easy to add attachment support
+  to Qwen, please add it", 11-23).
+
+**The message box (UC7)**
+- The expanded box is full screen ("the expand version should be full screen, not small", 11-23).
+- Text editing is Android's own: double tap and long press select, a large selection can be
+  replaced or deleted ("works in every other app and page", 11-23); the plan approved with "Go ahead
+  with all of this" (11-23): GeckoView 160 or newer, the box left to Android and the browser engine,
+  no size change on a tap, no touch-action on the screen, the box's whole area is text.
+- A selection made bottom to top deletes like any other; how the selection reaches the keyboard is
+  a setting ("Can you make it a toggle?", 11-23).
+- The buttons go under the text once it needs a second line, never on a tap (after a search: "Search
+  how it's done properly", "Go ahead", 11-23).
+- The keyboard stays up while you use the message box ("it tucks the keyboard down way too easily",
+  11-23).
+- A selection handle scrolled out of the box isn't drawn over the chat (11-23).
+- A tracing tool for typing problems is never part of the app or the official plugins ("It can be
+  abused", 11-23).
+
+**Chats and sites**
+- UC13: adding the site's messages finds the ones already here and your own messages in the app's
+  form ("adding site messages doesn't detect existing messages or PP style messages", 11-23).
+- Branches match the site (the proposal in `9-build.md`, approved 11-23).
+- UC12, UC46: Copy page report in the site view ("add 'copy site info' … to the site view", 11-23).
+- Qwen's thinking panel: option B, never opened while you look (11-23, in `9-build.md`).
+
+**Notices, logs, help, plugins**
+- Notices close with a tap; one place for all logs ("Better be a global place for all logs", 11-23;
+  in `9-build.md`).
+- UC30: the plugin guide can be copied for an AI (11-23); making a plugin with an AI has a copy
+  button on top, recommends Claude ("even free version"), and the guide's text folded by default
+  (11-24).
+- UC16: Settings is reachable from the chats list however many chats there are ("Where did the
+  settings button disappear? It was in the mock", 11-23).
+
+**Words (11-24)**: the screen uses the agreed terms unless that's really unclear; Title Case for
+every named feature; the list of plugins is the Catalogue where a title is needed (the tab goes in
+the arrangement pass); Runtime plugins; the filter chips follow the tags (Providers, Themes,
+Passive, Message); Plugin sources with Add repository; Prompt Library. "The code 'Look' is not even
+an agreed on term" (11-24): Look and the Settings sections are decided in the arrangement pass.
+
+**Later**: a backup option (11-23); unanswered outside changes survive closing (11-22); the look,
+screen by screen (11-23); the Settings arrangement and installing with less friction (11-24).
+
 ## Open
 
 Nothing open. The encrypted store is **Credentials** (one entry: a credential), decided
