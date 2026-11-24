@@ -8,7 +8,7 @@ leaves your phone except what the site itself receives.
 ## 1. First start
 
 1. Allow notifications: the app keeps running in the background with one.
-2. Allow all files access when asked (Settings › Chats and storage), so your chats live in
+2. Allow all files access when asked (Settings › Chats and Storage), so your chats live in
    `Documents/PromptPipe`, where other apps can see them. Without it they stay in the app's own
    folder.
 3. Tap the provider's name at the top (DeepSeek, Qwen, …) and **Open its site**. Log in once;
@@ -53,18 +53,18 @@ leaves your phone except what the site itself receives.
 ## 5. Profiles, models and plugins
 
 - A **profile** is a list of blocks sent top to bottom: System prompts, plugins, and your
-  message. **≡** beside the message box (**Quick edit**) turns this chat's blocks on or off and
+  message. **≡** beside the message box (**Quick Edit**) turns this chat's blocks on or off and
   adds text files or attachments; **Edit profile** changes the profile itself.
-- The **Prompt library** (Settings) keeps System prompts; a block that links one sends the
+- The **Prompt Library** (Settings) keeps System prompts; a block that links one sends the
   library's text, so one edit changes every profile that links it.
-- **Model and options** (the provider's sheet, or Ctrl+M): the site's models and options
+- **Model and Options** (the provider's sheet, or Ctrl+M): the site's models and options
   (Thinking, Search), saved for the provider and set on the page before each message.
 - **Plugins** (Settings, Ctrl+Shift+P): what's installed, the catalogue, and installing from a
   link, a zip or an AI's answer.
 
 ## Advanced
 
-### Git history and backup
+### Git History and backup
 
 Every change is a commit in your chats folder. Settings › Git: your name and email and a remote
 (e.g. a private GitHub repository); in Settings › Credentials, add its token named `git token`
@@ -84,7 +84,7 @@ built-in plugins, and says which one failed. Settings › Advanced leaves it.
 
 ### Keys
 
-Ctrl+N new chat · Ctrl+B chats · Alt+↑/↓ previous/next chat · Alt+S the AI page · Ctrl+K find ·
+Ctrl+N new chat · Ctrl+B chats · Alt+↑/↓ previous/next chat · Alt+S the AI Page · Ctrl+K find ·
 Ctrl+M model · F2 chat details · Ctrl+T chat tag · Ctrl+/ fold thinking · Ctrl+E bigger box ·
 Ctrl+P next profile · Ctrl+, settings · Ctrl+= / Ctrl+- / Ctrl+0 UI size · Ctrl+? all of them ·
 Escape or Back closes what's on top.
