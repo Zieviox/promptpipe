@@ -541,6 +541,11 @@ the arrangement pass); Runtime plugins; the filter chips follow the tags (Provid
 Passive, Message); Plugin sources with Add repository; Prompt Library. "The code 'Look' is not even
 an agreed on term" (11-24): Look and the Settings sections are decided in the arrangement pass.
 
+**The screen as data (11-24)**: "We need a schematic for the screen that is agnostic and
+automatable", after the review found the screen written by hand, 3.3 times its budget
+(`7-review.md` Part 3). Strategy 1 refined to cover the whole screen (`5-strategies.md`, the screen
+schematic); waiting for Gtex's approval of its shape.
+
 **Later**: a backup option (11-23); unanswered outside changes survive closing (11-22); the look,
 screen by screen (11-23); the Settings arrangement and installing with less friction (11-24).
 

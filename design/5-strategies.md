@@ -46,6 +46,69 @@ its actions (commands), and where it's stored. From it:
 - Cost: a screen with a special layout needs a field type of its own; schemas are data, and data
   lines count (decided C).
 
+#### Refined (2026-11-24, Gtex): the screen schematic, waiting for approval
+
+Gtex: "We need a schematic for the screen that is agnostic and automatable." The build wrote every
+sheet by hand (`runtime-screen/sheets.js`, 1,837 lines; the screen 4,500 lines against 1,360,
+`7-review.md` Part 3), so strategy 1 is taken to the whole screen: what each sheet shows is data,
+not code.
+
+Standard practice: a data schema and a separate UI schema that only refers to it, drawn by
+interchangeable renderers (JSON Forms' UI schema, rendered by renderer sets for different
+frameworks; react-jsonschema-form's `uiSchema`); whole screens sent as data and drawn by a generic
+client (server-driven UI, as Airbnb's Ghost Platform).
+
+**What it is.** One data file, the schematic (`runtime-screen/schematic.json`), with one entry per
+sheet. It refers only to what already exists: collections and their schemas (strategy 1),
+`Setting_Def` (strategy 3), commands by id (strategy 2), content files for prose (strategy 14),
+other sheets by id. It names no library, element or style.
+
+- **Agnostic**: the screen's adapter is the only part that knows Preact and the DOM; it draws a
+  `list`, a `form`, a command item or a text the same way for every sheet. Another renderer (a
+  test's text outline, a desktop platform later, N1) reads the same file.
+- **Automatable**: from the one file, with no per-sheet code:
+  1. the screen draws every sheet;
+  2. a check finds every sheet, field, command, content file and word it refers to (a missing one
+     fails, like terms-check), and every screen state in `ux/` and `ux/SPEC.md` has its entry;
+  3. a script takes a screenshot of every sheet in Chromium beside the wireframe (the parity walk);
+  4. help mode, Find and the keys read the commands it lists (strategy 2).
+- **Stays bespoke** (as strategy 1 already says): the chat (turns, the streaming reply, the message
+  box) and the site view's bar. Their parts are listed in the schematic by name, so the checks and
+  the screenshots cover them too.
+
+**Its shape** (every key is an existing word: `sheet`, `section`, `list`, `form`, `label`,
+`description`, `commands`, `text`, `collection`, `order`). Two of today's sheets, as data:
+
+```json
+{
+  "prompts": {
+    "title": "Prompt Library",
+    "text": "prompts-intro.md",
+    "sections": [
+      { "list": "prompts", "order": ["pinned", "updated"], "label": "name",
+        "description": "text", "sheet": "prompt" },
+      { "label": "Manage", "commands": ["prompt_create", "prompts_import", "prompts_export"] }
+    ]
+  },
+  "sites": {
+    "title": "Sites",
+    "description": "Pages at once, waiting for replies",
+    "sections": [{ "form": "settings", "section": "Sites" }]
+  }
+}
+```
+
+- `list`: the records of a collection, ordered, each item showing the field named as its `label`
+  and `description`, a tap opening the `sheet` named (with the record's id) or running a command.
+- `form`: a record's fields (or the settings of one `section`), each drawn from its `Setting_Def`
+  type: toggle, choice, text, number, credential, list.
+- `commands`: items that run commands from the table; plugins add theirs by `place`, as today.
+- `text`: prose from a content file, never a string in code.
+
+**Cost**: the screen's sheets are rebuilt as entries plus one renderer; the bespoke chat and site
+view bar stay code. A sheet with a layout the four parts can't express needs a new part type, added
+to this list with Gtex's word.
+
 ### Strategy 2. Commands as data: one command table
 
 Standard name: the **command pattern** with one registry (VS Code's commands).
@@ -252,3 +315,4 @@ says so instead of hiding it.
 - Libraries: [Preact](https://preactjs.com/), [htm](https://github.com/developit/htm), [markdown-it](https://github.com/markdown-it/markdown-it), [Turndown](https://github.com/mixmark-io/turndown), [SortableJS](https://github.com/SortableJS/Sortable), [fflate](https://github.com/101arrowz/fflate), [JGit](https://www.eclipse.org/jgit/)
 - Platform features: [`<dialog>`](https://developer.mozilla.org/docs/Web/HTML/Element/dialog), [Compression Streams](https://developer.mozilla.org/docs/Web/API/Compression_Streams_API)
 - Design tokens: [W3C Design Tokens Community Group](https://www.designtokens.org/)
+- UI schemas: [JSON Forms, UI Schema](https://jsonforms.io/docs/uischema/), [react-jsonschema-form, uiSchema](https://rjsf-team.github.io/react-jsonschema-form/docs/api-reference/uiSchema/); server-driven UI: [Airbnb's Ghost Platform](https://medium.com/airbnb-engineering/a-deep-dive-into-airbnbs-server-driven-ui-system-842244c5f5)
