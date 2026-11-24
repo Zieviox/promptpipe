@@ -22,11 +22,12 @@ Lines that mention "legacy" are migration code reading old saved data, and may u
 
 Then the names against the list itself (design/3-terms.md, beside the code): every function's
 verb is in the closed verb list and its other words are in the list; events are the seven; setting
-keys and saved Turn fields are in the list; the port contract's calls likewise (as name-check.py).
+saved Turn fields are in the list (setting keys: the schema is their list, 3-terms.md); the port
+contract's calls likewise (as name-check.py).
 Names waiting for a decision are in design/terms-pending.md: reported, not failed. Anything else
 fails, so a new name that breaks the list can't come in.
 """
-import json, os, re, sys
+import os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLUGINS = os.environ.get("PP_PLUGINS") or os.path.join(os.path.dirname(ROOT), "promptpipe-plugins")
@@ -156,11 +157,7 @@ def names_check(show):
                             if e not in events and e not in seen:
                                 seen.add(e)
                                 problems.append((e, where(path, n), "an event outside the seven"))
-    # setting keys and saved Turn fields
-    schema = json.load(open(os.path.join(PLUGINS, "runtime-records", "schemas.json"), encoding="utf-8"))
-    for d in schema["settings"]:
-        if f"`{d['key']}`" not in terms:
-            problems.append((d["key"], "runtime-records/schemas.json", "a setting key not in the list"))
+    # saved Turn fields (setting keys aren't checked: 3-terms.md makes the schema their list)
     send = open(os.path.join(PLUGINS, "runtime-send", "send.js"), encoding="utf-8").read()
     i = send.index("  const turn = {")
     for field in re.findall(r"^\s+([a-z_]+)[:,]", send[i:send.index("};", i)], re.M):

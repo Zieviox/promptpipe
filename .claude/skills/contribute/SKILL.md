@@ -6,8 +6,10 @@ description: How to change promptpipe or promptpipe-plugins after the remake - a
 # Contributing to promptpipe
 
 promptpipe is built from `design/` (its intent, requirements, terms, contract and architecture).
-A change fits that design, or changes the design first. Until the switch (remake stage 10),
-`design/` is on the promptpipe repo's design branch (`ccr-bb40c4f5-cvvj2n`); after it, on `main`. The code is in two repos side by side:
+A change fits that design, or changes the design first. `design/` lives beside the code on the
+`rewrite` branch (Gtex, 2026-11-24: the code had been written without it in reach); the UX
+screenshots stay on the design branch (`ccr-bb40c4f5-cvvj2n`); after the switch (stage 10), on `main`.
+Design changes go to `rewrite`'s `design/` only, so there's one copy. The code is in two repos side by side:
 **promptpipe** (`core/` Odin, `app/src/main/java/` Kotlin, `app/src/main/assets/ui/` the loader,
 `app/src/main/assets/ppext/` the page side, `scripts/`) and **promptpipe-plugins** (`runtime-*`
 the application and the screen, the optional plugins, `scripts/`, `test/`).

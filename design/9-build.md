@@ -483,3 +483,31 @@ report shows its controls; until then an edit goes there as a new message.
 
 Was needed first: a page report from a Qwen chat where a message was edited (it shows "< 1/2 >"), to
 see Qwen's edit, version and regenerate controls. Questions for Gtex: see the conversation.
+
+## The phone fixes and the design brought back in line, 2026-11-23 to 24
+
+What changed, why, and the checks (the decisions themselves are in `2-requirements.md`, "Decided on
+the phone"):
+
+- **The message box** (UC7): GeckoView 160 or newer (`build.sh` picks it); the box is the engine's
+  own (typing isn't written back, a quiet `state_set` for keystrokes); no size change on a tap; the
+  buttons go under the text once it needs a second line (measured beside them, so it doesn't flip);
+  a container scrolls the box, so a selection handle scrolled out isn't drawn over the chat; no
+  press in the message area takes the cursor away; selections reach the keyboard start first
+  (`keyboard_set`, `Keyboard.kt`, the setting `look.selection_ordered`); no state kept in the module.
+- **Thinking** (UC1.3): the new reply's (Qwen opens its drawer only from the new reply's card; the
+  page reader leaves out thinking that was there before sending); one block before and after the
+  reply, open while it streams, folded once saved; how long it thought is measured by the app.
+- **Plugins**: one "make it with an AI" section (copy first, Claude recommended, the guide folded);
+  the chats list keeps Settings at the bottom.
+- **The design brought back in line** (Gtex, 2026-11-24): `design/` now lives beside the code
+  (text only; the screenshots stay on the design branch); the decisions from the phone written into
+  the requirements; `terms-check.py` checks every name against `3-terms.md` (names waiting for a
+  decision in `terms-pending.md`); retired words reworded with the design's own terms; the screen's
+  words as decided (Catalogue, Runtime plugins, Plugin Sources, the filter chips, Title Case for named
+  features); Prettier 3.3.3 over the plugins; the `Turn` and `Send` fields of decided features
+  recorded in `3-terms.md`.
+
+**Checks**: 77 plugin tests; the core's checks; Prettier clean; terms-check: 0 new strays, 230 names
+waiting, 1 old word (the contract's `part`). **Not run**: anything on the phone since build 1028;
+the Kotlin (`Keyboard.kt`, the popup rename) has never been compiled.

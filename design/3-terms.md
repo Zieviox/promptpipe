@@ -98,6 +98,8 @@ in `folders.json`; moving or renaming a folder moves its record. Owner: the runt
 | `blocks` | list of strings | the names of the blocks that went out ("Sent with 4", UC25) |
 | `notes` | list of strings | what plugins noted while working on it ("Base64: fixed 2 characters"), shown in the trace (from the old app) |
 | `diagnostics` | list of `{ at_s, stop, reply_length, thinking_length, replies_shown, view_width, view_height, hidden }` | for waits of 30 s or more: the last changes the page showed, numbers and flags only, never text (UC1) |
+| `parent` | turn id | the message it follows, so a chat is a tree of versions (branches, approved 2026-11-23 in `9-build.md`) |
+| `site_ref` | string | the reply's reference on the site's page (the id around it), to find and switch it there (`4-ports.md`: `site_regenerate`, `site_version_set`) |
 
 A plugin's data for a chat is in the chat's data folder, `<plugin id>.json`, keyed by turn when it
 needs to be: one place, not a field on every turn.
@@ -255,7 +257,12 @@ function (the only writer).
   (none for side requests and jobs), `turn` (the turn it fills), `message`, `attachments`, `replaces` (the turn it replaces, UC5),
   `status` (`"queued"` · `"waiting"`
   (for a free page) · `"sending"` · `"failed"`), `error` (an `Error`), `provider`, `page` (none for api
-  providers), `job`, `at`, `progress`. A send with no `chat` is a side request: it isn't saved. The queue and the failed
+  providers), `job`, `at`, `progress`; `parent` and `site_ref` (as on the `Turn` it fills); `force`
+  (Send now: it goes although the queue holds, 2026-11-23); `regenerate` (Send again uses the site's
+  Regenerate, 2026-11-23); `plain` (a side request without the profile's blocks, `9-build.md`);
+  `thinking_at` and `writing_at` (when the thinking and the reply first showed: how long it thought,
+  `thought_ms`, measured by the app, since no site says, 2026-11-24); `updates_got` (how many progress
+  updates arrived, for the reply's Live updates). A send with no `chat` is a side request: it isn't saved. The queue and the failed
   list are views of `sends` by status, not lists of their own (UC1–UC4, UC41, UC42.3).
 - **`Page`**: one open site page: `id`, `provider`, `url`, `title`, `status` (`"loading"` ·
   `"ready"` (the chat box shows: logged in, or a guest the site lets in; what the welcome guide
