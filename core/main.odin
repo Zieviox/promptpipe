@@ -13,6 +13,7 @@ import "core:fmt"
 import "core:os"
 import "core:strconv"
 import "core:sync"
+import "core:time"
 
 VERSION :: "1.0.0"
 
@@ -89,6 +90,9 @@ core_start :: proc() -> bool {
 	// allocator they were made with, and a request's arena is freed when it ends.
 	S.jobs = make(map[string]^Job, heap())
 	S.events = make([dynamic]Event, heap())
+	// Event ids go on from the time the core started (in microseconds), so a screen that
+	// reconnects to a restarted core with an old Last-Event-ID misses nothing.
+	S.event_next = int(time.to_unix_nanoseconds(time.now()) / 1000)
 	revisions = make(map[string]string, heap())
 	for dir in ([]string{S.app_dir, S.private_dir}) do folder_make(dir)
 	revisions_load()

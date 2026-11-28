@@ -52,14 +52,14 @@ try:
     open(os.path.join(tmp, "x.txt"), "w").write("x")
     r = call("file_move", {"root": "device", "from": os.path.join(tmp, "x.txt"), "to_root": "built_in", "to": "base64/plugin.json", "copy": True})
     check("a copy can't overwrite a built-in plugin's file",
-          r["error"]["code"] == "permission_denied" and "base64" in open(os.path.join(assets, "plugins", "base64", "plugin.json")).read())
+          r.get("error", {}).get("code") == "permission_denied" and "base64" in open(os.path.join(assets, "plugins", "base64", "plugin.json")).read())
     r = call("file_move", {"root": "app", "from": "config.json", "to_root": "device", "to": os.path.join(tmp, "out.json"), "copy": True})
-    check("nothing is copied onto the phone's storage", r["error"]["code"] == "permission_denied" and not os.path.exists(os.path.join(tmp, "out.json")))
+    check("nothing is copied onto the phone's storage", r.get("error", {}).get("code") == "permission_denied" and not os.path.exists(os.path.join(tmp, "out.json")))
     r = call("file_move", {"root": "device", "from": os.path.join(tmp, "x.txt"), "to_root": "app", "to": "x.txt"})
-    check("nothing on the phone's storage is moved", r["error"]["code"] == "permission_denied" and os.path.exists(os.path.join(tmp, "x.txt")))
-    check("a write can't leave its root", call("file_write", {"root": "app", "path": "../x.txt", "data": "x"})["error"]["code"] == "invalid_argument")
+    check("nothing on the phone's storage is moved", r.get("error", {}).get("code") == "permission_denied" and os.path.exists(os.path.join(tmp, "x.txt")))
+    check("a write can't leave its root", call("file_write", {"root": "app", "path": "../x.txt", "data": "x"}).get("error", {}).get("code") == "invalid_argument")
     check("a delete on the phone's storage only takes the old app's folders",
-          call("file_delete", {"root": "device", "path": os.path.join(tmp, "x.txt")})["error"]["code"] == "permission_denied")
+          call("file_delete", {"root": "device", "path": os.path.join(tmp, "x.txt")}).get("error", {}).get("code") == "permission_denied")
 
     chat = ".promptpipe/chats/c1"
     call("file_write", {"root": "chats", "path": f"{chat}/meta.json", "data": '{"name":"Trip ideas"}'})
@@ -91,7 +91,7 @@ try:
     check("a folder is copied whole, hidden ones and big files included, in chunks",
           r["data"]["copied"] == 1 and open(os.path.join(copy, ".git", "pack"), "rb").read() == big
           and open(os.path.join(copy, "Trip.md")).read() == "# Trip")
-    check("a whole copy reports no failures", r["data"]["failed"] == 0 and r["data"]["first_failed"] == "")
+    check("a whole copy reports no failures", r["data"].get("failed") == 0 and r["data"].get("first_failed") == "")
     backup = ".promptpipe/backups/old-app-shared"
     r = call("file_move", {"root": "app", "from": backup, "to": f"{backup}/history/history", "copy": True})
     check("a folder is never copied into itself (the old app's nested history)",
@@ -99,7 +99,7 @@ try:
     os.makedirs(os.path.join(app, "blocked", "history", "Trip.md"))  # a folder where the file goes
     r = call("file_move", {"root": "device", "from": old, "to_root": "app", "to": "blocked", "copy": True, "overwrite": True})
     check("a copy names the files it couldn't copy (H6)",
-          r["data"]["failed"] == 1 and r["data"]["first_failed"].endswith("history/Trip.md")
+          r["data"].get("failed") == 1 and r["data"].get("first_failed", "").endswith("history/Trip.md")
           and not os.path.exists(os.path.join(app, "blocked", "history", "Trip.md.copying")))
     # A chat's own files by a pattern with "*" inside a part (how a chat's messages are loaded).
     one = os.path.join(app, "chats", ".promptpipe", "chats", "abc")
@@ -137,23 +137,49 @@ try:
     call("file_write", {"root": "app", "path": "config.json", "data": cfg, "expected": hashlib.sha256(b'{"edited":true}').hexdigest()})
     check("a wrong token is refused (UC41)", http("/v1/models", headers={"Authorization": "Bearer nope", "X-PP-Key": ""})[0] == 401)
 
-    def screen():  # a stand-in screen: answers each job from the event stream
+    jobs, last_id = [], [0]
+    def screen():  # a stand-in screen: answers each job from the event stream, "boom" with a failure
         req = urllib.request.Request(BASE + "/events", headers={"X-PP-Key": KEY})
-        with urllib.request.urlopen(req, timeout=20) as stream:
+        with urllib.request.urlopen(req, timeout=30) as stream:
             for line in stream:
+                if line.startswith(b"id: "): last_id[0] = int(line[4:])
                 if not line.startswith(b"data: "): continue
-                event = json.loads(line[6:])
-                job = event["data"]
-                if job.get("request") == "chat":
-                    for status, reply in (("sending", "Hel"), ("done", "Hello there")):
-                        http("/event", {"type": "event", "name": "job_changed", "data": {"job": job["id"], "status": status, "reply": reply, "chat": "c9", "sent": "hi"}})
-                    return
+                job = json.loads(line[6:])["data"]
+                if job.get("request") != "chat": continue
+                jobs.append(job["id"])
+                if job["message"] == "boom":
+                    parts = [{"status": "failed", "error": {"code": "unavailable", "message": "the site is down"}}]
+                else:
+                    parts = [{"status": "sending", "reply": "Hel"}, {"status": "done", "reply": "Hello there", "chat": "c9", "sent": "hi"}]
+                for part in parts:
+                    http("/event", {"type": "event", "name": "job_changed", "data": {"job": job["id"], **part}})
     threading.Thread(target=screen, daemon=True).start()
     time.sleep(0.3)
-    status, body = http("/v1/chat/completions", {"model": "Plain", "messages": [{"role": "user", "content": "hi"}]},
-                        headers={"Authorization": "Bearer " + token, "X-PP-Key": ""})
+    auth = {"Authorization": "Bearer " + token, "X-PP-Key": ""}
+    status, body = http("/v1/chat/completions", {"model": "Plain", "messages": [{"role": "user", "content": "hi"}]}, headers=auth)
     answer = json.loads(body)
     check("a job answers like OpenAI, with the chat it went to", answer["choices"][0]["message"]["content"] == "Hello there" and answer["promptpipe"]["chat"] == "c9")
+    status, body = http("/v1/chat/completions", {"model": "Plain", "messages": [{"role": "user", "content": "boom"}]}, headers=auth)
+    check("a failed job answers the caller with why (H3)", json.loads(body).get("error", {}).get("message") == "the site is down")
+    late = http("/event", {"type": "event", "name": "job_changed", "data": {"job": jobs[0], "status": "done"}})
+    check("an answered job is forgotten (H3)", late[0] == 404)
+
+    # A restarted core: the screen reconnects with the old Last-Event-ID and still gets new events (H4).
+    proc.terminate(); proc.wait()
+    proc = subprocess.Popen([CORE, "--app", app, "--private", private, "--assets", assets, "--port", str(PORT)],
+                            env={**os.environ, "PP_KEY": KEY}, stdout=subprocess.DEVNULL)
+    time.sleep(0.5)
+    got = []
+    def reconnect():
+        req = urllib.request.Request(BASE + "/events", headers={"X-PP-Key": KEY, "Last-Event-ID": str(last_id[0])})
+        with urllib.request.urlopen(req, timeout=10) as stream:
+            for line in stream:
+                if line.startswith(b"data: "): return got.append(json.loads(line[6:]))
+    threading.Thread(target=reconnect, daemon=True).start()
+    time.sleep(0.3)
+    threading.Thread(target=lambda: http("/v1/models", headers=auth), daemon=True).start()
+    time.sleep(1)
+    check("events after a core restart reach a screen that reconnects (H4)", got and got[0]["data"]["request"] == "models")
 finally:
     proc.terminate()
 print("all passed" if not failures else f"{len(failures)} failed")

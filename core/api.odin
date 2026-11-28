@@ -9,6 +9,7 @@ import "core:crypto"
 import "core:encoding/hex"
 import "core:encoding/json"
 import "core:fmt"
+import "core:net"
 import "core:os"
 import "core:strings"
 import "core:sync"
@@ -169,47 +170,48 @@ job_answer_write :: proc(req: ^Request, job: ^Job, stream: bool, request: string
 		"Connection: close\r\nAccess-Control-Allow-Origin: *\r\n\r\n"
 	head := fmt.tprintf(HEAD, stream ? "text/event-stream" : "application/json")
 	alive := bytes_send(req.socket, transmute([]byte)head)
-	seen := 0
-	reply_sent := 0
+	seen, reply_sent := 0, 0
 	final: Object
 	for alive && final == nil {
-		new_parts: [dynamic]Object
-		{
-			sync.guard(&S.mu)
-			if len(job.parts) == seen && !job.done {
-				sync.cond_wait_with_timeout(&S.changed, &S.mu, 15 * time.Second)
-			}
-			for ; seen < len(job.parts); seen += 1 {
-				part, _ := object_parse(transmute([]byte)job.parts[seen])
-				append(&new_parts, part)
-			}
+		parts := job_parts_wait(job, &seen)
+		if len(parts) == 0 {
+			keep := stream ? ": keep-alive\n\n" : " "
+			alive = bytes_send(req.socket, transmute([]byte)keep)
 		}
-		if len(new_parts) == 0 {
-			alive = bytes_send(
-				req.socket,
-				transmute([]byte)string(stream ? ": keep-alive\n\n" : " "),
-			)
-			continue
-		}
-		for part in new_parts {
+		for part in parts {
 			status := text_get(part, "status")
 			if status == "done" || status == "failed" do final = part
-			reply := text_get(part, "reply")
-			if stream && len(reply) > reply_sent && status != "failed" {
-				CHUNK :: `data: {{"id":%s,"object":"chat.completion.chunk",` +
-					`"choices":[{{"index":0,"delta":{{"content":%s}}}}]}}` + "\n\n"
-				chunk := fmt.tprintf(CHUNK, quote(job.id), quote(reply[reply_sent:]))
-				alive = bytes_send(req.socket, transmute([]byte)chunk)
-				reply_sent = len(reply)
-			}
+			if stream && alive do alive = chunk_send(req.socket, job, part, &reply_sent)
 		}
 	}
-	if !alive {
-		job_cancel(job)
-		return Response{done = true}
-	}
-	bytes_send(req.socket, transmute([]byte)answer_format(job, final, stream, request))
+	if alive do bytes_send(req.socket, transmute([]byte)answer_format(job, final, stream, request))
+	job_leave(job)
 	return Response{done = true}
+}
+
+// The job's parts after `seen`, waiting up to 15 s for one (none: time for a keep-alive).
+job_parts_wait :: proc(job: ^Job, seen: ^int) -> [dynamic]Object {
+	sync.guard(&S.mu)
+	if len(job.parts) == seen^ && !job.done {
+		sync.cond_wait_with_timeout(&S.changed, &S.mu, 15 * time.Second)
+	}
+	parts: [dynamic]Object
+	for ; seen^ < len(job.parts); seen^ += 1 {
+		part, _ := object_parse(transmute([]byte)job.parts[seen^])
+		append(&parts, part)
+	}
+	return parts
+}
+
+// A streamed reply's new text, as an OpenAI chunk (a failed job's partial reply isn't sent).
+chunk_send :: proc(socket: net.TCP_Socket, job: ^Job, part: Object, reply_sent: ^int) -> bool {
+	CHUNK :: `data: {{"id":%s,"object":"chat.completion.chunk",` +
+		`"choices":[{{"index":0,"delta":{{"content":%s}}}}]}}` + "\n\n"
+	reply := text_get(part, "reply")
+	if len(reply) <= reply_sent^ || text_get(part, "status") == "failed" do return true
+	chunk := fmt.tprintf(CHUNK, quote(job.id), quote(reply[reply_sent^:]))
+	reply_sent^ = len(reply)
+	return bytes_send(socket, transmute([]byte)chunk)
 }
 
 answer_format :: proc(job: ^Job, final: Object, stream: bool, request: string) -> string {
@@ -255,14 +257,26 @@ answer_format :: proc(job: ^Job, final: Object, stream: bool, request: string) -
 	return fmt.tprintf(ANSWER, id, quote(reply), reasoning, tokens_in, tokens_out, total, report)
 }
 
-// The caller left: when nobody else waits for the job, the app stops it.
-job_cancel :: proc(job: ^Job) {
-	sync.guard(&S.mu)
-	job.users -= 1
-	if job.users > 0 || job.done do return
-	job.done = true
-	sync.mutex_unlock(&S.mu)
+// A caller is done with the job (answered, or gone). When nobody else waits for it the core
+// forgets it, and a job the app hasn't finished is stopped there (the caller left, #209).
+job_leave :: proc(job: ^Job) {
 	CANCEL :: `{{"type":"event","name":"job_received","data":{{"id":%s,"request":"cancel"}}}}`
-	event_send(fmt.tprintf(CANCEL, quote(job.id)))
 	sync.mutex_lock(&S.mu)
+	job.users -= 1
+	last := job.users == 0
+	cancel := last && !job.done ? fmt.tprintf(CANCEL, quote(job.id)) : ""
+	if last {
+		delete_key(&S.jobs, job.id)
+		job_free(job)
+	}
+	sync.mutex_unlock(&S.mu)
+	if cancel != "" do event_send(cancel)
+}
+
+job_free :: proc(job: ^Job) {
+	for part in job.parts do delete(part, heap())
+	delete(job.parts)
+	delete(job.key, heap())
+	delete(job.id, heap())
+	free(job, heap())
 }
