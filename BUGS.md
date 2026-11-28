@@ -186,7 +186,7 @@ Every fixed bug above came from one of these. Build them in from the start.
 
 ## 9. The rewrite (branches `rewrite`; from Assay's code check, fixed by Spec Ops 2026-11-28)
 
-Findings: /mnt/project-files/promptpipe/rewrite-code-assessment-recheck.md. Fixes: promptpipe `954b302` (on `rewrite` 2755925) and promptpipe-plugins `09c7674` (on `rewrite` d2cd94c). Tests: the core's HTTP test and the JS harness (81 of 81); each new test fails on the old code (H5, H6, H3, H4 core; H2, H3, H6 JS).
+Findings: /mnt/project-files/promptpipe/rewrite-code-assessment-recheck.md. All pushed to both repos' `rewrite` branches (Gtex's choice, 2026-11-28): promptpipe `a6220b6`, promptpipe-plugins `c146fa7`. Tests: the core's HTTP test and the JS harness (84 of 84); each new test fails on the old code. Kotlin changes (#102's Credentials.kt, #108) aren't compiled here: no Android SDK in the cloud.
 
 | # | Bug | Status | Notes |
 |---|---|---|---|
@@ -195,4 +195,9 @@ Findings: /mnt/project-files/promptpipe/rewrite-code-assessment-recheck.md. Fixe
 | 101 | H4: events missed after the core restarts | fixed (waiting for Gtex phone check) | Event ids start at the core's start time (microseconds), so the screen's old Last-Event-ID never filters out the new core's events. Tested with a real restart. |
 | 102 | H5: copy and fetch-to-file get around the write rules | fixed (waiting for Gtex phone check) | The roots' rules now live in `path_verify` (built-in files only read; on the phone's storage only `.nomedia` written, only the old app's PromptPipe folders deleted, nothing moved or copied there), used by write, delete, move and copy. `http_fetch`'s `file` option (unchecked, unused) is removed: a download is `http_fetch`, then `file_write`. |
 | 103 | H6: deleting the old app's folders could lose data | fixed (waiting for Gtex phone check) | A copy reports the files it couldn't copy (it skipped them silently), and copies each file to a temporary name, then renames, so a copy cut short is finished next time. The import counts a backup with failed files as none and says why; Delete removes only folders with a backup, names the others, and reports what it really did. old-app-import 1.0.2. |
+| 104 | OpenAI provider sends every branch and version; history 0 sends everything | fixed (waiting for Gtex phone check) | Now the path shown (`PP.turns_shown`) up to the message this one follows, the last `history` of them, none for 0. The send's `context.count` is now the message's real place on the path (a new version of message 3 is 3), which Memory's every-N rule reads too. openai 1.0.3. |
+| 105 | M4: a chat loaded twice at once shows its messages twice | fixed (waiting for Gtex phone check) | `chat_load`'s "not loaded yet" check now goes with the change that puts the turns in. runtime-chats 1.0.1. |
+| 106 | N6: a file still uploading after 2 minutes is sent without it, silently | fixed (waiting for Gtex phone check) | The send fails with why ("still uploading notes.txt after 2 minutes, so the message wasn't sent") before anything is typed. runtime-site 1.0.1. |
+| 107 | N5: Undo right after deleting a chat brings it back without its files | fixed (waiting for Gtex phone check) | The files are deleted first, then the State change and its Undo toast, so an Undo writes them back after the deletes. runtime-screen 1.0.1. |
+| 108 | N7: a page that reloads while getting its scripts is marked ready without them | fixed (waiting for Gtex phone check) | `scripts_hand` completes only the scripts future of the load it hands to (Pages.kt). Needs the build. |
 
