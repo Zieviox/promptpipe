@@ -88,13 +88,15 @@ class Pages(private val app: App) {
 
     // The page's scripts (the default routine, then the provider's own): at the first load and
     // again whenever the page loads anew (a reload, the site's own navigation, a crash), since a
-    // new page starts with none.
+    // new page starts with none. Only this load's `scripts` is marked: if the page loads again
+    // meanwhile, its own handing marks the newer one (N7).
     private fun scripts_hand(page: Page) {
+        val done = page.scripts
         try {
             call_send(page, "script_run", JSONObject().put("provider", page.provider), 30_000)
-            page.scripts.complete(Unit)
+            done.complete(Unit)
         } catch (e: Refusal) {
-            page.scripts.completeExceptionally(e)
+            done.completeExceptionally(e)
             throw e
         }
     }
