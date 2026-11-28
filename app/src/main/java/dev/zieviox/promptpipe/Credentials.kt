@@ -20,8 +20,8 @@ import javax.net.ssl.SSLException
 // Credentials (UC40): values encrypted with a key in the Android Keystore, kept in a file that
 // backups leave out, never in exports, settings, the history or logs (S7). A write-only one never
 // leaves the platform: `http_fetch` adds it to requests for its hosts only. `http_fetch` is the
-// platform's HTTPS client (S5): streamed, saved to a file if asked, a cut connection tried once,
-// errors in plain words with the host (UC1.5).
+// platform's HTTPS client (S5): streamed, a cut connection tried once, errors in plain words
+// with the host (UC1.5). A download is saved with the core's `file_write`, its one write check.
 class Credentials(private val app: App) {
     private val file get() = File(app.noBackupFilesDir, "credentials.json")
 
@@ -139,11 +139,6 @@ class Credentials(private val app: App) {
         val status = c.responseCode
         val input = if (status >= 400) c.errorStream else c.inputStream
         val out = JSONObject().put("status", status).put("url", c.url.toString())
-        d.optString("file").takeIf { it.isNotBlank() }?.let { path ->
-            val target = File(app.core.app_dir, path).apply { parentFile?.mkdirs() }
-            input?.use { i -> target.outputStream().use { i.copyTo(it) } }
-            return out.put("file", target.path)
-        }
         if (d.optBoolean("stream")) {
             val text = StringBuilder()
             input?.bufferedReader()?.forEachLine { line ->

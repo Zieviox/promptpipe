@@ -107,7 +107,7 @@ write, move and delete: one mechanism for every file (D7).
 | `site_regenerate` | page, site_ref (string: the reply's reference on the page), limits → as `site_send`: reply, thinking, site_ref (the new version's), url, model | S | branches |
 | `site_version_set` | page, want (string: the reference to show), refs (list of strings: the versions' references) → done (boolean) | S | branches |
 | `view_set` | page, or none; region `{ l, t, r, b }`: the site view's place as fractions (0 to 1) of the screen's area, left, top, right, bottom → done | S | UC4, UC9, UC12 |
-| `http_fetch` | request (url, method, headers, body, credential name, streaming, file to save to) → response; parts as `http_received` events | A, P | UC15, UC29–UC31 |
+| `http_fetch` | request (url, method, headers, body, credential name, streaming) → response; parts as `http_received` events | A, P | UC15, UC29–UC31 |
 | `credential_create` | fields, value → credential | S | UC40 |
 | `credential_list` | → credentials (no values) | S, A | UC40 |
 | `credential_delete` | name → done | S | UC40 |
@@ -307,8 +307,8 @@ Every screen state traces to calls and records (above); `chat-empty` was looked 
 - Per-topic ports, wrappers and documents: one port each way, one table.
 - File watching: the change check runs on write, move and delete (D7).
 - A notification call: the keep-alive notification is the platform's own (R2).
-- Download and zip calls: downloads are `http_fetch` with a file to save to; zips are read and
-  made in the runtime (plugin zips handed to `plugin_write`, the old app's backup to `file_write`).
+- Download and zip calls: a download is `http_fetch`, then `file_write` (its one write check); zips
+  are read and made in the runtime (plugin zips handed to `plugin_write`, the old app's backup to `file_write`).
 - Time and ids: given to the pure functions as inputs by the loader; not calls to the outside.
 - Per-device conveniences: the screen's own business, not the application's.
 

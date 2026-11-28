@@ -120,7 +120,7 @@ answers, or the calls it uses) · **Lines**.
 | `credential_create` / `credential_delete` | encrypt with the Keystore key, kept out of backups (S7) | fields, value → credential | E | `credential_create`, `credential_delete` | 25 |
 | `credential_list` | the listing, never values | → credentials | E | `credential_list` | 8 |
 | `credential_read` | a read-write credential's value; the API token for Show and Copy | name → value | E | `credential_read` | 7 |
-| `http_fetch` | a request (https only, S5), streamed, saved to a file if asked, a write-only credential added only for its hosts, a cut connection tried once, errors with the host (UC1.5) | request → response, parts | E | `http_fetch`, `http_received` | 50 |
+| `http_fetch` | a request (https only, S5), streamed, a write-only credential added only for its hosts, a cut connection tried once, errors with the host (UC1.5) | request → response, parts | E | `http_fetch`, `http_received` | 50 |
 
 ### platform · services and keep-alive (60)
 

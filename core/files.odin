@@ -51,13 +51,21 @@ chats_dir :: proc() -> string {
 	return join(S.app_dir, "chats")
 }
 
+// What a call does at a path, for each root's rules. A copy reads where it comes from and moves
+// into where it goes.
+Use :: enum {
+	Read,
+	Write,
+	Delete,
+	Move,
+}
+
 // A path inside its root: no "..", no empty parts, no backslashes; device paths are absolute.
-path_verify :: proc(root, path: string) -> (full: string, err: Error) {
-	bad := strings.contains(path, "\\") || strings.contains(path, "//") || slice.contains(
-		strings.split(path, "/"),
-		"..",
-	)
-	if bad do return "", {"invalid_argument", fmt.tprintf("bad path: %s", path)}
+// The one check for what may change where (`use_refused`), so no call gets around it.
+path_verify :: proc(root, path: string, use := Use.Read) -> (full: string, err: Error) {
+	bad := strings.contains(path, "\\") || strings.contains(path, "//")
+	if bad || slice.contains(strings.split(path, "/"), "..") do return "", {"invalid_argument", fmt.tprintf("bad path: %s", path)}
+	if why := use_refused(root, path, use); why != "" do return "", {"permission_denied", why}
 	switch root {
 	case "app":      return path == "" ? S.app_dir : join(S.app_dir, path), {}
 	case "chats":    return path == "" ? chats_dir() : join(chats_dir(), path), {}
@@ -69,6 +77,27 @@ path_verify :: proc(root, path: string) -> (full: string, err: Error) {
 		return path, {}
 	}
 	return "", {"invalid_argument", fmt.tprintf("no root %q", root)}
+}
+
+// Why this use is refused here, or "": the app's own files are only read; on the phone's storage
+// only a .nomedia marker is written and only the old app's folders are deleted.
+use_refused :: proc(root, path: string, use: Use) -> string {
+	if use == .Read || (root != "built_in" && root != "device") do return ""
+	if root == "built_in" do return "the app's own files can't be changed"
+	switch use {
+	case .Read:
+	case .Write:
+		if !strings.has_suffix(path, "/.nomedia") {
+			return "only a .nomedia marker can be written on the phone's storage"
+		}
+	case .Delete:
+		if !strings.has_suffix(path, "/PromptPipe") {
+			return "only the old app's folders can be deleted there"
+		}
+	case .Move:
+		return "files on the phone's storage are never moved, and nothing is copied there"
+	}
+	return ""
 }
 
 // Make a folder and the ones missing above it, one at a time: Android refuses to open /data or
@@ -209,14 +238,8 @@ change_format :: proc(path, ours, theirs: string) -> string {
 
 file_write :: proc(d: Object) -> (string, Error) {
 	root, path, expected := text_get(d, "root"), text_get(d, "path"), text_get(d, "expected")
-	full, perr := path_verify(root, path)
+	full, perr := path_verify(root, path, .Write)
 	if perr.code != "" do return "", perr
-	if root == "device" && !strings.has_suffix(path, "/.nomedia") {
-		return "", {"permission_denied", "only a .nomedia marker can be written there"}
-	}
-	if root == "built_in" {
-		return "", {"permission_denied", "the app's own files can't be changed"}
-	}
 	old, read_err := os.read_entire_file(full, context.allocator)
 	if read_err == nil {
 		theirs := revision_get(old)
@@ -237,25 +260,20 @@ file_write :: proc(d: Object) -> (string, Error) {
 }
 
 // Move a file or folder; with `copy`, copy it instead, and with `overwrite` off, only what isn't
-// there yet (a copy says how many chats it copied).
+// there yet.
 file_move :: proc(d: Object) -> (string, Error) {
-	root, from_path := text_get(d, "root"), text_get(d, "from")
-	from, from_err := path_verify(root, from_path)
+	root, copy := text_get(d, "root"), flag_get(d, "copy")
+	from, from_err := path_verify(root, text_get(d, "from"), copy ? .Read : .Move)
 	if from_err.code != "" do return "", from_err
-	to, to_err := path_verify(text_get(d, "to_root", root), text_get(d, "to"))
+	to, to_err := path_verify(text_get(d, "to_root", root), text_get(d, "to"), .Move)
 	if to_err.code != "" do return "", to_err
-	if flag_get(d, "copy") {
-		// A copy into its own folder would copy itself again at every level (the old app's
-		// chats folder chooser did this, 2026-11-07).
-		if to == from || strings.has_prefix(to, strings.concatenate({from, "/"}, context.temp_allocator)) {
-			return "", {"invalid_argument", "a folder can't be copied into itself"}
-		}
-		copied := tree_copy(from, to, flag_get(d, "overwrite"))
-		return fmt.tprintf(`{{"copied":%d}}`, copied), {}
-	}
-	if root == "device" || root == "built_in" {
-		return "", {"permission_denied", "files there are never moved"}
-	}
+	if copy do return folder_copy(from, to, flag_get(d, "overwrite"))
+	return file_rename(d, from, to)
+}
+
+// A move: the change check on what moves, and never over something already there.
+file_rename :: proc(d: Object, from, to: string) -> (string, Error) {
+	from_path := text_get(d, "from")
 	if data, err := os.read_entire_file(from, context.allocator); err == nil {
 		expected := text_get(d, "expected", revision_recorded(from))
 		if expected != "" && expected != revision_get(data) {
@@ -274,35 +292,73 @@ file_move :: proc(d: Object) -> (string, Error) {
 	return `{"done":true}`, {}
 }
 
+// What a copy did: the chats it copied, and the files it couldn't (a backup with any is
+// incomplete; copying again with `overwrite` off finishes it).
+Copied :: struct {
+	chats:        int,
+	failed:       int,
+	first_failed: string,
+}
+
+// A copy into its own folder would copy itself again at every level (the old app's chats folder
+// chooser did this, 2026-11-07).
+folder_copy :: proc(from, to: string, overwrite: bool) -> (string, Error) {
+	if to == from || strings.has_prefix(to, strings.concatenate({from, "/"})) {
+		return "", {"invalid_argument", "a folder can't be copied into itself"}
+	}
+	done: Copied
+	tree_copy(from, to, overwrite, &done)
+	return fmt.tprintf(
+		`{{"copied":%d,"failed":%d,"first_failed":%s}}`,
+		done.chats,
+		done.failed,
+		quote(done.first_failed),
+	), {}
+}
+
 // Folders deeper than this are left out: a backstop for a copy that reaches itself by another
 // spelling of the same path (/sdcard and /storage/emulated/0).
 COPY_DEPTH :: 64
 
-tree_copy :: proc(from, to: string, overwrite: bool, depth := 0) -> int {
-	if depth > COPY_DEPTH do return 0
+tree_copy :: proc(from, to: string, overwrite: bool, done: ^Copied, depth := 0) {
+	if depth > COPY_DEPTH do return
 	if !os.is_dir(from) {
-		if !overwrite && os.exists(to) do return 0
-		if !file_copy(from, to) do return 0
-		return strings.has_suffix(to, ".md") ? 1 : 0
+		if !overwrite && os.exists(to) do return
+		if !file_copy(from, to) do copy_failed(done, from)
+		else if strings.has_suffix(to, ".md") do done.chats += 1
+		return
 	}
-	copied := 0
-	entries, _ := os.read_all_directory_by_path(from, context.allocator)
-	for e in entries {
-		if join(from, e.name) == to do continue // the copy itself, met while copying
-		copied += tree_copy(join(from, e.name), join(to, e.name), overwrite, depth + 1)
+	entries, err := os.read_all_directory_by_path(from, context.allocator)
+	if err != nil do copy_failed(done, from)
+	// The copy itself, met while copying, is left out.
+	for e in entries do if join(from, e.name) != to {
+		tree_copy(join(from, e.name), join(to, e.name), overwrite, done, depth + 1)
 	}
-	return copied
 }
 
-// One file copied in 1 MB chunks, so a large one (a git pack) is never in memory whole.
+copy_failed :: proc(done: ^Copied, path: string) {
+	done.failed += 1
+	if done.first_failed == "" do done.first_failed = path
+}
+
+// One file copied in 1 MB chunks, so a large one (a git pack) is never in memory whole; to a
+// temporary file first, then renamed (D4), so a copy cut short is never taken for a whole file.
 file_copy :: proc(from, to: string) -> bool {
 	src, open_err := os.open(from)
 	if open_err != nil do return false
 	defer os.close(src)
 	folder_make(to[:max(0, strings.last_index_byte(to, '/'))])
-	dst, create_err := os.create(to)
+	temp := fmt.tprintf("%s.copying", to)
+	dst, create_err := os.create(temp)
 	if create_err != nil do return false
-	defer os.close(dst)
+	ok := chunks_copy(src, dst)
+	os.close(dst)
+	if ok do ok = os.rename(temp, to) == nil
+	if !ok do os.remove(temp)
+	return ok
+}
+
+chunks_copy :: proc(src, dst: ^os.File) -> bool {
 	chunk := make([]byte, 1024 * 1024, heap())
 	defer delete(chunk, heap())
 	for {
@@ -317,14 +373,8 @@ file_copy :: proc(from, to: string) -> bool {
 
 file_delete :: proc(d: Object) -> (string, Error) {
 	root, path := text_get(d, "root"), text_get(d, "path")
-	full, perr := path_verify(root, path)
+	full, perr := path_verify(root, path, .Delete)
 	if perr.code != "" do return "", perr
-	if root == "device" && !strings.has_suffix(path, "/PromptPipe") {
-		return "", {"permission_denied", "only the old app's folders can be deleted there"}
-	}
-	if root == "built_in" {
-		return "", {"permission_denied", "the app's own files can't be changed"}
-	}
 	if data, err := os.read_entire_file(full, context.allocator); err == nil {
 		expected := text_get(d, "expected", revision_recorded(full))
 		if expected != "" && expected != revision_get(data) {

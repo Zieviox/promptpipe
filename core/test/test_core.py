@@ -48,6 +48,19 @@ try:
     check("only a .nomedia marker can be written on the phone's storage",
           call("file_write", {"root": "device", "path": "/tmp/x.txt", "data": "x"})["error"]["code"] == "permission_denied")
 
+    # One write check for every call that changes files (H5): a copy or a move can't get around it.
+    open(os.path.join(tmp, "x.txt"), "w").write("x")
+    r = call("file_move", {"root": "device", "from": os.path.join(tmp, "x.txt"), "to_root": "built_in", "to": "base64/plugin.json", "copy": True})
+    check("a copy can't overwrite a built-in plugin's file",
+          r["error"]["code"] == "permission_denied" and "base64" in open(os.path.join(assets, "plugins", "base64", "plugin.json")).read())
+    r = call("file_move", {"root": "app", "from": "config.json", "to_root": "device", "to": os.path.join(tmp, "out.json"), "copy": True})
+    check("nothing is copied onto the phone's storage", r["error"]["code"] == "permission_denied" and not os.path.exists(os.path.join(tmp, "out.json")))
+    r = call("file_move", {"root": "device", "from": os.path.join(tmp, "x.txt"), "to_root": "app", "to": "x.txt"})
+    check("nothing on the phone's storage is moved", r["error"]["code"] == "permission_denied" and os.path.exists(os.path.join(tmp, "x.txt")))
+    check("a write can't leave its root", call("file_write", {"root": "app", "path": "../x.txt", "data": "x"})["error"]["code"] == "invalid_argument")
+    check("a delete on the phone's storage only takes the old app's folders",
+          call("file_delete", {"root": "device", "path": os.path.join(tmp, "x.txt")})["error"]["code"] == "permission_denied")
+
     chat = ".promptpipe/chats/c1"
     call("file_write", {"root": "chats", "path": f"{chat}/meta.json", "data": '{"name":"Trip ideas"}'})
     turns = [{"id": "t1", "message": "a red car", "reply": "nice"}, {"id": "t2", "message": "blue", "reply": "sky"}]
@@ -78,9 +91,16 @@ try:
     check("a folder is copied whole, hidden ones and big files included, in chunks",
           r["data"]["copied"] == 1 and open(os.path.join(copy, ".git", "pack"), "rb").read() == big
           and open(os.path.join(copy, "Trip.md")).read() == "# Trip")
-    r = call("file_move", {"root": "device", "from": old, "to_root": "device", "to": os.path.join(old, "history", "history"), "copy": True})
+    check("a whole copy reports no failures", r["data"]["failed"] == 0 and r["data"]["first_failed"] == "")
+    backup = ".promptpipe/backups/old-app-shared"
+    r = call("file_move", {"root": "app", "from": backup, "to": f"{backup}/history/history", "copy": True})
     check("a folder is never copied into itself (the old app's nested history)",
-          r.get("error", {}).get("code") == "invalid_argument" and not os.path.exists(os.path.join(old, "history", "history")))
+          r.get("error", {}).get("code") == "invalid_argument" and not os.path.exists(os.path.join(copy, "history")))
+    os.makedirs(os.path.join(app, "blocked", "history", "Trip.md"))  # a folder where the file goes
+    r = call("file_move", {"root": "device", "from": old, "to_root": "app", "to": "blocked", "copy": True, "overwrite": True})
+    check("a copy names the files it couldn't copy (H6)",
+          r["data"]["failed"] == 1 and r["data"]["first_failed"].endswith("history/Trip.md")
+          and not os.path.exists(os.path.join(app, "blocked", "history", "Trip.md.copying")))
     # A chat's own files by a pattern with "*" inside a part (how a chat's messages are loaded).
     one = os.path.join(app, "chats", ".promptpipe", "chats", "abc")
     os.makedirs(one, exist_ok=True)
